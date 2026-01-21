@@ -108,8 +108,8 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       if (error) {
-        if (error.code === 'PGRST103' || error.status === 500) {
-          console.error("Erreur serveur 500 sur Profiles. Vérifiez vos politiques RLS sur Supabase !");
+        if (error.status === 500) {
+          console.error("Supabase error 500 on profiles. Check RLS.");
         }
         throw error;
       }
@@ -133,9 +133,8 @@ const App: React.FC = () => {
       const { data, error } = await query;
       if (error) {
         console.error(`Erreur Supabase [${tableName}]: Code ${error.code} - ${error.message}`);
-        // Si c'est une erreur 500, c'est probablement un RLS récursif sur Supabase
         if (error.status === 500) {
-          addToast(`Erreur serveur sur ${tableName}.`, "error");
+          console.warn(`Attention: Problème serveur (500) sur la table ${tableName}. Vérifiez les politiques RLS.`);
         }
         return [];
       }
@@ -149,9 +148,8 @@ const App: React.FC = () => {
   const fetchAllData = async () => {
     if (!supabase) return;
     
-    console.log("Tentative de récupération des données...");
+    console.log("Synchronisation des données en cours...");
 
-    // Chargement parallèle isolé
     const [
       configData,
       postsData,
@@ -190,7 +188,7 @@ const App: React.FC = () => {
       safeFetch('celebrations', supabase.from('celebrations').select('*'))
     ]);
 
-    if (configData.data) {
+    if (configData?.data) {
       const config = configData.data;
       setAppConfig({
         ...INITIAL_CONFIG,
@@ -228,8 +226,8 @@ const App: React.FC = () => {
     setDocuments(docsData as any);
     setRewards(rewardsData as any);
     
-    if (newsData && Array.isArray(newsData) && newsData.length > 0) {
-      console.log(`Données newsletters chargées : ${newsData.length} lignes.`);
+    if (newsData && Array.isArray(newsData)) {
+      console.log(`Données newsletters: ${newsData.length} records.`);
       setNewsletters(newsData.map((n: any) => ({ 
         id: n.id,
         title: n.title,
@@ -240,8 +238,6 @@ const App: React.FC = () => {
         readCount: n.read_count || 0,
         articles: n.articles || []
       })).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()));
-    } else {
-      console.warn("Aucune newsletter disponible dans le tableau.");
     }
     
     setMoods((moodsData || []).map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
@@ -310,7 +306,7 @@ const App: React.FC = () => {
       } as User);
       addToast("Bienvenue !");
     } else {
-      setLoginError("Identifiants incorrects ou erreur serveur.");
+      setLoginError("Identifiants incorrects ou accès refusé.");
     }
   };
 
@@ -353,7 +349,7 @@ const App: React.FC = () => {
     const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
 
     return (
-      <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
+      <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12 text-left">
         <div className="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm">
           <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center border border-green-100 flex-shrink-0">
             <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" strokeWidth={1.5}/></svg>
@@ -442,7 +438,7 @@ const App: React.FC = () => {
                   <div key={user.id} className="flex items-center justify-between gap-3 group">
                     <div className="flex items-center gap-3 overflow-hidden">
                       <img src={user.avatar} className="w-10 h-10 rounded-full border-2 border-white/20 shadow-lg" alt="" />
-                      <div className="overflow-hidden">
+                      <div className="overflow-hidden text-left">
                         <p className="text-sm font-black truncate">{user.name}</p>
                         <p className="text-[10px] text-green-200 font-bold uppercase">{user.birthday?.split('-').reverse().join('/')}</p>
                       </div>

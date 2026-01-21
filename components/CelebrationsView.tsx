@@ -35,7 +35,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   const currentMonth = new Date().getMonth() + 1;
   const currentDay = new Date().getDate();
 
-  // Liste des anniversaires automatiques (basés sur le profil)
+  // Liste des anniversaires automatiques (basés sur le profil utilisateur)
   const automaticBirthdays = useMemo(() => {
     return users
       .filter(u => u.birthday)
@@ -50,13 +50,18 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       .sort((a, b) => a.birthDay - b.birthDay);
   }, [users, currentMonth, currentDay]);
 
-  // Séparation STRICTE des célébrations par type
+  // Filtrage ultra-robuste des publications manuelles (insensible à la casse)
+  const isAnniversary = (type: string) => {
+    const t = (type || '').toLowerCase().trim();
+    return t === 'anniversary' || t === 'anniversaire';
+  };
+
   const anniversaryPosts = useMemo(() => 
-    celebrations.filter(c => c.type === 'anniversary' || c.type as string === 'anniversaire'), 
+    celebrations.filter(c => isAnniversary(c.type)), 
   [celebrations]);
 
   const otherCelebrations = useMemo(() => 
-    celebrations.filter(c => c.type !== 'anniversary' && c.type as string !== 'anniversaire'), 
+    celebrations.filter(c => !isAnniversary(c.type)), 
   [celebrations]);
 
   const openWishModal = (user: User) => {
@@ -152,16 +157,16 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
             {/* 2. Publications manuelles d'anniversaire */}
             {anniversaryPosts.map(c => (
               <div key={c.id} className="bg-white rounded-3xl border border-pink-100 shadow-sm overflow-hidden group animate-in slide-in-from-left-4 duration-500">
-                <div className="p-5">
+                <div className="p-5 text-left">
                   <div className="flex items-center gap-3 mb-3">
                     <img src={c.userAvatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
-                    <div className="overflow-hidden text-left">
+                    <div className="overflow-hidden">
                       <span className="text-[9px] font-black uppercase text-pink-500 tracking-[0.2em] block mb-0.5">Anniversaire</span>
                       <h3 className="font-bold text-slate-800 truncate text-sm">{c.title}</h3>
                       <p className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.date).toLocaleDateString('fr-FR')}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 italic bg-pink-50/50 p-3 rounded-xl border border-pink-100 mb-3 text-left">"{c.description}"</p>
+                  <p className="text-xs text-slate-600 italic bg-pink-50/50 p-3 rounded-xl border border-pink-100 mb-3">"{c.description}"</p>
                   <div className="flex items-center justify-between">
                     <button 
                       onClick={() => onLikeCelebration(c.id)}
@@ -200,7 +205,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           <div className="space-y-6">
             {otherCelebrations.length > 0 ? otherCelebrations.map(c => (
               <div key={c.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group animate-in slide-in-from-bottom-4 duration-500">
-                <div className="p-6">
+                <div className="p-6 text-left">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex gap-4">
                       {c.userAvatar ? (
@@ -231,7 +236,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                       </button>
                     )}
                   </div>
-                  <p className="text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100 italic text-left">
+                  <p className="text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100 italic">
                     "{c.description}"
                   </p>
                 </div>
