@@ -1,0 +1,7 @@
+{
+  "name": "2026-Copy of Star Com'Unity",
+  "description": "Une plateforme complète de communication interne similaire à Steeple, comprenant un fil d'actualité dynamique, une gestion des rôles (Admin, Modérateur, Utilisateur) et une assistance au contenu par IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
