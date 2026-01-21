@@ -209,7 +209,6 @@ const App: React.FC = () => {
       if (docsData) setDocuments(docsData as any);
       if (rewardsData) setRewards(rewardsData as any);
       
-      // FIX: newsData was being mapped from the newsletters state instead of the newsData fetched from Supabase
       if (newsData) {
         setNewsletters(newsData.map((n: any) => ({ 
           ...n, 
@@ -598,6 +597,7 @@ const App: React.FC = () => {
             onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); fetchAllData(); }}
             onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); if (c) { await supabase.from('wellness_challenges').update({ is_active: !c.isActive }).eq('id', id); fetchAllData(); } }}
             onAddGame={async (g) => {
+              // Fix: Properties on 'g' use camelCase, while database column names use snake_case.
               await supabase.from('games').insert({
                 title: g.title,
                 description: g.description,
@@ -610,10 +610,10 @@ const App: React.FC = () => {
                 thumbnail: g.thumbnail,
                 reward_points: g.rewardPoints,
                 questions: g.questions,
-                memory_items: g.memory_items,
-                timeline_items: g.timeline_items,
-                hidden_objects: g.hidden_objects,
-                hidden_objects_image: g.hidden_objects_image
+                memory_items: g.memoryItems,
+                timeline_items: g.timelineItems,
+                hidden_objects: g.hiddenObjects,
+                hidden_objects_image: g.hiddenObjectsImage
               });
               addToast("Jeu ajouté !");
               fetchAllData();
@@ -717,7 +717,6 @@ const App: React.FC = () => {
                   end_date: poll.endDate,
                   created_by: currentUser.id,
                   created_by_name: currentUser.name,
-                  // Fix: Property 'target_departments' does not exist on type 'Omit<Poll, "id" | "createdAt" | "createdBy" | "createdByName" | "responses">'. Did you mean 'targetDepartments'?
                   target_departments: poll.targetDepartments,
                   responses: []
                 });

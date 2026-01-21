@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Celebration, UserRole } from '../types';
 
@@ -8,7 +9,7 @@ interface CelebrationsViewProps {
   onAddCelebration: (c: Omit<Celebration, 'id' | 'likes' | 'createdBy'>) => void;
   onLikeCelebration: (id: string) => void;
   onDeleteCelebration: (id: string) => void;
-  preSelectedUserId?: string; // Nouvelle prop pour pré-remplissage
+  preSelectedUserId?: string;
 }
 
 type CelebrationType = 'success' | 'welcome' | 'anniversary';
@@ -34,11 +35,15 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   const currentMonth = new Date().getMonth() + 1;
   const currentDay = new Date().getDate();
 
+  // Correction du filtrage des anniversaires automatiques (Gestion YYYY-MM-DD et MM-DD)
   const birthdays = useMemo(() => {
     return users
       .filter(u => u.birthday)
       .map(u => {
-        const [m, d] = u.birthday!.split('-').map(Number);
+        const parts = u.birthday!.split('-');
+        // Si YYYY-MM-DD (longueur 3), le mois est en index 1. Si MM-DD (longueur 2), index 0.
+        const m = parts.length === 3 ? Number(parts[1]) : Number(parts[0]);
+        const d = parts.length === 3 ? Number(parts[2]) : Number(parts[1]);
         let isToday = m === currentMonth && d === currentDay;
         return { ...u, birthMonth: m, birthDay: d, isToday };
       })
@@ -46,7 +51,10 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       .sort((a, b) => a.birthDay - b.birthDay);
   }, [users, currentMonth, currentDay]);
 
-  // Gérer le pré-remplissage si on vient du dashboard ou d'un bouton direct
+  // Séparation des célébrations par type pour l'emplacement
+  const anniversaryPosts = useMemo(() => celebrations.filter(c => c.type === 'anniversary'), [celebrations]);
+  const otherCelebrations = useMemo(() => celebrations.filter(c => c.type !== 'anniversary'), [celebrations]);
+
   const openWishModal = (user: User) => {
     setNewType('anniversary');
     setSelectedUserId(user.id);
@@ -60,7 +68,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       const user = users.find(u => u.id === preSelectedUserId);
       if (user) openWishModal(user);
     }
-  }, [preSelectedUserId]);
+  }, [preSelectedUserId, users]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +111,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Colonne Anniversaires Automatiques */}
+        {/* Colonne Anniversaires : Automatiques + Posts manuels */}
         <div className="space-y-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
              <div className="p-2 bg-pink-50 text-pink-500 rounded-xl">
@@ -113,7 +121,8 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </h2>
           
           <div className="space-y-4">
-            {birthdays.length > 0 ? birthdays.map(user => (
+            {/* Liste des anniversaires à venir (auto) */}
+            {birthdays.length > 0 && birthdays.map(user => (
               <div key={user.id} className={`p-4 rounded-3xl border transition-all group ${user.isToday ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-pink-100 shadow-sm ring-2 ring-pink-200 ring-offset-2' : 'bg-white border-slate-100 shadow-sm'}`}>
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -134,7 +143,39 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                   Lui souhaiter ✨
                 </button>
               </div>
-            )) : (
+            ))}
+
+            {/* Affichage des posts manuels d'anniversaire ici (emplacement corrigé) */}
+            {anniversaryPosts.map(c => (
+              <div key={c.id} className="bg-white rounded-3xl border border-pink-100 shadow-sm overflow-hidden group animate-in slide-in-from-left-4 duration-500">
+                <div className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <img src={c.userAvatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
+                    <div className="overflow-hidden">
+                      <h3 className="font-bold text-slate-800 truncate text-sm">{c.title}</h3>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.date).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 italic bg-pink-50/50 p-3 rounded-xl border border-pink-100 mb-3">"{c.description}"</p>
+                  <div className="flex items-center justify-between">
+                    <button 
+                      onClick={() => onLikeCelebration(c.id)}
+                      className={`flex items-center gap-1.5 text-[10px] font-black uppercase transition-all ${c.likes.includes(currentUser.id) ? 'text-green-600' : 'text-slate-400'}`}
+                    >
+                      <svg className="w-4 h-4" fill={c.likes.includes(currentUser.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeWidth="2.5" /></svg>
+                      {c.likes.length > 0 ? `${c.likes.length} félicitations` : 'Féliciter'}
+                    </button>
+                    {canManage && (
+                      <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-200 hover:text-red-500 transition-all p-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7" strokeWidth="2" /></svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {birthdays.length === 0 && anniversaryPosts.length === 0 && (
               <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl py-12 text-center">
                 <p className="text-slate-400 italic text-sm">Aucun anniversaire ce mois-ci.</p>
               </div>
@@ -142,7 +183,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </div>
         </div>
 
-        {/* Colonne Fil des réussites & Anniversaires manuels */}
+        {/* Colonne Fil des réussites & Bienvenues */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
              <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl">
@@ -152,7 +193,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </h2>
 
           <div className="space-y-6">
-            {celebrations.length > 0 ? celebrations.map(c => (
+            {otherCelebrations.length > 0 ? otherCelebrations.map(c => (
               <div key={c.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group animate-in slide-in-from-bottom-4 duration-500">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
@@ -161,22 +202,19 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                         <img src={c.userAvatar} className="w-12 h-12 rounded-2xl object-cover" alt="" />
                       ) : (
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                          c.type === 'success' ? 'bg-yellow-50 text-yellow-600' : 
-                          c.type === 'anniversary' ? 'bg-pink-50 text-pink-600' : 'bg-blue-50 text-blue-600'
+                          c.type === 'success' ? 'bg-yellow-50 text-yellow-600' : 'bg-blue-50 text-blue-600'
                         }`}>
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             {c.type === 'success' ? <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" strokeWidth="2" /> :
-                             c.type === 'anniversary' ? <path d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" strokeWidth="2" /> :
                              <path d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" />}
                           </svg>
                         </div>
                       )}
                       <div>
                         <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${
-                          c.type === 'success' ? 'text-yellow-600' : 
-                          c.type === 'anniversary' ? 'text-pink-600' : 'text-blue-600'
+                          c.type === 'success' ? 'text-yellow-600' : 'text-blue-600'
                         }`}>
-                          {c.type === 'success' ? 'Réussite' : c.type === 'anniversary' ? 'Anniversaire' : 'Bienvenue'}
+                          {c.type === 'success' ? 'Réussite' : 'Bienvenue'}
                         </span>
                         <h3 className="text-xl font-black text-slate-800 leading-tight">{c.title}</h3>
                         <p className="text-xs text-slate-400 mt-1 font-medium">{new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -213,7 +251,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" strokeWidth="2" /></svg>
                 </div>
-                <p className="text-slate-400 font-medium italic">Aucune célébration publiée récemment.</p>
+                <p className="text-slate-400 font-medium italic">Aucune réussite publiée récemment.</p>
               </div>
             )}
           </div>
