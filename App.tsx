@@ -208,7 +208,19 @@ const App: React.FC = () => {
       })));
       if (docsData) setDocuments(docsData as any);
       if (rewardsData) setRewards(rewardsData as any);
-      if (newsData) setNewsletters(newsletters.map((n: any) => ({ ...n, coverImage: n.cover_image, publishedAt: n.published_at, authorName: n.author_name, readCount: n.read_count, articles: n.articles })));
+      
+      // FIX: newsData was being mapped from the newsletters state instead of the newsData fetched from Supabase
+      if (newsData) {
+        setNewsletters(newsData.map((n: any) => ({ 
+          ...n, 
+          coverImage: n.cover_image, 
+          publishedAt: n.published_at, 
+          authorName: n.author_name, 
+          readCount: n.read_count, 
+          articles: n.articles 
+        })));
+      }
+      
       if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
       if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
       if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
@@ -441,8 +453,8 @@ const App: React.FC = () => {
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-1">Actions rapides</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
-                  { label: 'Messages', color: 'bg-blue-50 text-blue-600', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2-0 01-2-2V6a2 2-0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', action: () => setView('messages') },
-                  { label: 'Sondages', color: 'bg-purple-50 text-purple-600', icon: 'M9 12h6m-6 4h6m2 5H7a2 2-0 01-2-2V5a2 2-0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', action: () => setView('sondages') },
+                  { label: 'Messages', color: 'bg-blue-50 text-blue-600', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', action: () => setView('messages') },
+                  { label: 'Sondages', color: 'bg-purple-50 text-purple-600', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', action: () => setView('sondages') },
                   { label: 'Boutique', color: 'bg-emerald-50 text-emerald-600', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z', action: () => setView('boutique') },
                   { label: 'Social', color: 'bg-pink-50 text-pink-600', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', action: () => setView('social') },
                   { label: 'Boîte à idées', color: 'bg-amber-50 text-amber-600', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z', action: () => setView('idees') },
@@ -598,11 +610,10 @@ const App: React.FC = () => {
                 thumbnail: g.thumbnail,
                 reward_points: g.rewardPoints,
                 questions: g.questions,
-                memory_items: g.memoryItems,
-                timeline_items: g.timelineItems,
-                hidden_objects: g.hiddenObjects,
-                // Fixed property name from g.hidden_objects_image to g.hiddenObjectsImage
-                hidden_objects_image: g.hiddenObjectsImage
+                memory_items: g.memory_items,
+                timeline_items: g.timeline_items,
+                hidden_objects: g.hidden_objects,
+                hidden_objects_image: g.hidden_objects_image
               });
               addToast("Jeu ajouté !");
               fetchAllData();
@@ -706,6 +717,7 @@ const App: React.FC = () => {
                   end_date: poll.endDate,
                   created_by: currentUser.id,
                   created_by_name: currentUser.name,
+                  // Fix: Property 'target_departments' does not exist on type 'Omit<Poll, "id" | "createdAt" | "createdBy" | "createdByName" | "responses">'. Did you mean 'targetDepartments'?
                   target_departments: poll.targetDepartments,
                   responses: []
                 });

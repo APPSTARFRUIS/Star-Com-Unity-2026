@@ -1,53 +1,42 @@
 
-export class GeminiService {
-  private async callMistral(prompt: string): Promise<string> {
-    // Utilisation de la clé fournie par l'utilisateur
-    const apiKey = 'tBRn6S2Cl6F0CE76lxGyZ2wN2XUOI4tF';
+import { GoogleGenAI } from "@google/genai";
 
+export class GeminiService {
+  // Fix: Replaced Mistral API with Gemini API and used process.env.API_KEY as per guidelines
+  private async callGemini(prompt: string, systemInstruction: string): Promise<string> {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
     try {
-      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+      const response = await ai.models.generateContent({
+        // Fix: Using gemini-3-flash-preview for basic text refinement tasks
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
         },
-        body: JSON.stringify({
-          model: 'mistral-small-latest',
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7
-        })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Mistral API Error:", errorData);
-        return '';
-      }
-
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || '';
+      // Fix: Accessing .text property directly from GenerateContentResponse
+      return response.text || '';
     } catch (error) {
-      console.error("Mistral Fetch Error:", error);
+      console.error("Gemini API Error:", error);
       return '';
     }
   }
 
   async refinePostContent(content: string): Promise<string> {
     if (!content) return content;
-    const prompt = `Agis comme un expert en communication interne d'entreprise. Réécris le message suivant pour qu'il soit professionnel, chaleureux et engageant, tout en restant naturel. Ne change pas le sens fondamental : "${content}"`;
-    const refined = await this.callMistral(prompt);
+    // Fix: Using systemInstruction instead of manual prompt construction
+    const systemInstruction = "Agis comme un expert en communication interne d'entreprise. Réécris le message suivant pour qu'il soit professionnel, chaleureux et engageant, tout en restant naturel. Ne change pas le sens fondamental.";
+    const refined = await this.callGemini(content, systemInstruction);
     return refined || content;
   }
 
   async generatePostTitle(content: string): Promise<string> {
     if (!content) return 'Nouvelle Publication';
-    const prompt = `Génère un titre percutant de 3 à 5 mots maximum pour le message suivant de communication interne : "${content}". Réponds uniquement le titre, sans guillemets.`;
-    const title = await this.callMistral(prompt);
+    // Fix: Using systemInstruction for title generation
+    const systemInstruction = "Génère un titre percutant de 3 à 5 mots maximum pour le message suivant de communication interne. Réponds uniquement le titre, sans guillemets.";
+    const title = await this.callGemini(content, systemInstruction);
     return title?.replace(/"/g, '').trim() || 'Mise à jour';
   }
 }
