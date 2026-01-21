@@ -105,41 +105,30 @@ const App: React.FC = () => {
 
   const fetchUserProfile = async (userId: string) => {
     if (!supabase) return;
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    if (data) {
-      setCurrentUser({
-        ...data,
-        notification_settings: data.notification_settings || {
-          email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
-        }
-      } as User);
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setCurrentUser({
+          ...data,
+          notification_settings: data.notification_settings || {
+            email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
+          }
+        } as User);
+      }
+    } catch (e) {
+      console.error("Profile fetch error:", e);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const fetchAllData = async () => {
     if (!supabase || (!session && !currentUser)) return;
 
     try {
-      const [
-        { data: config },
-        { data: postsData },
-        { data: profiles },
-        { data: eventsData },
-        { data: ideasData },
-        { data: docsData },
-        { data: rewardsData },
-        { data: newsData },
-        { data: commentsData },
-        { data: moodsData },
-        { data: wellContentsData },
-        { data: challengesData },
-        { data: messagesData },
-        { data: transData },
-        { data: gamesData },
-        { data: pollsData },
-        { data: celebrationsData }
-      ] = await Promise.all([
+      // Exécution de toutes les requêtes en parallèle
+      const results = await Promise.all([
         supabase.from('app_config').select('*').maybeSingle(),
         supabase.from('posts').select('*').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('name', { ascending: true }),
@@ -159,6 +148,25 @@ const App: React.FC = () => {
         supabase.from('celebrations').select('*').order('date', { ascending: false })
       ]);
 
+      // Extraction sécurisée des données
+      const config = results[0].data;
+      const postsData = results[1].data || [];
+      const profiles = results[2].data || [];
+      const eventsData = results[3].data || [];
+      const ideasData = results[4].data || [];
+      const docsData = results[5].data || [];
+      const rewardsData = results[6].data || [];
+      const newsData = results[7].data || [];
+      const commentsData = results[8].data || [];
+      const moodsData = results[9].data || [];
+      const wellContentsData = results[10].data || [];
+      const challengesData = results[11].data || [];
+      const messagesData = results[12].data || [];
+      const transData = results[13].data || [];
+      const gamesData = results[14].data || [];
+      const pollsData = results[15].data || [];
+      const celebrationsData = results[16].data || [];
+
       if (config) {
         setAppConfig({
           ...INITIAL_CONFIG,
@@ -171,61 +179,58 @@ const App: React.FC = () => {
         });
       }
 
-      if (postsData) {
-        setPosts(postsData.map((p: any) => ({
-          ...p,
-          userId: p.user_id,
-          userName: p.user_name,
-          userAvatar: p.user_avatar,
-          createdAt: p.created_at,
-          comments: commentsData
-            ? commentsData
-                .filter((c: any) => c.post_id === p.id)
-                .map((c: any) => ({
-                  ...c,
-                  userId: c.user_id,
-                  userName: c.user_name,
-                  userAvatar: c.user_avatar,
-                  createdAt: c.created_at
-                }))
-            : []
-        })));
-      }
+      setUsers(profiles as any);
 
-      if (profiles) setUsers(profiles as any);
-      if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
-      if (ideasData) setIdeas(ideasData.map((i: any) => ({
+      setPosts(postsData.map((p: any) => ({
+        ...p,
+        userId: p.user_id,
+        userName: p.user_name,
+        userAvatar: p.user_avatar,
+        createdAt: p.created_at,
+        comments: commentsData
+          .filter((c: any) => c.post_id === p.id)
+          .map((c: any) => ({
+            ...c,
+            userId: c.user_id,
+            userName: c.user_name,
+            userAvatar: c.user_avatar,
+            createdAt: c.created_at
+          }))
+      })));
+
+      setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+      
+      setIdeas(ideasData.map((i: any) => ({
         ...i,
         userId: i.user_id,
         userName: i.user_name,
         userAvatar: i.user_avatar,
         createdAt: i.created_at,
         comments: commentsData
-          ? commentsData
-              .filter((c: any) => c.idea_id === i.id)
-              .map((c: any) => ({ ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at }))
-          : []
+          .filter((c: any) => c.idea_id === i.id)
+          .map((c: any) => ({ ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at }))
       })));
-      if (docsData) setDocuments(docsData as any);
-      if (rewardsData) setRewards(rewardsData as any);
+
+      setDocuments(docsData as any);
+      setRewards(rewardsData as any);
       
-      if (newsData) {
-        setNewsletters(newsData.map((n: any) => ({ 
-          ...n, 
-          coverImage: n.cover_image, 
-          publishedAt: n.published_at, 
-          authorName: n.author_name, 
-          readCount: n.read_count, 
-          articles: n.articles 
-        })));
-      }
+      // FIX: Mapping correct de newsData (frais depuis Supabase) vers l'état newsletters
+      setNewsletters(newsData.map((n: any) => ({ 
+        ...n, 
+        coverImage: n.cover_image, 
+        publishedAt: n.published_at, 
+        authorName: n.author_name, 
+        readCount: n.read_count || 0, 
+        articles: n.articles || []
+      })));
       
-      if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
-      if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
-      if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
-      if (messagesData) setMessages(messagesData.map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
-      if (transData) setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
-      if (gamesData) setGames(gamesData.map((g: any) => ({
+      setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
+      setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
+      setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
+      setMessages(messagesData.map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
+      setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+      
+      setGames(gamesData.map((g: any) => ({
         ...g,
         rewardPoints: g.reward_points,
         questions: g.questions,
@@ -238,7 +243,8 @@ const App: React.FC = () => {
         createdAt: g.created_at,
         createdBy: g.created_by
       })));
-      if (pollsData) setPolls(pollsData.map((p: any) => ({
+
+      setPolls(pollsData.map((p: any) => ({
         ...p,
         endDate: p.end_date,
         createdBy: p.created_by,
@@ -246,7 +252,8 @@ const App: React.FC = () => {
         createdAt: p.created_at,
         targetDepartments: p.target_departments
       })));
-      if (celebrationsData) setCelebrations(celebrationsData.map((c: any) => ({
+
+      setCelebrations(celebrationsData.map((c: any) => ({
         ...c,
         userIds: c.user_ids || [],
         userName: c.user_name || 'Collaborateur',
@@ -254,8 +261,9 @@ const App: React.FC = () => {
         createdBy: c.created_by,
         likes: Array.isArray(c.likes) ? c.likes : []
       })));
+
     } catch (err) {
-      console.error("Erreur chargement données:", err);
+      console.error("Erreur critique chargement données:", err);
     }
   };
 
@@ -264,52 +272,20 @@ const App: React.FC = () => {
       fetchAllData();
 
       const dataChannel = supabase.channel('global-changes')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
-          if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
-            addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'newsletters' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload: any) => {
+          if (currentUser && payload.eventType === 'INSERT' && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
+            addToast(`Nouveau post sur le mur social !`, "info");
           }
           fetchAllData();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => fetchAllData())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
-            addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
-          }
-          fetchAllData();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => fetchAllData())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
-          if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
-            addToast("Vous avez reçu un nouveau message !", "info");
-          }
-          fetchAllData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => fetchAllData())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
-          if (currentUser && currentUser.notification_settings?.posts) {
-            addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
-          }
-          fetchAllData();
-        })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
-            addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
-          }
-          fetchAllData();
-        })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
-            addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
-          }
-          fetchAllData();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'celebrations' }, () => fetchAllData())
         .subscribe();
 
       return () => { supabase.removeChannel(dataChannel); };
@@ -597,7 +573,6 @@ const App: React.FC = () => {
             onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); fetchAllData(); }}
             onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); if (c) { await supabase.from('wellness_challenges').update({ is_active: !c.isActive }).eq('id', id); fetchAllData(); } }}
             onAddGame={async (g) => {
-              // Fix: Properties on 'g' use camelCase, while database column names use snake_case.
               await supabase.from('games').insert({
                 title: g.title,
                 description: g.description,
