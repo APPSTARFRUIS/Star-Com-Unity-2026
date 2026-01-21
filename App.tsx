@@ -104,8 +104,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       if (error) {
-         console.warn("Profil erreur fetch:", error);
-         setDbErrorDetail(`Impossible de lire votre profil (Erreur ${error.code}).`);
+         setDbErrorDetail(`Erreur profil: ${error.message}`);
          return;
       }
       if (data) {
@@ -123,7 +122,7 @@ const App: React.FC = () => {
         if (!createError) fetchUserProfile(userId);
       }
     } catch (e) {
-      console.error("Erreur critique profil.");
+      console.error("Critique profil.");
     } finally {
       setIsLoading(false);
     }
@@ -184,20 +183,104 @@ const App: React.FC = () => {
 
     if (configData?.data) setAppConfig({ ...INITIAL_CONFIG, ...configData.data });
     if (profilesData) setUsers(profilesData as User[]);
-    if (postsData) setPosts(postsData.map((p: any) => ({ ...p, createdAt: p.created_at, userId: p.user_id, userName: p.user_name, userAvatar: p.user_avatar })));
-    if (eventsData) setEvents(eventsData as CompanyEvent[]);
-    if (ideasData) setIdeas(ideasData as Idea[]);
-    if (docsData) setDocuments(docsData as DocumentFile[]);
-    if (newsData) setNewsletters(newsData as Newsletter[]);
-    if (moodsData) setMoods(moodsData as MoodEntry[]);
-    if (gamesData) setGames(gamesData as CompanyGame[]);
-    if (pollsData) setPolls(pollsData as Poll[]);
-    if (celebrationsData) setCelebrations(celebrationsData.map((c: any) => ({ ...c, likes: Array.isArray(c.likes) ? c.likes : [] })));
-    if (wellContentsData) setWellnessContents(wellContentsData as WellnessContent[]);
-    if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
-    if (transactionsData) setTransactions(transactionsData as PointsTransaction[]);
+    
+    // Mapping SnakeCase (DB) -> CamelCase (Frontend)
+    if (postsData) setPosts(postsData.map((p: any) => ({ 
+      ...p, 
+      createdAt: p.created_at, 
+      userId: p.user_id, 
+      userName: p.user_name, 
+      userAvatar: p.user_avatar,
+      comments: Array.isArray(p.comments) ? p.comments : []
+    })));
+
+    if (eventsData) setEvents(eventsData.map((e: any) => ({
+       ...e,
+       startTime: e.start_time,
+       endTime: e.end_time,
+       createdBy: e.created_by
+    })));
+
+    if (ideasData) setIdeas(ideasData.map((i: any) => ({
+      ...i,
+      userId: i.user_id,
+      userName: i.user_name,
+      userAvatar: i.user_avatar,
+      createdAt: i.created_at
+    })));
+
+    if (docsData) setDocuments(docsData.map((d: any) => ({
+      ...d,
+      uploadedAt: d.uploaded_at,
+      uploadedBy: d.uploaded_by,
+      uploadedByName: d.uploaded_by_name
+    })));
+
+    if (newsData) setNewsletters(newsData.map((n: any) => ({
+      ...n,
+      publishedAt: n.published_at,
+      authorName: n.author_name,
+      readCount: n.read_count
+    })));
+
+    if (moodsData) setMoods(moodsData.map((m: any) => ({
+      ...m,
+      userId: m.user_id,
+      createdAt: m.created_at
+    })));
+
+    if (gamesData) setGames(gamesData.map((g: any) => ({
+      ...g,
+      rewardPoints: g.reward_points,
+      hiddenObjects: g.hidden_objects,
+      hiddenObjectsImage: g.hidden_objects_image,
+      timelineItems: g.timeline_items,
+      memoryItems: g.memory_items,
+      createdAt: g.created_at,
+      createdBy: g.created_by
+    })));
+
+    if (pollsData) setPolls(pollsData.map((p: any) => ({
+      ...p,
+      endDate: p.end_date,
+      createdBy: p.created_by,
+      createdByName: p.created_by_name,
+      createdAt: p.created_at
+    })));
+
+    if (celebrationsData) setCelebrations(celebrationsData.map((c: any) => ({ 
+      ...c, 
+      likes: Array.isArray(c.likes) ? c.likes : [],
+      userName: c.user_name,
+      userAvatar: c.user_avatar,
+      userIds: c.user_ids,
+      createdBy: c.created_by
+    })));
+
+    if (wellContentsData) setWellnessContents(wellContentsData.map((w: any) => ({
+      ...w,
+      mediaUrl: w.media_url,
+      createdAt: w.created_at
+    })));
+
+    if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ 
+      ...c, 
+      isActive: c.is_active 
+    })));
+
+    if (transactionsData) setTransactions(transactionsData.map((t: any) => ({
+      ...t,
+      userId: t.user_id
+    })));
+
     if (rewardsData) setRewards(rewardsData as Reward[]);
-    if (messagesData) setMessages(messagesData.map((m: any) => ({ ...m, createdAt: m.created_at, senderId: m.sender_id, receiverId: m.receiver_id })));
+    
+    if (messagesData) setMessages(messagesData.map((m: any) => ({ 
+      ...m, 
+      createdAt: m.created_at, 
+      senderId: m.sender_id, 
+      receiverId: m.receiver_id 
+    })));
   };
 
   useEffect(() => {
@@ -220,7 +303,6 @@ const App: React.FC = () => {
     setCurrentUser(null);
   };
 
-  // Handlers for child components
   const handlePostCreated = async (newPostData: any) => {
     if (!supabase || !currentUser) return;
     const post = {
@@ -295,12 +377,11 @@ const App: React.FC = () => {
       category,
       status: 'Suggestion',
       votes: [],
-      comments: [],
       created_at: new Date().toISOString()
     };
     await supabase.from('ideas').insert(idea);
     fetchAllData();
-    addToast("Idée suggérée, merci !");
+    addToast("Idée suggérée !");
   };
 
   const handleToggleVote = async (ideaId: string) => {
@@ -347,13 +428,16 @@ const App: React.FC = () => {
     const updatedResponses = [...poll.responses, response];
     await supabase.from('polls').update({ responses: updatedResponses }).eq('id', pollId);
     fetchAllData();
-    addToast("Sondage complété !");
   };
 
   const handleCreatePoll = async (pollData: any) => {
     if (!supabase || !currentUser) return;
     const poll = {
-      ...pollData,
+      title: pollData.title,
+      description: pollData.description,
+      questions: pollData.questions,
+      settings: pollData.settings,
+      end_date: pollData.endDate,
       created_by: currentUser.id,
       created_by_name: currentUser.name,
       created_at: new Date().toISOString(),
@@ -361,7 +445,6 @@ const App: React.FC = () => {
     };
     await supabase.from('polls').insert(poll);
     fetchAllData();
-    addToast("Nouveau sondage publié.");
   };
 
   const handleDeletePoll = async (id: string) => {
@@ -385,14 +468,20 @@ const App: React.FC = () => {
   const handleSaveEvent = async (eventData: any) => {
     if (!supabase || !currentUser) return;
     const event = {
-      ...eventData,
+      title: eventData.title,
+      type: eventData.type,
+      description: eventData.description,
+      location: eventData.location,
+      date: eventData.date,
+      start_time: eventData.startTime,
+      end_time: eventData.endTime,
+      participants: eventData.participants,
       created_by: currentUser.id,
       attendees: [currentUser.id]
     };
     await supabase.from('events').insert(event);
     fetchAllData();
     setIsEventModalOpen(false);
-    addToast("Événement ajouté à l'agenda.");
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -417,13 +506,18 @@ const App: React.FC = () => {
   const handleAddCelebration = async (cData: any) => {
     if (!supabase || !currentUser) return;
     const celebration = {
-      ...cData,
+      type: cData.type,
+      title: cData.title,
+      description: cData.description,
+      date: cData.date,
+      user_name: cData.userName,
+      user_avatar: cData.userAvatar,
+      user_ids: cData.userIds,
       created_by: currentUser.id,
       likes: []
     };
     await supabase.from('celebrations').insert(celebration);
     fetchAllData();
-    addToast("Célébration publiée !");
   };
 
   const handleLikeCelebration = async (id: string) => {
@@ -484,7 +578,6 @@ const App: React.FC = () => {
       user_id: userId, amount, reason, type: 'earn', date: new Date().toISOString()
     });
     fetchAllData();
-    if (userId === currentUser?.id) addToast(`Gagné ${amount} points : ${reason}`);
   };
 
   const handleClaimReward = async (rewardId: string) => {
@@ -502,11 +595,7 @@ const App: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-         <div className="animate-spin rounded-full h-12 w-12 border-4 border-green-600 border-t-transparent"></div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-4 border-green-600 border-t-transparent"></div></div>;
   }
 
   if (!session || !currentUser) {
@@ -531,7 +620,6 @@ const App: React.FC = () => {
               {loginError && <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-3 rounded-xl">{loginError}</p>}
               <button type="submit" className="w-full py-5 bg-[#14532d] text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95">Se connecter</button>
            </form>
-           <p className="text-center text-[10px] text-slate-400 font-medium uppercase tracking-widest">Accès réservé au personnel Star Fruits</p>
         </div>
       </div>
     );
@@ -539,16 +627,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <Sidebar 
-        currentView={view} 
-        userRole={currentUser.role} 
-        setView={setView} 
-        onLogout={handleLogout} 
-        isOpen={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        appConfig={appConfig}
-      />
-      
+      <Sidebar currentView={view} userRole={currentUser.role} setView={setView} onLogout={handleLogout} isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} appConfig={appConfig} />
       <main className="flex-1 md:ml-64 p-4 md:p-10 pt-20 md:pt-10 overflow-y-auto min-h-screen">
         {/* Mobile Header */}
         <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 z-40 flex items-center justify-between px-4">
@@ -558,39 +637,18 @@ const App: React.FC = () => {
         </div>
 
         {dbErrorDetail && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-8 flex items-start gap-3 animate-in fade-in slide-in-from-top-4">
-             <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-             <div>
-                <p className="font-bold">Erreur de connexion aux données</p>
-                <p className="text-sm opacity-80">{dbErrorDetail}</p>
-             </div>
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-8 flex items-start gap-3">
+             <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeWidth="2" /></svg>
+             <div><p className="font-bold">Erreur Base de Données</p><p className="text-sm opacity-80">{dbErrorDetail}</p></div>
           </div>
         )}
 
         {view === 'accueil' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-10 text-left">
-              <h1 className="text-4xl font-black text-slate-800 tracking-tight">{appConfig.welcomeTitle.replace('{name}', currentUser.name.split(' ')[0])}</h1>
-              <p className="text-slate-500 font-medium text-lg mt-2">{appConfig.welcomeSubtitle}</p>
-            </div>
+          <div className="max-w-4xl mx-auto space-y-10">
+            <h1 className="text-4xl font-black text-slate-800">{appConfig.welcomeTitle.replace('{name}', currentUser.name.split(' ')[0])}</h1>
             <PostCreator currentUser={currentUser} onPostCreated={handlePostCreated} />
             <div className="space-y-6">
-               {posts.map(post => (
-                 <PostCard 
-                   key={post.id} 
-                   post={post} 
-                   currentUserRole={currentUser.role} 
-                   currentUserId={currentUser.id} 
-                   onDelete={handleDeletePost} 
-                   onLike={handleLikePost} 
-                   onAddComment={handleAddComment} 
-                 />
-               ))}
-               {posts.length === 0 && (
-                 <div className="py-20 text-center bg-white rounded-[32px] border border-dashed border-slate-200">
-                    <p className="text-slate-400 font-medium italic">Aucun message partagé pour le moment.</p>
-                 </div>
-               )}
+               {posts.map(post => <PostCard key={post.id} post={post} currentUserRole={currentUser.role} currentUserId={currentUser.id} onDelete={handleDeletePost} onLike={handleLikePost} onAddComment={handleAddComment} />)}
             </div>
           </div>
         )}
@@ -614,12 +672,34 @@ const App: React.FC = () => {
             posts={posts} onDeletePost={handleDeletePost}
             ideas={ideas} onUpdateIdeaStatus={handleUpdateIdeaStatus}
             moods={moods}
-            newsletters={newsletters} onCreateNewsletter={async (n) => { await supabase.from('newsletters').insert({ ...n, published_at: new Date().toISOString(), read_count: 0 }); fetchAllData(); }} onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); fetchAllData(); }}
-            wellnessContents={wellnessContents} onAddWellnessContent={async (c) => { await supabase.from('wellness_contents').insert(c); fetchAllData(); }} onDeleteWellnessContent={async (id) => { await supabase.from('wellness_contents').delete().eq('id', id); fetchAllData(); }}
-            wellnessChallenges={wellnessChallenges} onAddWellnessChallenge={async (c) => { await supabase.from('wellness_challenges').insert({ ...c, is_active: false }); fetchAllData(); }} onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); fetchAllData(); }} onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); await supabase.from('wellness_challenges').update({ is_active: !c?.isActive }).eq('id', id); fetchAllData(); }}
-            games={games} onAddGame={async (g) => { await supabase.from('games').insert(g); fetchAllData(); }} onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); fetchAllData(); }} onToggleGameStatus={() => {}} onSetGameResult={() => {}}
+            newsletters={newsletters} 
+            onCreateNewsletter={async (n) => { await supabase.from('newsletters').insert({ ...n, author_name: n.authorName, cover_image: n.coverImage }); fetchAllData(); }} 
+            onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); fetchAllData(); }}
+            wellnessContents={wellnessContents} 
+            onAddWellnessContent={async (c) => { await supabase.from('wellness_contents').insert({ ...c, media_url: c.mediaUrl }); fetchAllData(); }} 
+            onDeleteWellnessContent={async (id) => { await supabase.from('wellness_contents').delete().eq('id', id); fetchAllData(); }}
+            wellnessChallenges={wellnessChallenges} 
+            onAddWellnessChallenge={async (c) => { await supabase.from('wellness_challenges').insert({ ...c, is_active: false }); fetchAllData(); }} 
+            onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); fetchAllData(); }} 
+            onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); await supabase.from('wellness_challenges').update({ is_active: !c?.isActive }).eq('id', id); fetchAllData(); }}
+            games={games} 
+            onAddGame={async (g) => { await supabase.from('games').insert({
+               ...g, 
+               reward_points: g.rewardPoints, 
+               thumbnail: g.thumbnail, 
+               questions: g.questions, 
+               memory_items: g.memoryItems, 
+               timeline_items: g.timelineItems, 
+               hidden_objects: g.hiddenObjects, 
+               hidden_objects_image: g.hiddenObjectsImage,
+               created_by: currentUser.id
+            }); fetchAllData(); }} 
+            onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); fetchAllData(); }} 
+            onToggleGameStatus={() => {}} onSetGameResult={() => {}}
             predictions={predictions}
-            rewards={rewards} onAddReward={async (r) => { await supabase.from('rewards').insert(r); fetchAllData(); }} onDeleteReward={async (id) => { await supabase.from('rewards').delete().eq('id', id); fetchAllData(); }}
+            rewards={rewards} 
+            onAddReward={async (r) => { await supabase.from('rewards').insert(r); fetchAllData(); }} 
+            onDeleteReward={async (id) => { await supabase.from('rewards').delete().eq('id', id); fetchAllData(); }}
             currentUser={currentUser}
             appConfig={appConfig} onUpdateConfig={handleUpdateConfig}
             transactions={transactions}
@@ -629,14 +709,9 @@ const App: React.FC = () => {
 
       {isEventModalOpen && <EventCreatorModal onClose={() => setIsEventModalOpen(false)} onSave={handleSaveEvent} currentUser={currentUser} />}
 
-      {/* Toast System */}
       <div className="fixed bottom-6 right-6 z-[300] flex flex-col gap-3">
          {toasts.map(t => (
-           <div key={t.id} className={`px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-right-10 duration-500 ${
-             t.type === 'error' ? 'bg-red-600 border-red-500 text-white' : 
-             t.type === 'info' ? 'bg-blue-600 border-blue-500 text-white' : 
-             'bg-slate-900 border-slate-800 text-white'
-           }`}>
+           <div key={t.id} className="px-6 py-4 rounded-2xl shadow-2xl bg-slate-900 text-white flex items-center gap-3 animate-in slide-in-from-right-10">
              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
              <span className="font-bold text-sm tracking-tight">{t.message}</span>
            </div>
