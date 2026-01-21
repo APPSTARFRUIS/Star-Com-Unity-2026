@@ -109,7 +109,8 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
       if (error) {
         if (error.status === 500) {
-          console.error("Supabase error 500 on profiles. Check RLS.");
+          console.error("ERREUR CRITIQUE SUPABASE 500 : Problème RLS détecté sur 'profiles'.");
+          addToast("Erreur serveur Supabase. Vérifiez les règles SQL.", "error");
         }
         throw error;
       }
@@ -122,7 +123,7 @@ const App: React.FC = () => {
         } as User);
       }
     } catch (e) {
-      console.error("Erreur profil critique:", e);
+      console.warn("Utilisateur non trouvé ou erreur RLS.");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +135,7 @@ const App: React.FC = () => {
       if (error) {
         console.error(`Erreur Supabase [${tableName}]: Code ${error.code} - ${error.message}`);
         if (error.status === 500) {
-          console.warn(`Attention: Problème serveur (500) sur la table ${tableName}. Vérifiez les politiques RLS.`);
+           console.error(`💥 ERREUR 500 SUR ${tableName} : RÉCURSION RLS PROBABLE.`);
         }
         return [];
       }
@@ -148,7 +149,7 @@ const App: React.FC = () => {
   const fetchAllData = async () => {
     if (!supabase) return;
     
-    console.log("Synchronisation des données en cours...");
+    console.log("Synchronisation avec Supabase...");
 
     const [
       configData,
@@ -227,7 +228,6 @@ const App: React.FC = () => {
     setRewards(rewardsData as any);
     
     if (newsData && Array.isArray(newsData)) {
-      console.log(`Données newsletters: ${newsData.length} records.`);
       setNewsletters(newsData.map((n: any) => ({ 
         id: n.id,
         title: n.title,
@@ -289,6 +289,7 @@ const App: React.FC = () => {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (!authError) return;
 
+    // Fallback manuel pour tester sans Auth
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
@@ -304,9 +305,8 @@ const App: React.FC = () => {
           email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
         }
       } as User);
-      addToast("Bienvenue !");
     } else {
-      setLoginError("Identifiants incorrects ou accès refusé.");
+      setLoginError("Identifiants incorrects ou erreur serveur (500).");
     }
   };
 
@@ -407,7 +407,7 @@ const App: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="py-20 text-center text-slate-300 italic">Aucune activité récente.</div>
+                <div className="py-20 text-center text-slate-300 italic">Chargement des données...</div>
               )}
             </section>
           </div>

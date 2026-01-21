@@ -15,6 +15,10 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
   const [readingArticle, setReadingArticle] = useState<NewsletterArticle | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Détection si les données sont en cours de chargement ou si une erreur est probable
+  // (Si l'app est lancée mais que l'array est vide alors qu'il devrait y avoir du contenu)
+  const isEmpty = newsletters.length === 0;
+
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return 'Inconnue';
     try {
@@ -29,7 +33,6 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
 
     const staging = document.getElementById('pdf-render-staging');
     if (!staging) {
-      console.error("Staging element not found");
       setIsExporting(false);
       return;
     }
@@ -38,7 +41,6 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.background = 'white';
-    container.style.color = '#000';
     
     let html = `
       <div style="width: 100%; background: white; font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0;">
@@ -46,48 +48,15 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           ${readingNewsletter.coverImage ? `<img src="${readingNewsletter.coverImage}" style="width: 100%; height: 650px; object-fit: cover;" />` : '<div style="height: 500px; background: #f8fafc;"></div>'}
           <div style="padding: 60px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
             <div style="color: #16a34a; text-transform: uppercase; letter-spacing: 10px; font-weight: 900; font-size: 20px; margin-bottom: 20px;">STAR FRUITS</div>
-            <div style="height: 4px; width: 80px; background: #16a34a; border-radius: 2px; margin-bottom: 40px;"></div>
-            <h1 style="font-size: 64px; margin: 0 0 30px; color: #0f172a; line-height: 1; font-weight: 900; text-transform: uppercase;">${readingNewsletter.title}</h1>
-            <p style="font-size: 24px; color: #475569; font-style: italic; max-width: 600px; line-height: 1.4;">"${readingNewsletter.summary}"</p>
-            <div style="margin-top: auto; padding-top: 40px;">
-               <div style="font-weight: 900; color: #16a34a; letter-spacing: 3px; font-size: 14px;">ÉDITION OFFICIELLE • ${formatDate(readingNewsletter.publishedAt).toUpperCase()}</div>
-            </div>
-          </div>
-        </div>
-        <div style="width: 100%; min-height: 1120px; padding: 100px 80px; box-sizing: border-box; page-break-after: always; background: white; border-top: 1px solid #eee;">
-          <h2 style="font-size: 48px; border-bottom: 12px solid #16a34a; display: inline-block; padding-bottom: 10px; margin-bottom: 80px; font-weight: 900; color: #0f172a; letter-spacing: -1px;">AU SOMMAIRE</h2>
-          <div style="display: flex; flex-direction: column; gap: 40px;">
-            ${readingNewsletter.articles.map((art, idx) => `
-              <div style="display: flex; align-items: flex-start; gap: 40px; padding-bottom: 40px; border-bottom: 1px solid #f1f5f9;">
-                <div style="font-size: 60px; font-weight: 900; color: #f1f5f9; line-height: 0.8; width: 80px; text-align: center;">0${idx + 1}</div>
-                <div style="flex: 1;">
-                  <div style="font-size: 28px; font-weight: 900; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">${art.title}</div>
-                  <div style="font-size: 18px; color: #64748b; line-height: 1.6; font-style: italic;">${art.summary}</div>
-                  <div style="display: inline-block; margin-top: 15px; padding: 6px 16px; background: #f0fdf4; border-radius: 8px; font-size: 12px; font-weight: 900; color: #16a34a; text-transform: uppercase; letter-spacing: 1px;">${art.category}</div>
-                </div>
-              </div>
-            `).join('')}
+            <h1 style="font-size: 64px; margin: 0 0 30px; color: #0f172a; font-weight: 900; text-transform: uppercase;">${readingNewsletter.title}</h1>
+            <p style="font-size: 24px; color: #475569; font-style: italic; max-width: 600px;">"${readingNewsletter.summary}"</p>
           </div>
         </div>
         ${readingNewsletter.articles.map((art, i) => `
-          <div style="width: 100%; min-height: 1120px; padding: 80px; box-sizing: border-box; page-break-after: always; background: white; position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 50px;">
-              <div style="color: #16a34a; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 3px;">${art.category}</div>
-              <div style="color: #cbd5e1; font-weight: 900; font-size: 14px;">PAGE ${i + 3}</div>
-            </div>
-            <h2 style="font-size: 54px; margin: 0 0 50px; color: #0f172a; line-height: 1.05; font-weight: 900; letter-spacing: -2px; text-transform: uppercase;">${art.title}</h2>
-            ${art.image ? `<div style="width: 100%; height: 450px; border-radius: 30px; overflow: hidden; margin-bottom: 50px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);"><img src="${art.image}" style="width: 100%; height: 100%; object-fit: cover;" /></div>` : ''}
-            <div style="background: #f8fafc; border-left: 15px solid #16a34a; padding: 40px; font-style: italic; font-size: 24px; color: #334155; margin-bottom: 50px; border-radius: 0 30px 30px 0; line-height: 1.5; font-weight: 500;">"${art.summary}"</div>
-            <div style="font-size: 20px; line-height: 1.9; color: #1e293b;">
-              ${art.blocks.map(b => {
-                if (b.type === 'text') return `<p style="margin-bottom: 30px; white-space: pre-wrap;">${b.content}</p>`;
-                if (b.type === 'image') return `<div style="margin-bottom: 40px; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);"><img src="${b.content}" style="width: 100%;" /></div>`;
-                if (b.type === 'video') return `<div style="background: #0f172a; color: #f8fafc; padding: 80px 40px; text-align: center; border-radius: 30px; margin-bottom: 40px; border: 4px solid #1e293b;"><div style="font-size: 60px; margin-bottom: 15px;">🎥</div><div style="font-size: 22px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;">Média Interactif</div><div style="font-size: 16px; color: #94a3b8; margin-top: 15px; font-weight: 500;">Scannez le QR Code ou utilisez l'application en ligne pour voir cette vidéo.</div></div>`;
-                if (b.type === 'gallery') return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">${(b.images || []).map(img => `<div style="border-radius: 20px; overflow: hidden; height: 280px;"><img src="${img}" style="width: 100%; height: 100%; object-fit: cover;" /></div>`).join('')}</div>`;
-                return '';
-              }).join('')}
-            </div>
-            <div style="margin-top: 80px; text-align: center; border-top: 2px solid #f1f5f9; padding-top: 40px; color: #94a3b8; font-size: 14px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase;">STAR FRUITS • CONNECTED COMM</div>
+          <div style="width: 100%; min-height: 1120px; padding: 80px; box-sizing: border-box; page-break-after: always; background: white;">
+            <h2 style="font-size: 54px; margin: 0 0 50px; color: #0f172a; font-weight: 900; text-transform: uppercase;">${art.title}</h2>
+            ${art.image ? `<img src="${art.image}" style="width: 100%; height: 450px; border-radius: 30px; object-fit: cover; margin-bottom: 50px;" />` : ''}
+            <div style="background: #f8fafc; border-left: 15px solid #16a34a; padding: 40px; font-size: 24px; color: #334155; margin-bottom: 50px;">"${art.summary}"</div>
           </div>
         `).join('')}
       </div>
@@ -96,29 +65,17 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     container.innerHTML = html;
     staging.appendChild(container);
 
-    const images = Array.from(container.getElementsByTagName('img'));
-    await Promise.all(images.map(img => {
-      if (img.complete) return Promise.resolve();
-      return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
-    }));
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     const opt = {
       margin: 0,
-      filename: `StarFruits_Newsletter_${readingNewsletter.title.replace(/\s+/g, '_')}.pdf`,
+      filename: `Newsletter_${readingNewsletter.title}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     try {
       // @ts-ignore
       await html2pdf().set(opt).from(container).save();
-    } catch (e) {
-      console.error("Échec génération PDF:", e);
-      alert("Une erreur est survenue lors de la création du PDF.");
     } finally {
       staging.innerHTML = '';
       setIsExporting(false);
@@ -168,7 +125,17 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           </div>
         </section>
       ) : (
-        <div className="py-32 text-center text-slate-300 italic border-2 border-dashed border-slate-200 rounded-[48px]">Aucune newsletter disponible.</div>
+        <div className="py-32 text-center border-2 border-dashed border-slate-200 rounded-[48px] space-y-6 bg-white/50">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-300">
+             <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" /></svg>
+          </div>
+          <div>
+            <p className="text-slate-500 font-bold text-lg">Aucune newsletter disponible</p>
+            <p className="text-slate-400 text-sm mt-1 max-w-sm mx-auto italic">
+              Si vous voyez des erreurs 500 dans la console, veuillez vérifier les règles RLS sur votre tableau de bord Supabase.
+            </p>
+          </div>
+        </div>
       )}
 
       {archives.length > 0 && (
