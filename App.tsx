@@ -117,77 +117,92 @@ const App: React.FC = () => {
         } as User);
       }
     } catch (e) {
-      console.error("Profile fetch error:", e);
+      console.error("Erreur profil:", e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fonction utilitaire pour charger une table de manière isolée
+  const safeFetch = async (table: string, query: any) => {
+    try {
+      const { data, error } = await query;
+      if (error) {
+        console.warn(`Attention: Impossible de charger la table "${table}". Vérifiez qu'elle existe dans Supabase.`, error);
+        return null;
+      }
+      return data;
+    } catch (e) {
+      console.error(`Erreur critique sur la table ${table}:`, e);
+      return null;
     }
   };
 
   const fetchAllData = async () => {
     if (!supabase || (!session && !currentUser)) return;
 
-    try {
-      // Exécution de toutes les requêtes en parallèle
-      const results = await Promise.all([
-        supabase.from('app_config').select('*').maybeSingle(),
-        supabase.from('posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('*').order('name', { ascending: true }),
-        supabase.from('events').select('*').order('date', { ascending: true }),
-        supabase.from('ideas').select('*').order('created_at', { ascending: false }),
-        supabase.from('documents').select('*').order('uploaded_at', { ascending: false }),
-        supabase.from('rewards').select('*').order('cost', { ascending: true }),
-        supabase.from('newsletters').select('*').order('published_at', { ascending: false }),
-        supabase.from('comments').select('*'),
-        supabase.from('moods').select('*').order('created_at', { ascending: false }),
-        supabase.from('wellness_contents').select('*').order('created_at', { ascending: false }),
-        supabase.from('wellness_challenges').select('*').order('created_at', { ascending: false }),
-        supabase.from('messages').select('*').order('created_at', { ascending: true }),
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('games').select('*').order('created_at', { ascending: false }),
-        supabase.from('polls').select('*').order('created_at', { ascending: false }),
-        supabase.from('celebrations').select('*').order('date', { ascending: false })
-      ]);
+    // Chargement robuste : chaque table est indépendante
+    const [
+      config,
+      postsData,
+      profiles,
+      eventsData,
+      ideasData,
+      docsData,
+      rewardsData,
+      newsData,
+      commentsData,
+      moodsData,
+      wellContentsData,
+      challengesData,
+      messagesData,
+      transData,
+      gamesData,
+      pollsData,
+      celebrationsData
+    ] = await Promise.all([
+      safeFetch('app_config', supabase.from('app_config').select('*').maybeSingle()),
+      safeFetch('posts', supabase.from('posts').select('*').order('created_at', { ascending: false })),
+      safeFetch('profiles', supabase.from('profiles').select('*').order('name', { ascending: true })),
+      safeFetch('events', supabase.from('events').select('*').order('date', { ascending: true })),
+      safeFetch('ideas', supabase.from('ideas').select('*').order('created_at', { ascending: false })),
+      safeFetch('documents', supabase.from('documents').select('*').order('uploaded_at', { ascending: false })),
+      safeFetch('rewards', supabase.from('rewards').select('*').order('cost', { ascending: true })),
+      safeFetch('newsletters', supabase.from('newsletters').select('*').order('published_at', { ascending: false })),
+      safeFetch('comments', supabase.from('comments').select('*')),
+      safeFetch('moods', supabase.from('moods').select('*').order('created_at', { ascending: false })),
+      safeFetch('wellness_contents', supabase.from('wellness_contents').select('*').order('created_at', { ascending: false })),
+      safeFetch('wellness_challenges', supabase.from('wellness_challenges').select('*').order('created_at', { ascending: false })),
+      safeFetch('messages', supabase.from('messages').select('*').order('created_at', { ascending: true })),
+      safeFetch('transactions', supabase.from('transactions').select('*').order('date', { ascending: false })),
+      safeFetch('games', supabase.from('games').select('*').order('created_at', { ascending: false })),
+      safeFetch('polls', supabase.from('polls').select('*').order('created_at', { ascending: false })),
+      safeFetch('celebrations', supabase.from('celebrations').select('*').order('date', { ascending: false }))
+    ]);
 
-      // Extraction sécurisée des données
-      const config = results[0].data;
-      const postsData = results[1].data || [];
-      const profiles = results[2].data || [];
-      const eventsData = results[3].data || [];
-      const ideasData = results[4].data || [];
-      const docsData = results[5].data || [];
-      const rewardsData = results[6].data || [];
-      const newsData = results[7].data || [];
-      const commentsData = results[8].data || [];
-      const moodsData = results[9].data || [];
-      const wellContentsData = results[10].data || [];
-      const challengesData = results[11].data || [];
-      const messagesData = results[12].data || [];
-      const transData = results[13].data || [];
-      const gamesData = results[14].data || [];
-      const pollsData = results[15].data || [];
-      const celebrationsData = results[16].data || [];
+    // Application des données chargées avec sécurité
+    if (config) {
+      setAppConfig({
+        ...INITIAL_CONFIG,
+        appName: config.app_name ?? INITIAL_CONFIG.appName,
+        appSlogan: config.app_slogan ?? INITIAL_CONFIG.appSlogan,
+        logoUrl: config.logo_url ?? INITIAL_CONFIG.logoUrl,
+        welcomeTitle: config.welcome_title ?? INITIAL_CONFIG.welcomeTitle,
+        welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
+        documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
+      });
+    }
 
-      if (config) {
-        setAppConfig({
-          ...INITIAL_CONFIG,
-          appName: config.app_name ?? INITIAL_CONFIG.appName,
-          appSlogan: config.app_slogan ?? INITIAL_CONFIG.appSlogan,
-          logoUrl: config.logo_url ?? INITIAL_CONFIG.logoUrl,
-          welcomeTitle: config.welcome_title ?? INITIAL_CONFIG.welcomeTitle,
-          welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
-          documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
-        });
-      }
+    if (profiles) setUsers(profiles as any);
 
-      setUsers(profiles as any);
-
+    if (postsData) {
       setPosts(postsData.map((p: any) => ({
         ...p,
         userId: p.user_id,
         userName: p.user_name,
         userAvatar: p.user_avatar,
         createdAt: p.created_at,
-        comments: commentsData
+        comments: (commentsData || [])
           .filter((c: any) => c.post_id === p.id)
           .map((c: any) => ({
             ...c,
@@ -197,24 +212,28 @@ const App: React.FC = () => {
             createdAt: c.created_at
           }))
       })));
+    }
 
-      setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
-      
+    if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+    
+    if (ideasData) {
       setIdeas(ideasData.map((i: any) => ({
         ...i,
         userId: i.user_id,
         userName: i.user_name,
         userAvatar: i.user_avatar,
         createdAt: i.created_at,
-        comments: commentsData
+        comments: (commentsData || [])
           .filter((c: any) => c.idea_id === i.id)
           .map((c: any) => ({ ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at }))
       })));
+    }
 
-      setDocuments(docsData as any);
-      setRewards(rewardsData as any);
-      
-      // FIX: Mapping correct de newsData (frais depuis Supabase) vers l'état newsletters
+    if (docsData) setDocuments(docsData as any);
+    if (rewardsData) setRewards(rewardsData as any);
+    
+    // Mapping robuste de la Newsletter
+    if (newsData) {
       setNewsletters(newsData.map((n: any) => ({ 
         ...n, 
         coverImage: n.cover_image, 
@@ -223,13 +242,14 @@ const App: React.FC = () => {
         readCount: n.read_count || 0, 
         articles: n.articles || []
       })));
-      
-      setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
-      setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
-      setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
-      setMessages(messagesData.map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
-      setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
-      
+    }
+    
+    if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
+    if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
+    if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
+    if (messagesData) setMessages(messagesData.map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
+    if (transData) setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+    if (gamesData) {
       setGames(gamesData.map((g: any) => ({
         ...g,
         rewardPoints: g.reward_points,
@@ -243,7 +263,8 @@ const App: React.FC = () => {
         createdAt: g.created_at,
         createdBy: g.created_by
       })));
-
+    }
+    if (pollsData) {
       setPolls(pollsData.map((p: any) => ({
         ...p,
         endDate: p.end_date,
@@ -252,7 +273,8 @@ const App: React.FC = () => {
         createdAt: p.created_at,
         targetDepartments: p.target_departments
       })));
-
+    }
+    if (celebrationsData) {
       setCelebrations(celebrationsData.map((c: any) => ({
         ...c,
         userIds: c.user_ids || [],
@@ -261,9 +283,6 @@ const App: React.FC = () => {
         createdBy: c.created_by,
         likes: Array.isArray(c.likes) ? c.likes : []
       })));
-
-    } catch (err) {
-      console.error("Erreur critique chargement données:", err);
     }
   };
 
@@ -273,19 +292,10 @@ const App: React.FC = () => {
 
       const dataChannel = supabase.channel('global-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'newsletters' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload: any) => {
-          if (currentUser && payload.eventType === 'INSERT' && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
-            addToast(`Nouveau post sur le mur social !`, "info");
-          }
-          fetchAllData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'celebrations' }, () => fetchAllData())
         .subscribe();
 
       return () => { supabase.removeChannel(dataChannel); };
