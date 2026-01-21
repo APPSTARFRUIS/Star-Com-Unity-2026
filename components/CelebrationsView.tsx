@@ -35,25 +35,29 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   const currentMonth = new Date().getMonth() + 1;
   const currentDay = new Date().getDate();
 
-  // Correction du filtrage des anniversaires automatiques (Gestion YYYY-MM-DD et MM-DD)
-  const birthdays = useMemo(() => {
+  // Liste des anniversaires automatiques (basés sur le profil)
+  const automaticBirthdays = useMemo(() => {
     return users
       .filter(u => u.birthday)
       .map(u => {
         const parts = u.birthday!.split('-');
-        // Si YYYY-MM-DD (longueur 3), le mois est en index 1. Si MM-DD (longueur 2), index 0.
         const m = parts.length === 3 ? Number(parts[1]) : Number(parts[0]);
         const d = parts.length === 3 ? Number(parts[2]) : Number(parts[1]);
-        let isToday = m === currentMonth && d === currentDay;
+        const isToday = m === currentMonth && d === currentDay;
         return { ...u, birthMonth: m, birthDay: d, isToday };
       })
       .filter(u => u.birthMonth === currentMonth)
       .sort((a, b) => a.birthDay - b.birthDay);
   }, [users, currentMonth, currentDay]);
 
-  // Séparation des célébrations par type pour l'emplacement
-  const anniversaryPosts = useMemo(() => celebrations.filter(c => c.type === 'anniversary'), [celebrations]);
-  const otherCelebrations = useMemo(() => celebrations.filter(c => c.type !== 'anniversary'), [celebrations]);
+  // Séparation STRICTE des célébrations par type
+  const anniversaryPosts = useMemo(() => 
+    celebrations.filter(c => c.type === 'anniversary' || c.type as string === 'anniversaire'), 
+  [celebrations]);
+
+  const otherCelebrations = useMemo(() => 
+    celebrations.filter(c => c.type !== 'anniversary' && c.type as string !== 'anniversaire'), 
+  [celebrations]);
 
   const openWishModal = (user: User) => {
     setNewType('anniversary');
@@ -91,7 +95,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500 text-left">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Célébrations</h1>
@@ -111,7 +115,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Colonne Anniversaires : Automatiques + Posts manuels */}
+        {/* COLONNE GAUCHE: ANNIVERSAIRES (AUTO + POSTS) */}
         <div className="space-y-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
              <div className="p-2 bg-pink-50 text-pink-500 rounded-xl">
@@ -121,9 +125,9 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </h2>
           
           <div className="space-y-4">
-            {/* Liste des anniversaires à venir (auto) */}
-            {birthdays.length > 0 && birthdays.map(user => (
-              <div key={user.id} className={`p-4 rounded-3xl border transition-all group ${user.isToday ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-pink-100 shadow-sm ring-2 ring-pink-200 ring-offset-2' : 'bg-white border-slate-100 shadow-sm'}`}>
+            {/* 1. Rappels automatiques des profils */}
+            {automaticBirthdays.map(user => (
+              <div key={`auto-${user.id}`} className={`p-4 rounded-3xl border transition-all group ${user.isToday ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-pink-100 shadow-sm ring-2 ring-pink-200 ring-offset-2' : 'bg-white border-slate-100 shadow-sm'}`}>
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <img src={user.avatar} className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm" alt="" />
@@ -145,18 +149,19 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
               </div>
             ))}
 
-            {/* Affichage des posts manuels d'anniversaire ici (emplacement corrigé) */}
+            {/* 2. Publications manuelles d'anniversaire */}
             {anniversaryPosts.map(c => (
               <div key={c.id} className="bg-white rounded-3xl border border-pink-100 shadow-sm overflow-hidden group animate-in slide-in-from-left-4 duration-500">
                 <div className="p-5">
                   <div className="flex items-center gap-3 mb-3">
                     <img src={c.userAvatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden text-left">
+                      <span className="text-[9px] font-black uppercase text-pink-500 tracking-[0.2em] block mb-0.5">Anniversaire</span>
                       <h3 className="font-bold text-slate-800 truncate text-sm">{c.title}</h3>
                       <p className="text-[9px] text-slate-400 font-bold uppercase">{new Date(c.date).toLocaleDateString('fr-FR')}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 italic bg-pink-50/50 p-3 rounded-xl border border-pink-100 mb-3">"{c.description}"</p>
+                  <p className="text-xs text-slate-600 italic bg-pink-50/50 p-3 rounded-xl border border-pink-100 mb-3 text-left">"{c.description}"</p>
                   <div className="flex items-center justify-between">
                     <button 
                       onClick={() => onLikeCelebration(c.id)}
@@ -175,7 +180,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
               </div>
             ))}
 
-            {birthdays.length === 0 && anniversaryPosts.length === 0 && (
+            {automaticBirthdays.length === 0 && anniversaryPosts.length === 0 && (
               <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl py-12 text-center">
                 <p className="text-slate-400 italic text-sm">Aucun anniversaire ce mois-ci.</p>
               </div>
@@ -183,7 +188,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </div>
         </div>
 
-        {/* Colonne Fil des réussites & Bienvenues */}
+        {/* COLONNE DROITE: FIL DES RÉUSSITES & BIENVENUES */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
              <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl">
@@ -210,7 +215,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                           </svg>
                         </div>
                       )}
-                      <div>
+                      <div className="text-left">
                         <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${
                           c.type === 'success' ? 'text-yellow-600' : 'text-blue-600'
                         }`}>
@@ -222,11 +227,11 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                     </div>
                     {canManage && (
                       <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" /></svg>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7" strokeWidth="2" /></svg>
                       </button>
                     )}
                   </div>
-                  <p className="text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100 italic">
+                  <p className="text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100 italic text-left">
                     "{c.description}"
                   </p>
                 </div>
@@ -258,7 +263,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
         </div>
       </div>
 
-      {/* Modal de création */}
+      {/* MODAL DE CRÉATION */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl animate-in zoom-in duration-300 overflow-hidden">
