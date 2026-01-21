@@ -107,7 +107,12 @@ const App: React.FC = () => {
     if (!supabase) return;
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST103' || error.status === 500) {
+          console.error("Erreur serveur 500 sur Profiles. Vérifiez vos politiques RLS sur Supabase !");
+        }
+        throw error;
+      }
       if (data) {
         setCurrentUser({
           ...data,
@@ -117,7 +122,7 @@ const App: React.FC = () => {
         } as User);
       }
     } catch (e) {
-      console.error("Erreur profil:", e);
+      console.error("Erreur profil critique:", e);
     } finally {
       setIsLoading(false);
     }
@@ -127,12 +132,16 @@ const App: React.FC = () => {
     try {
       const { data, error } = await query;
       if (error) {
-        console.error(`Erreur Supabase [${tableName}]:`, error.message);
+        console.error(`Erreur Supabase [${tableName}]: Code ${error.code} - ${error.message}`);
+        // Si c'est une erreur 500, c'est probablement un RLS récursif sur Supabase
+        if (error.status === 500) {
+          addToast(`Erreur serveur sur ${tableName}.`, "error");
+        }
         return [];
       }
       return data || [];
     } catch (e) {
-      console.error(`Exception critique [${tableName}]:`, e);
+      console.error(`Exception JS sur [${tableName}]:`, e);
       return [];
     }
   };
@@ -140,9 +149,9 @@ const App: React.FC = () => {
   const fetchAllData = async () => {
     if (!supabase) return;
     
-    // Log pour debogage sur Vercel
-    console.log("Supabase URL cible:", (supabase as any).supabaseUrl);
+    console.log("Tentative de récupération des données...");
 
+    // Chargement parallèle isolé
     const [
       configData,
       postsData,
@@ -169,7 +178,7 @@ const App: React.FC = () => {
       safeFetch('ideas', supabase.from('ideas').select('*').order('created_at', { ascending: false })),
       safeFetch('documents', supabase.from('documents').select('*').order('uploaded_at', { ascending: false })),
       safeFetch('rewards', supabase.from('rewards').select('*').order('cost', { ascending: true })),
-      safeFetch('newsletters', supabase.from('newsletters').select('*').order('published_at', { ascending: false })),
+      safeFetch('newsletters', supabase.from('newsletters').select('*')),
       safeFetch('comments', supabase.from('comments').select('*')),
       safeFetch('moods', supabase.from('moods').select('*').order('created_at', { ascending: false })),
       safeFetch('wellness_contents', supabase.from('wellness_contents').select('*').order('created_at', { ascending: false })),
@@ -178,7 +187,7 @@ const App: React.FC = () => {
       safeFetch('transactions', supabase.from('transactions').select('*').order('date', { ascending: false })),
       safeFetch('games', supabase.from('games').select('*').order('created_at', { ascending: false })),
       safeFetch('polls', supabase.from('polls').select('*').order('created_at', { ascending: false })),
-      safeFetch('celebrations', supabase.from('celebrations').select('*').order('date', { ascending: false }))
+      safeFetch('celebrations', supabase.from('celebrations').select('*'))
     ]);
 
     if (configData.data) {
@@ -194,22 +203,24 @@ const App: React.FC = () => {
       });
     }
 
-    setUsers(profilesData as any);
-    setPosts((postsData as any[]).map(p => ({
+    if (profilesData) setUsers(profilesData as any);
+    
+    setPosts((postsData || []).map((p: any) => ({
       ...p,
       userId: p.user_id,
       userName: p.user_name,
       userAvatar: p.user_avatar,
       createdAt: p.created_at,
-      comments: (commentsData as any[]).filter(c => c.post_id === p.id).map(c => ({
+      comments: (commentsData || []).filter((c: any) => c.post_id === p.id).map((c: any) => ({
         ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at
       }))
     })));
 
-    setEvents((eventsData as any[]).map(e => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
-    setIdeas((ideasData as any[]).map(i => ({
+    setEvents((eventsData || []).map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+    
+    setIdeas((ideasData || []).map((i: any) => ({
       ...i, userId: i.user_id, userName: i.user_name, userAvatar: i.user_avatar, createdAt: i.created_at,
-      comments: (commentsData as any[]).filter(c => c.idea_id === i.id).map(c => ({
+      comments: (commentsData || []).filter((c: any) => c.idea_id === i.id).map((c: any) => ({
         ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at
       }))
     })));
@@ -217,9 +228,8 @@ const App: React.FC = () => {
     setDocuments(docsData as any);
     setRewards(rewardsData as any);
     
-    // MAPPING NEWSLETTERS AVEC LOG DE DEBUG
-    if (newsData && Array.isArray(newsData)) {
-      console.log(`Vercel Debug: ${newsData.length} newsletters brutes trouvées dans Supabase.`);
+    if (newsData && Array.isArray(newsData) && newsData.length > 0) {
+      console.log(`Données newsletters chargées : ${newsData.length} lignes.`);
       setNewsletters(newsData.map((n: any) => ({ 
         id: n.id,
         title: n.title,
@@ -229,17 +239,17 @@ const App: React.FC = () => {
         authorName: n.author_name || 'Équipe Star Fruits', 
         readCount: n.read_count || 0,
         articles: n.articles || []
-      })));
+      })).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()));
     } else {
-      console.warn("Vercel Debug: Aucune donnée newsletter reçue de Supabase.");
+      console.warn("Aucune newsletter disponible dans le tableau.");
     }
     
-    setMoods((moodsData as any[]).map(m => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
-    setWellnessContents((wellContentsData as any[]).map(c => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
-    setWellnessChallenges((challengesData as any[]).map(c => ({ ...c, isActive: c.is_active })));
-    setMessages((messagesData as any[]).map(m => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
-    setTransactions((transData as any[]).map(t => ({ ...t, userId: t.user_id, date: t.date })));
-    setGames((gamesData as any[]).map(g => ({
+    setMoods((moodsData || []).map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
+    setWellnessContents((wellContentsData || []).map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
+    setWellnessChallenges((challengesData || []).map((c: any) => ({ ...c, isActive: c.is_active })));
+    setMessages((messagesData || []).map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
+    setTransactions((transData || []).map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+    setGames((gamesData || []).map((g: any) => ({
       ...g,
       rewardPoints: g.reward_points,
       questions: g.questions,
@@ -252,10 +262,10 @@ const App: React.FC = () => {
       createdAt: g.created_at,
       createdBy: g.created_by
     })));
-    setPolls((pollsData as any[]).map(p => ({
+    setPolls((pollsData || []).map((p: any) => ({
       ...p, endDate: p.end_date, createdBy: p.created_by, createdByName: p.created_by_name, createdAt: p.created_at, targetDepartments: p.target_departments
     })));
-    setCelebrations((celebrationsData as any[]).map(c => ({
+    setCelebrations((celebrationsData || []).map((c: any) => ({
       ...c, userIds: c.user_ids || [], userName: c.user_name || 'Collaborateur', userAvatar: c.user_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`, createdBy: c.created_by, likes: Array.isArray(c.likes) ? c.likes : []
     })));
   };
@@ -264,15 +274,11 @@ const App: React.FC = () => {
     if (session || currentUser) {
       fetchAllData();
 
-      const dataChannel = supabase.channel('global-updates-robust')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'newsletters' }, () => {
-          console.log("Realtime: Changement newsletter détecté");
-          fetchAllData();
-        })
+      const dataChannel = supabase.channel('realtime-safe')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'newsletters' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'celebrations' }, () => fetchAllData())
         .subscribe();
 
       return () => { supabase.removeChannel(dataChannel); };
@@ -302,9 +308,9 @@ const App: React.FC = () => {
           email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
         }
       } as User);
-      addToast("Connexion réussie !");
+      addToast("Bienvenue !");
     } else {
-      setLoginError("Identifiants incorrects.");
+      setLoginError("Identifiants incorrects ou erreur serveur.");
     }
   };
 
@@ -322,14 +328,14 @@ const App: React.FC = () => {
       user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, role: currentUser.role,
       title: p.title, content: p.content, category: p.category, attachments: p.attachments || []
     });
-    if (error) addToast("Erreur", "error");
+    if (error) addToast("Impossible de publier.", "error");
     else { addToast("Posté !"); fetchAllData(); }
   };
 
   const handleAddUser = async (user: User) => {
     if (!supabase) return;
     const { error } = await supabase.from('profiles').insert([{ ...user }]);
-    if (error) addToast("Erreur lors de la création.", "error");
+    if (error) addToast("Erreur création.", "error");
     else { addToast("Utilisateur ajouté !"); fetchAllData(); }
   };
 
@@ -465,7 +471,7 @@ const App: React.FC = () => {
               const { error } = await supabase.from('newsletters').insert({
                 title: n.title, summary: n.summary, cover_image: n.coverImage, author_name: n.authorName, articles: n.articles, published_at: new Date().toISOString()
               });
-              if (error) addToast("Erreur lors de la publication.", "error");
+              if (error) addToast("Erreur publication.", "error");
               else { addToast("Newsletter publiée."); fetchAllData(); }
             }}
             onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); fetchAllData(); }}
