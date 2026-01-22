@@ -2,7 +2,7 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   MODERATOR = 'MODERATEUR',
-  USER = 'UTILISATEUR'
+  USER = 'USER'
 }
 
 export interface NotificationSettings {
