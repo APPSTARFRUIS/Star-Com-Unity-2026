@@ -15,10 +15,10 @@ interface UserCardProps {
 
 const UserCard: React.FC<UserCardProps> = ({ user, small = false }) => {
   const isLeader = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
-  
+
   return (
     <div className={`bg-white rounded-xl border transition-all flex items-center gap-3 ${
-      small ? 'w-full max-w-[14rem] p-3' : 'p-4 shadow-sm hover:shadow-md'
+      small ? 'w-full max-w-full sm:max-w-[14rem] p-3' : 'w-full p-4 shadow-sm hover:shadow-md'
     } ${isLeader ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'}`}>
       <div className="relative shrink-0">
         <img src={user.avatar} className={`${small ? 'w-9 h-9' : 'w-12 h-12'} rounded-full border border-slate-100 object-cover`} alt="" />
@@ -65,22 +65,22 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 w-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
-          <p className="text-slate-500">Organisation et structure de Star Fruits.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
+          <p className="text-sm md:text-base text-slate-500">Organisation et structure de Star Fruits.</p>
         </div>
         
-        <div className="flex bg-white rounded-2xl border border-slate-200 p-1 shadow-sm shrink-0">
+        <div className="flex bg-white rounded-2xl border border-slate-200 p-1 shadow-sm shrink-0 w-full md:w-auto">
           {[
             { id: 'list', label: 'Liste' },
             { id: 'department', label: 'Services' },
             { id: 'org', label: 'Organigramme' }
           ].map(tab => (
-            <button 
+            <button
               key={tab.id}
               onClick={() => setActiveSubView(tab.id as TeamSubView)}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeSubView === tab.id ? 'bg-[#14532d] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex-1 md:flex-initial ${activeSubView === tab.id ? 'bg-[#14532d] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               {tab.label}
             </button>
@@ -161,7 +161,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
 
       {activeSubView === 'org' && (
         <div className="bg-[#f1f5f9] rounded-[48px] p-4 md:p-8 lg:p-12 shadow-inner overflow-x-auto min-h-[700px]">
-          <div className="flex flex-col items-center w-full md:min-w-[1000px]">
+          <div className="flex flex-col items-center w-full">
             {/* Level 1: Direction */}
             <div className="flex flex-col items-center">
               <div className="bg-slate-800 text-white px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 shadow-xl">
@@ -203,7 +203,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                              </div>
                            ))
                        ) : (
-                         <div className="w-full max-w-[14rem] h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
+                         <div className="w-full max-w-full sm:max-w-[14rem] h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
                             <span className="text-[10px] text-slate-400 italic">Poste à pourvoir</span>
                          </div>
                        )}
