@@ -707,7 +707,7 @@ const App: React.FC = () => {
                   end_date: poll.endDate,
                   created_by: currentUser.id,
                   created_by_name: currentUser.name,
-                  target_departments: poll.target_departments,
+                  target_departments: poll.targetDepartments,
                   responses: []
                 });
                 if (error) { console.error("Erreur insertion poll:", error.message || error); addToast(`Erreur lors de la création : ${error.message || ''}`, "error"); }
