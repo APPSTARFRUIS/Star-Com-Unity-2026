@@ -18,7 +18,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, small = false }) => {
   
   return (
     <div className={`bg-white rounded-xl border transition-all flex items-center gap-3 ${
-      small ? 'w-56 p-3' : 'p-4 shadow-sm hover:shadow-md'
+      small ? 'w-full max-w-[14rem] p-3' : 'p-4 shadow-sm hover:shadow-md'
     } ${isLeader ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'}`}>
       <div className="relative shrink-0">
         <img src={user.avatar} className={`${small ? 'w-9 h-9' : 'w-12 h-12'} rounded-full border border-slate-100 object-cover`} alt="" />
@@ -160,8 +160,8 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
       )}
 
       {activeSubView === 'org' && (
-        <div className="bg-[#f1f5f9] rounded-[48px] p-8 md:p-12 shadow-inner overflow-x-auto min-h-[700px]">
-          <div className="flex flex-col items-center min-w-[1000px]">
+        <div className="bg-[#f1f5f9] rounded-[48px] p-4 md:p-8 lg:p-12 shadow-inner overflow-x-auto min-h-[700px]">
+          <div className="flex flex-col items-center w-full md:min-w-[1000px]">
             {/* Level 1: Direction */}
             <div className="flex flex-col items-center">
               <div className="bg-slate-800 text-white px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 shadow-xl">
@@ -181,7 +181,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
             <div className="h-px bg-slate-300 w-[80%] mx-auto"></div>
             
             {/* Grid of Departments */}
-            <div className="grid grid-cols-3 xl:grid-cols-6 gap-x-8 gap-y-12 mt-0 w-full pt-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-8 gap-y-12 mt-0 w-full pt-10">
                {otherDepts.map((dept, idx) => (
                  <div key={dept} className="flex flex-col items-center relative group">
                     {/* Secondary vertical connectors */}
@@ -203,7 +203,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                              </div>
                            ))
                        ) : (
-                         <div className="w-56 h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
+                         <div className="w-full max-w-[14rem] h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
                             <span className="text-[10px] text-slate-400 italic">Poste à pourvoir</span>
                          </div>
                        )}
