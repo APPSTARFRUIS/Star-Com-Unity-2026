@@ -94,7 +94,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
   const archives = sortedNewsletters.slice(1);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 pb-20 animate-in fade-in duration-500 text-left">
+    <div className="w-full max-w-6xl mx-auto space-y-12 pb-20 animate-in fade-in duration-500 text-left relative z-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-4xl font-black text-slate-800 tracking-tight">Newsletter</h1>
       </div>
@@ -156,7 +156,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
       )}
 
       {readingNewsletter && (
-        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[100] flex items-center justify-center p-0 md:p-8 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[150] flex items-center justify-center p-0 md:p-8 animate-in fade-in duration-300">
            <div className="bg-white w-full max-w-6xl h-full md:h-[90vh] md:rounded-[48px] shadow-2xl overflow-hidden flex flex-col relative">
               <div className="bg-white px-8 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
