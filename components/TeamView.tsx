@@ -64,7 +64,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
   const otherDepts = DEPARTMENTS.filter(d => d !== 'Direction');
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 w-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
@@ -103,10 +103,10 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                 className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm"
               />
             </div>
-            <select 
+            <select
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
-              className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm font-bold text-slate-700 appearance-none min-w-[200px]"
+              className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm font-bold text-slate-700 appearance-none w-full md:min-w-[200px] md:w-auto"
               style={{ backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
             >
               <option value="Tous">Tous les services</option>
@@ -128,7 +128,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
       )}
 
       {activeSubView === 'department' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {DEPARTMENTS.map(dept => (
             <div key={dept} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
               <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
