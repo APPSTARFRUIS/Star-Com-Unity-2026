@@ -312,6 +312,11 @@ const App: React.FC = () => {
 
     setLoginError('');
 
+    if (password.length < 5) {
+      setLoginError('Le mot de passe doit contenir au moins 5 caractères.');
+      return;
+    }
+
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({
         email,
@@ -321,27 +326,28 @@ const App: React.FC = () => {
       if (error) setLoginError(error.message);
       else addToast("Compte créé !");
     } else {
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (!authError) return;
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email)
+          .eq('password', password)
+          .maybeSingle();
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .maybeSingle();
-
-      if (profileData) {
-        localStorage.setItem('star_community_user_id', profileData.id);
-        setCurrentUser({
-          ...profileData,
-          notification_settings: profileData.notification_settings || {
-            email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
-          }
-        } as User);
-        addToast("Connexion réussie !");
-      } else {
-        setLoginError("Identifiants incorrects.");
+        if (profileData) {
+          localStorage.setItem('star_community_user_id', profileData.id);
+          setCurrentUser({
+            ...profileData,
+            notification_settings: profileData.notification_settings || {
+              email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
+            }
+          } as User);
+          addToast("Connexion réussie !");
+        } else {
+          setLoginError("Identifiants incorrects.");
+        }
+      } catch (err) {
+        setLoginError("Erreur de connexion. Veuillez réessayer.");
       }
     }
   };
