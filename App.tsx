@@ -331,18 +331,26 @@ const App: React.FC = () => {
           .from('profiles')
           .select('*')
           .eq('email', email)
-          .eq('password', password)
           .maybeSingle();
 
-        if (profileData) {
-          localStorage.setItem('star_community_user_id', profileData.id);
-          setCurrentUser({
-            ...profileData,
-            notification_settings: profileData.notification_settings || {
-              email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
-            }
-          } as User);
-          addToast("Connexion réussie !");
+        if (profileData && profileData.password_hash) {
+          const { data: isValidPassword } = await supabase.rpc('verify_password', {
+            password: password,
+            hash: profileData.password_hash
+          });
+
+          if (isValidPassword) {
+            localStorage.setItem('star_community_user_id', profileData.id);
+            setCurrentUser({
+              ...profileData,
+              notification_settings: profileData.notification_settings || {
+                email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
+              }
+            } as User);
+            addToast("Connexion réussie !");
+          } else {
+            setLoginError("Identifiants incorrects.");
+          }
         } else {
           setLoginError("Identifiants incorrects.");
         }
@@ -378,11 +386,15 @@ const App: React.FC = () => {
 
   const handleAddUser = async (user: User) => {
     if (!supabase) return;
+    const { data: passwordHash } = await supabase.rpc('hash_password', {
+      password: user.password || 'default'
+    });
+
     const { error } = await supabase.from('profiles').insert([{
       id: user.id,
       email: user.email,
       name: user.name,
-      password: user.password,
+      password_hash: passwordHash,
       role: user.role,
       avatar: user.avatar,
       department: user.department,
@@ -390,7 +402,8 @@ const App: React.FC = () => {
       points: user.points || 0,
       phone: user.phone,
       job_function: user.job_function,
-      notification_settings: user.notification_settings
+      notification_settings: user.notification_settings,
+      is_active: true
     }]);
     if (error) { console.error("Erreur création profil:", error); addToast("Erreur lors de la création de l'utilisateur.", "error"); }
     else { addToast("Utilisateur ajouté à l'annuaire !"); fetchAllData(); }
@@ -398,10 +411,9 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = async (u: User) => {
     if (!supabase) return;
-    const { error } = await supabase.from('profiles').update({
+    let updateData: any = {
       name: u.name,
       email: u.email,
-      password: u.password,
       role: u.role,
       department: u.department,
       company: u.company,
@@ -410,7 +422,16 @@ const App: React.FC = () => {
       phone: u.phone,
       job_function: u.job_function,
       notification_settings: u.notification_settings
-    }).eq('id', u.id);
+    };
+
+    if (u.password && u.password.length > 0) {
+      const { data: passwordHash } = await supabase.rpc('hash_password', {
+        password: u.password
+      });
+      updateData.password_hash = passwordHash;
+    }
+
+    const { error } = await supabase.from('profiles').update(updateData).eq('id', u.id);
 
     if (!error) { addToast("Profil mis à jour."); fetchAllData(); fetchUserProfile(u.id); }
     else { console.error("Erreur update profil:", error); addToast("Erreur mise à jour.", "error"); }
