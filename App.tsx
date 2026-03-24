@@ -386,27 +386,44 @@ const App: React.FC = () => {
 
   const handleAddUser = async (user: User) => {
     if (!supabase) return;
-    const { data: passwordHash } = await supabase.rpc('hash_password', {
-      password: user.password || 'default'
-    });
 
-    const { error } = await supabase.from('profiles').insert([{
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      password_hash: passwordHash,
-      role: user.role,
-      avatar: user.avatar,
-      department: user.department,
-      company: user.company,
-      points: user.points || 0,
-      phone: user.phone,
-      job_function: user.job_function,
-      notification_settings: user.notification_settings,
-      is_active: true
-    }]);
-    if (error) { console.error("Erreur création profil:", error); addToast("Erreur lors de la création de l'utilisateur.", "error"); }
-    else { addToast("Utilisateur ajouté à l'annuaire !"); fetchAllData(); }
+    try {
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (existingUser) {
+        addToast("Un utilisateur avec cet email existe déjà.", "error");
+        return;
+      }
+
+      const { data: passwordHash } = await supabase.rpc('hash_password', {
+        password: user.password || 'default'
+      });
+
+      const { error } = await supabase.from('profiles').insert([{
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        password_hash: passwordHash,
+        role: user.role,
+        avatar: user.avatar,
+        department: user.department,
+        company: user.company,
+        points: user.points || 0,
+        phone: user.phone,
+        job_function: user.job_function,
+        notification_settings: user.notification_settings,
+        is_active: true
+      }]);
+      if (error) { console.error("Erreur création profil:", error); addToast("Erreur lors de la création de l'utilisateur.", "error"); }
+      else { addToast("Utilisateur ajouté à l'annuaire !"); fetchAllData(); }
+    } catch (err) {
+      console.error("Erreur:", err);
+      addToast("Erreur lors de la création de l'utilisateur.", "error");
+    }
   };
 
   const handleUpdateProfile = async (u: User) => {
