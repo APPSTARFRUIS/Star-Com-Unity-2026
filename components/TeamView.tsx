@@ -15,10 +15,10 @@ interface UserCardProps {
 
 const UserCard: React.FC<UserCardProps> = ({ user, small = false }) => {
   const isLeader = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
-
+  
   return (
     <div className={`bg-white rounded-xl border transition-all flex items-center gap-3 ${
-      small ? 'w-full max-w-full sm:max-w-[14rem] p-3' : 'w-full p-4 shadow-sm hover:shadow-md'
+      small ? 'w-56 p-3' : 'p-4 shadow-sm hover:shadow-md'
     } ${isLeader ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'}`}>
       <div className="relative shrink-0">
         <img src={user.avatar} className={`${small ? 'w-9 h-9' : 'w-12 h-12'} rounded-full border border-slate-100 object-cover`} alt="" />
@@ -64,23 +64,23 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
   const otherDepts = DEPARTMENTS.filter(d => d !== 'Direction');
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 w-full">
-      <div className="flex flex-col gap-4">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
-          <p className="text-sm md:text-base text-slate-500">Organisation et structure de Star Fruits.</p>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
+          <p className="text-slate-500">Organisation et structure de Star Fruits.</p>
         </div>
         
-        <div className="flex bg-white rounded-2xl border border-slate-200 p-1 shadow-sm shrink-0 w-full md:w-auto">
+        <div className="flex bg-white rounded-2xl border border-slate-200 p-1 shadow-sm shrink-0">
           {[
             { id: 'list', label: 'Liste' },
             { id: 'department', label: 'Services' },
             { id: 'org', label: 'Organigramme' }
           ].map(tab => (
-            <button
+            <button 
               key={tab.id}
               onClick={() => setActiveSubView(tab.id as TeamSubView)}
-              className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex-1 md:flex-initial ${activeSubView === tab.id ? 'bg-[#14532d] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeSubView === tab.id ? 'bg-[#14532d] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               {tab.label}
             </button>
@@ -103,10 +103,10 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                 className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm"
               />
             </div>
-            <select
+            <select 
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
-              className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm font-bold text-slate-700 appearance-none w-full md:min-w-[200px] md:w-auto"
+              className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition-all shadow-sm font-bold text-slate-700 appearance-none min-w-[200px]"
               style={{ backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
             >
               <option value="Tous">Tous les services</option>
@@ -128,7 +128,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
       )}
 
       {activeSubView === 'department' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {DEPARTMENTS.map(dept => (
             <div key={dept} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
               <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
@@ -160,8 +160,8 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
       )}
 
       {activeSubView === 'org' && (
-        <div className="bg-[#f1f5f9] rounded-[48px] p-4 md:p-8 lg:p-12 shadow-inner overflow-x-auto min-h-[700px]">
-          <div className="flex flex-col items-center w-full">
+        <div className="bg-[#f1f5f9] rounded-[48px] p-8 md:p-12 shadow-inner overflow-x-auto min-h-[700px]">
+          <div className="flex flex-col items-center min-w-[1000px]">
             {/* Level 1: Direction */}
             <div className="flex flex-col items-center">
               <div className="bg-slate-800 text-white px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 shadow-xl">
@@ -181,7 +181,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
             <div className="h-px bg-slate-300 w-[80%] mx-auto"></div>
             
             {/* Grid of Departments */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-8 gap-y-12 mt-0 w-full pt-10">
+            <div className="grid grid-cols-3 xl:grid-cols-6 gap-x-8 gap-y-12 mt-0 w-full pt-10">
                {otherDepts.map((dept, idx) => (
                  <div key={dept} className="flex flex-col items-center relative group">
                     {/* Secondary vertical connectors */}
@@ -203,7 +203,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                              </div>
                            ))
                        ) : (
-                         <div className="w-full max-w-full sm:max-w-[14rem] h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
+                         <div className="w-56 h-12 border border-dashed border-slate-300 rounded-xl flex items-center justify-center">
                             <span className="text-[10px] text-slate-400 italic">Poste à pourvoir</span>
                          </div>
                        )}

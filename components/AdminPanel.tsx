@@ -186,23 +186,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewGame(prev => {
       const updated = [...(prev.questions || [])];
       const q = updated[qIdx];
-      let newCorrectIndices: number[];
-
       if (q.type === 'QCM') {
         if (q.correctIndices.includes(oIdx)) {
-          if (q.correctIndices.length > 1) {
-            newCorrectIndices = q.correctIndices.filter(i => i !== oIdx);
-          } else {
-            newCorrectIndices = q.correctIndices;
-          }
+          if (q.correctIndices.length > 1) q.correctIndices = q.correctIndices.filter(i => i !== oIdx);
         } else {
-          newCorrectIndices = [...q.correctIndices, oIdx];
+          q.correctIndices = [...q.correctIndices, oIdx];
         }
       } else {
-        newCorrectIndices = [oIdx];
+        q.correctIndices = [oIdx];
       }
-
-      updated[qIdx] = { ...q, correctIndices: newCorrectIndices };
       return { ...prev, questions: updated };
     });
   };
