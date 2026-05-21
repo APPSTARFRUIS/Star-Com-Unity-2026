@@ -1,4 +1,3 @@
-
 import { Post, User, UserRole, CompanyEvent, AppConfig, Reward } from './types';
 
 export const INITIAL_CONFIG: AppConfig = {
@@ -19,7 +18,6 @@ export const INITIAL_USERS: User[] = [
     role: UserRole.ADMIN,
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ludivine',
     department: 'Direction',
-    // Added missing company property
     company: 'Star fruits',
     birthday: '01-15',
     points: 1500
@@ -32,7 +30,6 @@ export const INITIAL_USERS: User[] = [
     role: UserRole.ADMIN,
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
     department: 'Service Administratif, RH & Financier',
-    // Added missing company property
     company: 'Star fruits',
     birthday: '05-20',
     points: 450
@@ -45,7 +42,6 @@ export const INITIAL_USERS: User[] = [
     role: UserRole.MODERATOR,
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marc',
     department: 'Service Communication',
-    // Added missing company property
     company: 'Star fruits',
     birthday: '12-10',
     points: 320
@@ -58,7 +54,6 @@ export const INITIAL_USERS: User[] = [
     role: UserRole.USER,
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Julien',
     department: 'Service Juridique',
-    // Added missing company property
     company: 'Star fruits',
     birthday: '01-28',
     points: 120
@@ -71,10 +66,21 @@ export const INITIAL_USERS: User[] = [
     role: UserRole.USER,
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sophie',
     department: 'Pôle Variétal',
-    // Added missing company property
     company: 'Star fruits',
     birthday: '03-12',
     points: 800
+  },
+  {
+    id: '5',
+    email: 'qualite@company.com',
+    password: 'User',
+    name: 'Claire Qualité',
+    role: UserRole.USER,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Claire',
+    department: 'Service Qualité',
+    company: 'Star fruits',
+    birthday: '09-18',
+    points: 210
   }
 ];
 
@@ -130,9 +136,9 @@ export const DEPARTMENTS: string[] = [
   'Direction',
   'Service Administratif, RH & Financier',
   'Service Communication',
+  'Service Qualité',
   'Pôle Variétal',
   'Service Variétés Filière',
   'Pôle Marques',
   'Service Juridique'
-  'Service Qualité'
 ];
