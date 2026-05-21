@@ -1,4 +1,3 @@
-```tsx
 import React, { useState, useMemo, useRef } from 'react';
 import { User, DocumentFile, UserRole } from '../types';
 
@@ -6,7 +5,13 @@ interface DocumentsViewProps {
   currentUser: User;
   documents: DocumentFile[];
   categories: string[];
-  onUpload: (name: string, type: string, size: number, category: string, data: string) => void;
+  onUpload: (
+    name: string,
+    type: string,
+    size: number,
+    category: string,
+    data: string
+  ) => void;
   onDelete: (id: string) => void;
 }
 
@@ -20,17 +25,26 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState<DocumentFile | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadCategory, setUploadCategory] = useState(categories[0] || 'Général');
+  const [previewDocument, setPreviewDocument] =
+    useState<DocumentFile | null>(null);
 
-  const docCategoriesForFilter = useMemo(() => ['Tous', ...categories], [categories]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [uploadCategory, setUploadCategory] = useState(
+    categories[0] || 'Général'
+  );
+
+  const docCategoriesForFilter = useMemo(
+    () => ['Tous', ...categories],
+    [categories]
+  );
 
   const filteredDocs = useMemo(() => {
     return documents
       .filter((doc) => {
         const matchesCategory =
-          selectedCategory === 'Tous' || doc.category === selectedCategory;
+          selectedCategory === 'Tous' ||
+          doc.category === selectedCategory;
 
         const matchesSearch = doc.name
           .toLowerCase()
@@ -49,6 +63,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
+
     if (!file) return;
 
     setIsUploading(true);
@@ -86,6 +101,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     const link = document.createElement('a');
     link.href = doc.data;
     link.download = doc.name;
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -93,8 +109,10 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   const handleDownloadDocument = (doc: DocumentFile) => {
     const link = document.createElement('a');
+
     link.href = doc.data;
     link.download = doc.name;
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -105,6 +123,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
+
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return (
@@ -124,70 +143,16 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     return parsedDate.toLocaleDateString('fr-FR');
   };
 
-  const getFileIcon = (type: string, name: string) => {
-    const fileName = name.toLowerCase();
-
+  const getFileIcon = (type: string) => {
     if (type.includes('pdf')) {
-      return (
-        <div className="p-2 bg-red-50 text-red-600 rounded-lg">
-          <svg
-            className="w-6 h-6"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6l-4-4H9z" />
-            <path d="M5 6a2 2 0 012-2h1v10H5V6z" />
-          </svg>
-        </div>
-      );
+      return '📄';
     }
 
     if (type.includes('image')) {
-      return (
-        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-          <svg
-            className="w-6 h-6"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm3 2a1 1 0 100 2 1 1 0 000-2zm8 8l-3-3-2 2-1-1-3 3h9z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </div>
-      );
+      return '🖼️';
     }
 
-    if (
-      fileName.endsWith('.doc') ||
-      fileName.endsWith('.docx')
-    ) {
-      return (
-        <div className="p-2 bg-blue-50 text-blue-700 rounded-lg">
-          <svg
-            className="w-6 h-6"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H4z" />
-          </svg>
-        </div>
-      );
-    }
-
-    return (
-      <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">
-        <svg
-          className="w-6 h-6"
-          fill="currentColor"
-          viewBox="0 0 20 20"
-        >
-          <path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H4z" />
-        </svg>
-      </div>
-    );
+    return '📁';
   };
 
   return (
@@ -199,8 +164,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
               const count =
                 category === 'Tous'
                   ? documents.length
-                  : documents.filter((d) => d.category === category)
-                      .length;
+                  : documents.filter(
+                      (d) => d.category === category
+                    ).length;
 
               return (
                 <button
@@ -213,7 +179,10 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                   }`}
                 >
                   <span>{category}</span>
-                  <span className="text-xs opacity-70">{count}</span>
+
+                  <span className="text-xs opacity-70">
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -228,7 +197,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
               <select
                 value={uploadCategory}
-                onChange={(e) => setUploadCategory(e.target.value)}
+                onChange={(e) =>
+                  setUploadCategory(e.target.value)
+                }
                 className="w-full border border-slate-300 rounded-lg px-3 py-2"
               >
                 {categories.map((cat) => (
@@ -246,11 +217,15 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
               />
 
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
                 disabled={isUploading}
                 className="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg py-3 font-medium transition-colors"
               >
-                {isUploading ? 'Téléversement...' : 'Téléverser'}
+                {isUploading
+                  ? 'Téléversement...'
+                  : 'Téléverser'}
               </button>
             </div>
           )}
@@ -262,7 +237,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
               type="text"
               placeholder="Rechercher un document..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) =>
+                setSearchQuery(e.target.value)
+              }
               className="w-full border border-slate-300 rounded-lg px-4 py-3"
             />
           </div>
@@ -287,12 +264,15 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
-                        {getFileIcon(doc.type, doc.name)}
+                        <div className="text-2xl">
+                          {getFileIcon(doc.type)}
+                        </div>
 
                         <div>
                           <div className="font-medium text-slate-800">
                             {doc.name}
                           </div>
+
                           <div className="text-sm text-slate-500">
                             Par {doc.uploadedByName}
                           </div>
@@ -317,23 +297,31 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleViewDocument(doc)}
+                          onClick={() =>
+                            handleViewDocument(doc)
+                          }
                           className="text-slate-500 hover:text-green-600"
                         >
                           👁️
                         </button>
 
                         <button
-                          onClick={() => handleDownloadDocument(doc)}
+                          onClick={() =>
+                            handleDownloadDocument(doc)
+                          }
                           className="text-slate-500 hover:text-blue-600"
                         >
                           ⬇️
                         </button>
 
-                        {(currentUser.role === UserRole.ADMIN ||
-                          currentUser.role === UserRole.MODERATOR) && (
+                        {(currentUser.role ===
+                          UserRole.ADMIN ||
+                          currentUser.role ===
+                            UserRole.MODERATOR) && (
                           <button
-                            onClick={() => onDelete(doc.id)}
+                            onClick={() =>
+                              onDelete(doc.id)
+                            }
                             className="text-slate-500 hover:text-red-600"
                           >
                             🗑️
@@ -358,7 +346,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
               </h2>
 
               <button
-                onClick={() => setPreviewDocument(null)}
+                onClick={() =>
+                  setPreviewDocument(null)
+                }
                 className="text-slate-500 hover:text-red-600 text-2xl"
               >
                 ×
@@ -388,4 +378,3 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 };
 
 export default DocumentsView;
-```
