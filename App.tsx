@@ -310,7 +310,7 @@ const App: React.FC = () => {
     e.preventDefault();
 
     if (!supabase) {
-      setLoginError('Supabase non configuré.');
+      setLoginError("Supabase non configuré.");
       return;
     }
 
@@ -330,7 +330,7 @@ const App: React.FC = () => {
         });
 
         if (error) {
-          console.error('Erreur inscription Supabase Auth:', error);
+          console.error("Erreur inscription Supabase:", error);
           setLoginError(error.message);
           return;
         }
@@ -358,13 +358,13 @@ const App: React.FC = () => {
           });
 
           if (profileError) {
-            console.error('Erreur création profil:', profileError);
-            setLoginError('Compte créé, mais profil utilisateur non créé.');
+            console.error("Erreur création profil:", profileError);
+            setLoginError("Compte créé, mais profil utilisateur non créé.");
             return;
           }
         }
 
-        addToast('Compte créé ! Tu peux maintenant te connecter.');
+        addToast("Compte créé !");
         setIsSignUp(false);
         return;
       }
@@ -375,18 +375,94 @@ const App: React.FC = () => {
       });
 
       if (error || !data.user) {
-        console.error('Erreur connexion Supabase Auth:', error);
-        setLoginError(error?.message || 'Identifiants incorrects.');
+        console.error("Erreur connexion Supabase Auth:", error);
+        setLoginError(error?.message || "Identifiants incorrects.");
         return;
       }
 
-      localStorage.setItem('star_community_user_id', data.user.id);
-      setSession(data.session);
-      await fetchUserProfile(data.user.id);
-      addToast('Connexion réussie !');
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Erreur lecture profil:", profileError);
+        setLoginError("Erreur lecture profil utilisateur.");
+        return;
+      }
+
+      if (!profileData) {
+        const { data: createdProfile, error: createProfileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email: data.user.email || email,
+            name: (data.user.email || email).split('@')[0],
+            role: 'USER',
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email || email}`,
+            department: '',
+            company: 'Star Fruits',
+            points: 0,
+            notification_settings: {
+              email: true,
+              desktop: true,
+              mobile: true,
+              posts: true,
+              events: true,
+              messages: true,
+              birthdays: true,
+              polls: true
+            }
+          })
+          .select('*')
+          .single();
+
+        if (createProfileError || !createdProfile) {
+          console.error("Erreur création profil après connexion:", createProfileError);
+          setLoginError("Profil utilisateur introuvable.");
+          return;
+        }
+
+        localStorage.setItem('star_community_user_id', createdProfile.id);
+        setCurrentUser({
+          ...createdProfile,
+          notification_settings: createdProfile.notification_settings || {
+            email: true,
+            desktop: true,
+            mobile: true,
+            posts: true,
+            events: true,
+            messages: true,
+            birthdays: true,
+            polls: true
+          }
+        } as User);
+        addToast("Connexion réussie !");
+        fetchAllData();
+        return;
+      }
+
+      localStorage.setItem('star_community_user_id', profileData.id);
+      setCurrentUser({
+        ...profileData,
+        notification_settings: profileData.notification_settings || {
+          email: true,
+          desktop: true,
+          mobile: true,
+          posts: true,
+          events: true,
+          messages: true,
+          birthdays: true,
+          polls: true
+        }
+      } as User);
+
+      addToast("Connexion réussie !");
+      fetchAllData();
     } catch (err) {
-      console.error('Erreur handleAuth:', err);
-      setLoginError('Erreur de connexion.');
+      console.error("Erreur handleAuth:", err);
+      setLoginError("Erreur de connexion.");
     }
   };
 
@@ -751,7 +827,7 @@ const App: React.FC = () => {
                   end_date: poll.endDate,
                   created_by: currentUser.id,
                   created_by_name: currentUser.name,
-                  target_departments: poll.target_departments,
+                  target_departments: poll.targetDepartments || [],
                   responses: []
                 });
                 if (error) { console.error("Erreur insertion poll:", error.message || error); addToast(`Erreur lors de la création : ${error.message || ''}`, "error"); }
