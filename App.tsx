@@ -207,7 +207,12 @@ const App: React.FC = () => {
               .map((c: any) => ({ ...c, userId: c.user_id, userName: c.user_name, userAvatar: c.user_avatar, createdAt: c.created_at }))
           : []
       })));
-      if (docsData) setDocuments(docsData as any);
+      if (docsData) setDocuments(docsData.map((d: any) => ({
+        ...d,
+        uploadedBy: d.uploaded_by,
+        uploadedByName: d.uploaded_by_name,
+        uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString()
+      })) as any);
       if (rewardsData) setRewards(rewardsData as any);
       if (newsData) setNewsletters(newsData.map((n: any) => ({ ...n, coverImage: n.cover_image, publishedAt: n.published_at, authorName: n.author_name, readCount: n.read_count, articles: n.articles })));
       if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
@@ -330,36 +335,38 @@ const App: React.FC = () => {
         });
 
         if (error) {
-          console.error("Erreur inscription Supabase:", error);
+          console.error(error);
           setLoginError(error.message);
           return;
         }
 
         if (data.user) {
-          const { error: profileError } = await supabase.from('profiles').upsert({
-            id: data.user.id,
-            email,
-            name: email.split('@')[0],
-            role: 'USER',
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-            department: '',
-            company: 'Star Fruits',
-            points: 0,
-            notification_settings: {
-              email: true,
-              desktop: true,
-              mobile: true,
-              posts: true,
-              events: true,
-              messages: true,
-              birthdays: true,
-              polls: true
-            }
-          });
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: data.user.id,
+              email,
+              name: email.split('@')[0],
+              role: 'USER',
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+              department: '',
+              company: 'Star Fruits',
+              points: 0,
+              notification_settings: {
+                email: true,
+                desktop: true,
+                mobile: true,
+                posts: true,
+                events: true,
+                messages: true,
+                birthdays: true,
+                polls: true
+              }
+            });
 
           if (profileError) {
-            console.error("Erreur création profil:", profileError);
-            setLoginError("Compte créé, mais profil utilisateur non créé.");
+            console.error(profileError);
+            setLoginError("Compte créé, mais profil utilisateur impossible à créer.");
             return;
           }
         }
@@ -375,7 +382,7 @@ const App: React.FC = () => {
       });
 
       if (error || !data.user) {
-        console.error("Erreur connexion Supabase Auth:", error);
+        console.error(error);
         setLoginError(error?.message || "Identifiants incorrects.");
         return;
       }
@@ -386,64 +393,14 @@ const App: React.FC = () => {
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (profileError) {
-        console.error("Erreur lecture profil:", profileError);
-        setLoginError("Erreur lecture profil utilisateur.");
-        return;
-      }
-
-      if (!profileData) {
-        const { data: createdProfile, error: createProfileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            email: data.user.email || email,
-            name: (data.user.email || email).split('@')[0],
-            role: 'USER',
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email || email}`,
-            department: '',
-            company: 'Star Fruits',
-            points: 0,
-            notification_settings: {
-              email: true,
-              desktop: true,
-              mobile: true,
-              posts: true,
-              events: true,
-              messages: true,
-              birthdays: true,
-              polls: true
-            }
-          })
-          .select('*')
-          .single();
-
-        if (createProfileError || !createdProfile) {
-          console.error("Erreur création profil après connexion:", createProfileError);
-          setLoginError("Profil utilisateur introuvable.");
-          return;
-        }
-
-        localStorage.setItem('star_community_user_id', createdProfile.id);
-        setCurrentUser({
-          ...createdProfile,
-          notification_settings: createdProfile.notification_settings || {
-            email: true,
-            desktop: true,
-            mobile: true,
-            posts: true,
-            events: true,
-            messages: true,
-            birthdays: true,
-            polls: true
-          }
-        } as User);
-        addToast("Connexion réussie !");
-        fetchAllData();
+      if (profileError || !profileData) {
+        console.error(profileError);
+        setLoginError("Profil utilisateur introuvable.");
         return;
       }
 
       localStorage.setItem('star_community_user_id', profileData.id);
+
       setCurrentUser({
         ...profileData,
         notification_settings: profileData.notification_settings || {
@@ -461,7 +418,7 @@ const App: React.FC = () => {
       addToast("Connexion réussie !");
       fetchAllData();
     } catch (err) {
-      console.error("Erreur handleAuth:", err);
+      console.error(err);
       setLoginError("Erreur de connexion.");
     }
   };
@@ -805,7 +762,7 @@ const App: React.FC = () => {
             documents={documents}
             categories={appConfig.documentCategories || []}
             onUpload={async (n, t, s, c, d) => {
-              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size: s, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, data: d });
+              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size: s, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d });
               fetchAllData();
             }}
             onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); fetchAllData(); }}
