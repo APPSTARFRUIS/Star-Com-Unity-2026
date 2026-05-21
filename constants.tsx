@@ -134,4 +134,5 @@ export const DEPARTMENTS: string[] = [
   'Service Variétés Filière',
   'Pôle Marques',
   'Service Juridique'
+  'Service Qualité'
 ];
