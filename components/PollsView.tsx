@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { User, Poll, Question, QuestionType, UserRole, PollResponse, Attachment } from '../types';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface PollsViewProps {
   currentUser: User;
@@ -223,12 +224,13 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, onCreatePoll,
     setActiveTab('liste');
   };
 
-  const handleQuestionAttachment = (questionId: string, file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      handleUpdateQuestion(questionId, { attachment: { name: file.name, type: file.type, data: reader.result as string } });
-    };
-    reader.readAsDataURL(file);
+  const handleQuestionAttachment = async (questionId: string, file: File) => {
+    try {
+      const url = await uploadMediaToStorage(file, 'polls');
+      handleUpdateQuestion(questionId, { attachment: { name: file.name, type: file.type, data: url } });
+    } catch (error: any) {
+      alert(error?.message || 'Erreur lors de l’upload du fichier.');
+    }
   };
 
   const ResultsSummary = ({ poll }: { poll: Poll }) => {

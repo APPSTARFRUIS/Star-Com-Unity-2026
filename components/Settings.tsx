@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, NotificationSettings } from '../types';
 import { DEPARTMENTS } from '../constants';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface SettingsProps {
   user: User;
@@ -46,14 +47,16 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, avatar: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const url = await uploadMediaToStorage(file, 'profiles');
+      setFormData(prev => ({ ...prev, avatar: url }));
+    } catch (error: any) {
+      alert(error?.message || 'Erreur lors de l’upload de l’avatar.');
+    } finally {
+      e.target.value = '';
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { User, DocumentFile, UserRole } from '../types';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface DocumentsViewProps {
   currentUser: User;
@@ -47,19 +48,15 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      onUpload(file.name, file.type, file.size, uploadCategory, reader.result as string);
+    try {
+      const url = await uploadMediaToStorage(file, 'documents');
+      onUpload(file.name, file.type, file.size, uploadCategory, url);
+    } catch (error: any) {
+      alert(error?.message || 'Erreur lors de l’upload du document.');
+    } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    reader.onerror = () => {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleViewDocument = (doc: DocumentFile) => {

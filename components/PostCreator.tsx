@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { CATEGORIES } from '../constants';
 import { geminiService } from '../geminiService';
 import { Post, User, Attachment } from '../types';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface PostCreatorProps {
   currentUser: User;
@@ -37,20 +38,16 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
     const newAttachments: Attachment[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const reader = new FileReader();
-      
-      const promise = new Promise<Attachment>((resolve) => {
-        reader.onloadend = () => {
-          resolve({
-            name: file.name,
-            type: file.type,
-            data: reader.result as string
-          });
-        };
-      });
-      
-      reader.readAsDataURL(file);
-      newAttachments.push(await promise);
+      try {
+        const url = await uploadMediaToStorage(file, 'posts');
+        newAttachments.push({
+          name: file.name,
+          type: file.type,
+          data: url
+        });
+      } catch (error: any) {
+        alert(error?.message || `Erreur lors de l’upload du fichier ${file.name}.`);
+      }
     }
     
     setAttachments([...attachments, ...newAttachments]);

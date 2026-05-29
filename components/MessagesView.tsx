@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Message, Attachment } from '../types';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface MessagesViewProps {
   currentUser: User;
@@ -54,20 +55,16 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
     const newAttachments: Attachment[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const reader = new FileReader();
-      
-      const promise = new Promise<Attachment>((resolve) => {
-        reader.onloadend = () => {
-          resolve({
-            name: file.name,
-            type: file.type,
-            data: reader.result as string
-          });
-        };
-      });
-      
-      reader.readAsDataURL(file);
-      newAttachments.push(await promise);
+      try {
+        const url = await uploadMediaToStorage(file, 'messages');
+        newAttachments.push({
+          name: file.name,
+          type: file.type,
+          data: url
+        });
+      } catch (error: any) {
+        alert(error?.message || `Erreur lors de l’upload du fichier ${file.name}.`);
+      }
     }
     
     setPendingAttachments([...pendingAttachments, ...newAttachments]);

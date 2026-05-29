@@ -45,6 +45,12 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
     return url.includes('youtube.com/embed') || url.includes('vimeo.com') || url.includes('player.vimeo.com');
   };
 
+  const isVideoUrl = (url?: string) => {
+    if (!url) return false;
+    const cleanUrl = url.split('?')[0].toLowerCase();
+    return url.startsWith('data:video') || cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') || cleanUrl.endsWith('.mov') || cleanUrl.endsWith('.m4v');
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -112,10 +118,10 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
                 className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
               >
                 <div className="h-56 bg-slate-100 relative overflow-hidden">
-                  {content.mediaUrl && !content.mediaUrl.startsWith('data:video') && (
+                  {content.mediaUrl && !isVideoUrl(content.mediaUrl) && (
                     <img src={content.mediaUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
                   )}
-                  {content.mediaUrl && content.mediaUrl.startsWith('data:video') && (
+                  {content.mediaUrl && isVideoUrl(content.mediaUrl) && (
                     <div className="w-full h-full bg-slate-900 flex items-center justify-center">
                        <svg className="w-12 h-12 text-white opacity-50" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
                     </div>

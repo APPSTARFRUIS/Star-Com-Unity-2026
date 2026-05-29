@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction } from '../types';
 import { DEPARTMENTS } from '../constants';
+import { uploadMediaToStorage } from '../storageUtils';
 
 interface AdminPanelProps {
   users: User[];
@@ -89,12 +90,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
   const [newDocCategory, setNewDocCategory] = useState('');
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (data: string) => void) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (data: string) => void, folder = 'admin') => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => callback(reader.result as string);
-    reader.readAsDataURL(file as Blob);
+    try {
+      const url = await uploadMediaToStorage(file, folder);
+      callback(url);
+    } catch (error: any) {
+      alert(error?.message || 'Erreur lors de l’upload du fichier.');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   // --- UTILISATEURS STATE ---
@@ -488,7 +494,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             ref={userAvatarRef} 
                             className="hidden" 
                             accept="image/*" 
-                            onChange={(e) => handleFileUpload(e, (data) => setUserForm({ ...userForm, avatar: data }))} 
+                            onChange={(e) => handleFileUpload(e, (data) => setUserForm({ ...userForm, avatar: data }), 'profiles')} 
                           />
                           <button 
                             type="button" 
@@ -705,7 +711,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Photo du produit</label>
-                        <input type="file" className="hidden" ref={rewardImgRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewReward({...newReward, image: data}))} />
+                        <input type="file" className="hidden" ref={rewardImgRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewReward({...newReward, image: data}), 'shop')} />
                         <div onClick={() => rewardImgRef.current?.click()} className="w-full aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all overflow-hidden shadow-sm">
                            {newReward.image ? <img src={newReward.image} className="w-full h-full object-cover" alt="" /> : <><svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.856a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2"/></svg><span className="text-xs text-slate-400 font-bold mt-2">Cliquez pour charger</span></>}
                         </div>
@@ -782,7 +788,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                         <div className="space-y-2">
                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Vignette (Local)</label>
-                           <input type="file" className="hidden" ref={gameThumbnailRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewGame({...newGame, thumbnail: data}))} />
+                           <input type="file" className="hidden" ref={gameThumbnailRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewGame({...newGame, thumbnail: data}), 'games')} />
                            <button type="button" onClick={() => gameThumbnailRef.current?.click()} className="w-full h-[60px] bg-slate-50 border border-slate-200 rounded-2xl px-5 text-sm font-bold text-slate-500 hover:bg-slate-100 truncate transition-all flex items-center justify-center">
                               {newGame.thumbnail ? "Vignette chargée ✅" : "Charger image locale"}
                            </button>
@@ -881,7 +887,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest">Paires du Memory ({newGame.memoryItems?.length})</h4>
                            <div className="flex gap-4">
                               <input placeholder="Emoji ou texte..." className="flex-1 bg-white border border-slate-200 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-indigo-500" value={memInput} onChange={e => setMemInput(e.target.value)} />
-                              <input type="file" className="hidden" ref={memFileRef} accept="image/*" onChange={e => handleFileUpload(e, handleAddMemItem)} />
+                              <input type="file" className="hidden" ref={memFileRef} accept="image/*" onChange={e => handleFileUpload(e, handleAddMemItem, 'games')} />
                               <button type="button" onClick={() => handleAddMemItem(memInput)} className="px-8 py-4 bg-slate-800 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all">Ajouter</button>
                               <button type="button" onClick={() => memFileRef.current?.click()} className="px-8 py-4 bg-indigo-100 text-indigo-700 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-200 transition-all">Image locale</button>
                            </div>
@@ -921,7 +927,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <div className="p-8 bg-indigo-50 rounded-[40px] space-y-8 border border-indigo-100">
                            <div className="flex items-center justify-between">
                               <h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em]">Configuration Objets ({newGame.hiddenObjects?.length})</h4>
-                              <input type="file" className="hidden" ref={gameHiddenImgRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewGame(prev => ({...prev, hiddenObjectsImage: data})))} />
+                              <input type="file" className="hidden" ref={gameHiddenImgRef} accept="image/*" onChange={e => handleFileUpload(e, (data) => setNewGame(prev => ({...prev, hiddenObjectsImage: data})), 'games')} />
                               <button type="button" onClick={() => gameHiddenImgRef.current?.click()} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-900/10">Charger Décor Local</button>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1024,7 +1030,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          </div>
                          <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-2">Image de couverture (Local)</label>
-                            <input type="file" className="hidden" ref={newsCoverRef} accept="image/*" onChange={e => handleFileUpload(e, setNewsCover)} />
+                            <input type="file" className="hidden" ref={newsCoverRef} accept="image/*" onChange={e => handleFileUpload(e, setNewsCover, 'newsletters')} />
                             <div onClick={() => newsCoverRef.current?.click()} className="w-full aspect-[21/9] bg-white border-2 border-dashed border-slate-200 rounded-[32px] flex items-center justify-center cursor-pointer overflow-hidden shadow-inner group transition-all hover:border-blue-400">
                                {newsCover ? <img src={newsCover} className="w-full h-full object-cover transition-transform group-hover:scale-110" /> : <div className="text-center space-y-2"><svg className="w-10 h-10 text-slate-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.856a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2"/></svg><span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Choisir un visuel</span></div>}
                             </div>
@@ -1079,7 +1085,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          </div>
                          <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Image principale (Local)</label>
-                            <input type="file" className="hidden" id="art-img" accept="image/*" onChange={e => handleFileUpload(e, (data) => handleUpdateArticle(editingArticle!.id, { image: data }))} />
+                            <input type="file" className="hidden" id="art-img" accept="image/*" onChange={e => handleFileUpload(e, (data) => handleUpdateArticle(editingArticle!.id, { image: data }), 'newsletters')} />
                             <div onClick={() => document.getElementById('art-img')?.click()} className="w-full h-48 bg-slate-50 border-2 border-dashed border-slate-100 rounded-3xl flex items-center justify-center cursor-pointer overflow-hidden group">
                                {editingArticle!.image ? <img src={editingArticle!.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" /> : <span className="text-xs font-bold text-slate-300">Cliquer pour charger une image</span>}
                             </div>
@@ -1113,7 +1119,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     )}
                                     {block.type === 'image' && (
                                       <div className="space-y-4">
-                                         <input type="file" className="hidden" id={`block-img-${block.id}`} accept="image/*" onChange={e => handleFileUpload(e, (data) => handleUpdateBlock(editingArticle!.id, block.id, data))} />
+                                         <input type="file" className="hidden" id={`block-img-${block.id}`} accept="image/*" onChange={e => handleFileUpload(e, (data) => handleUpdateBlock(editingArticle!.id, block.id, data), 'newsletters')} />
                                          <div onClick={() => document.getElementById(`block-img-${block.id}`)?.click()} className="w-full aspect-video bg-slate-50 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden">
                                             {block.content ? <img src={block.content} className="w-full h-full object-contain" /> : <span className="text-xs font-bold text-slate-300">Charger image locale</span>}
                                          </div>
@@ -1121,7 +1127,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     )}
                                     {block.type === 'video' && (
                                       <div className="space-y-4">
-                                         <input type="file" className="hidden" id={`block-vid-${block.id}`} accept="video/*" onChange={e => handleFileUpload(e, (data) => handleUpdateBlock(editingArticle!.id, block.id, data))} />
+                                         <input type="file" className="hidden" id={`block-vid-${block.id}`} accept="video/*" onChange={e => handleFileUpload(e, (data) => handleUpdateBlock(editingArticle!.id, block.id, data), 'newsletters')} />
                                          <div onClick={() => document.getElementById(`block-vid-${block.id}`)?.click()} className="w-full aspect-video bg-black rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden">
                                             {block.content ? <video src={block.content} className="w-full h-full" /> : <span className="text-xs font-bold text-slate-500">Charger vidéo locale</span>}
                                          </div>
@@ -1290,7 +1296,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Visuel principal (Image ou Vidéo)</label>
-                        <input type="file" className="hidden" ref={wellnessMediaRef} accept={newWellness.type === 'video' ? "video/*" : "image/*"} onChange={(e) => handleFileUpload(e, (data) => setNewWellness({...newWellness, mediaUrl: data}))} />
+                        <input type="file" className="hidden" ref={wellnessMediaRef} accept={newWellness.type === 'video' ? "video/*" : "image/*"} onChange={(e) => handleFileUpload(e, (data) => setNewWellness({...newWellness, mediaUrl: data}), 'wellness')} />
                         <div onClick={() => wellnessMediaRef.current?.click()} className="w-full aspect-video bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-all overflow-hidden shadow-inner">
                            {newWellness.mediaUrl ? (newWellness.type === 'video' ? <video src={newWellness.mediaUrl} className="w-full h-full object-cover" /> : <img src={newWellness.mediaUrl} className="w-full h-full object-cover" />) : <><svg className="w-10 h-10 text-slate-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.856a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2"/></svg><span className="text-xs text-slate-400 font-bold">Charger média local</span></>}
                         </div>
@@ -1352,7 +1358,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
               <div className="space-y-4">
                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] ml-2">Logo principal (Local)</label>
-                 <input type="file" ref={logoRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdateConfig({...appConfig, logoUrl: data}))} />
+                 <input type="file" ref={logoRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (data) => onUpdateConfig({...appConfig, logoUrl: data}), 'settings')} />
                  <div onClick={() => logoRef.current?.click()} className="w-40 h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[40px] flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-all overflow-hidden mx-auto shadow-inner group">
                     {appConfig.logoUrl ? <img src={appConfig.logoUrl} className="w-full h-full object-contain p-6 transition-transform group-hover:scale-110" alt="Logo" /> : <svg className="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2.5"/></svg>}
                  </div>
