@@ -24,6 +24,69 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
   };
 
   // --- LOGIQUE PDF ---
+  const escapeHtml = (value: string | undefined) => {
+    return (value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const isVideoUrl = (url: string | undefined) => {
+    if (!url) return false;
+    return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url) || url.startsWith('data:video/');
+  };
+
+  const renderPdfBlock = (b: any) => {
+    if (!b) return '';
+
+    if (b.type === 'text') {
+      return `
+        <div class="pdf-text-block">
+          ${escapeHtml(b.content).replace(/\n/g, '<br />')}
+        </div>
+      `;
+    }
+
+    if (b.type === 'image') {
+      return b.content ? `
+        <div class="pdf-media-block">
+          <img src="${b.content}" />
+        </div>
+      ` : '';
+    }
+
+    if (b.type === 'video') {
+      return `
+        <div class="pdf-video-block">
+          <div class="pdf-video-icon">▶</div>
+          <div class="pdf-video-title">Vidéo disponible dans la newsletter en ligne</div>
+          ${b.content ? `<a href="${b.content}" target="_blank" rel="noreferrer">Ouvrir la vidéo</a>` : ''}
+        </div>
+      `;
+    }
+
+    if (b.type === 'button') {
+      return b.content ? `
+        <div class="pdf-button-block">
+          <a href="${b.content}" target="_blank" rel="noreferrer">${escapeHtml(b.label || 'En savoir plus')}</a>
+        </div>
+      ` : '';
+    }
+
+    if (b.type === 'gallery') {
+      return `
+        <div class="pdf-gallery-block">
+          ${(b.images || []).map((img: string) => `<img src="${img}" />`).join('')}
+        </div>
+      `;
+    }
+
+    return '';
+  };
+
+  // --- LOGIQUE PDF ---
   const handleDownloadPDF = async () => {
     if (!readingNewsletter || isExporting) return;
     setIsExporting(true);
@@ -36,91 +99,352 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     }
 
     staging.innerHTML = '';
-    
-    // Création d'un conteneur spécifique pour le rendu
+
     const container = document.createElement('div');
-    container.style.width = '800px';
+    container.style.width = '794px';
     container.style.background = 'white';
-    container.style.color = '#000';
-    
-    let html = `
-      <div style="width: 100%; background: white; font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0;">
-        <!-- COUVERTURE -->
-        <div style="width: 100%; height: 1120px; position: relative; border-bottom: 1px solid #f1f5f9; page-break-after: always; display: flex; flex-direction: column; background: white;">
-          ${readingNewsletter.coverImage ? `<img src="${readingNewsletter.coverImage}" style="width: 100%; height: 650px; object-fit: cover;" />` : '<div style="height: 500px; background: #f8fafc;"></div>'}
-          <div style="padding: 60px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-            <div style="color: #16a34a; text-transform: uppercase; letter-spacing: 10px; font-weight: 900; font-size: 20px; margin-bottom: 20px;">STAR FRUITS</div>
-            <div style="height: 4px; width: 80px; background: #16a34a; border-radius: 2px; margin-bottom: 40px;"></div>
-            <h1 style="font-size: 64px; margin: 0 0 30px; color: #0f172a; line-height: 1; font-weight: 900; text-transform: uppercase;">${readingNewsletter.title}</h1>
-            <p style="font-size: 24px; color: #475569; font-style: italic; max-width: 600px; line-height: 1.4;">"${readingNewsletter.summary}"</p>
-            <div style="margin-top: auto; padding-top: 40px;">
-               <div style="font-weight: 900; color: #16a34a; letter-spacing: 3px; font-size: 14px;">ÉDITION OFFICIELLE • ${formatDate(readingNewsletter.publishedAt).toUpperCase()}</div>
-            </div>
-          </div>
-        </div>
+    container.style.color = '#0f172a';
 
-        <!-- SOMMAIRE -->
-        <div style="width: 100%; min-height: 1120px; padding: 100px 80px; box-sizing: border-box; page-break-after: always; background: white; border-top: 1px solid #eee;">
-          <h2 style="font-size: 48px; border-bottom: 12px solid #16a34a; display: inline-block; padding-bottom: 10px; margin-bottom: 80px; font-weight: 900; color: #0f172a; letter-spacing: -1px;">AU SOMMAIRE</h2>
-          <div style="display: flex; flex-direction: column; gap: 40px;">
-            ${readingNewsletter.articles.map((art, idx) => `
-              <div style="display: flex; align-items: flex-start; gap: 40px; padding-bottom: 40px; border-bottom: 1px solid #f1f5f9;">
-                <div style="font-size: 60px; font-weight: 900; color: #f1f5f9; line-height: 0.8; width: 80px; text-align: center;">0${idx + 1}</div>
-                <div style="flex: 1;">
-                  <div style="font-size: 28px; font-weight: 900; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">${art.title}</div>
-                  <div style="font-size: 18px; color: #64748b; line-height: 1.6; font-style: italic;">${art.summary}</div>
-                  <div style="display: inline-block; margin-top: 15px; padding: 6px 16px; background: #f0fdf4; border-radius: 8px; font-size: 12px; font-weight: 900; color: #16a34a; text-transform: uppercase; letter-spacing: 1px;">${art.category}</div>
-                </div>
+    const html = `
+      <div class="sf-pdf-export">
+        <style>
+          .sf-pdf-export {
+            width: 794px;
+            background: #ffffff;
+            color: #0f172a;
+            font-family: Helvetica, Arial, sans-serif;
+          }
+
+          .pdf-cover,
+          .pdf-summary,
+          .pdf-article {
+            width: 100%;
+            box-sizing: border-box;
+            background: #ffffff;
+          }
+
+          .pdf-cover {
+            min-height: 1122px;
+            page-break-after: always;
+          }
+
+          .pdf-cover-image {
+            width: 100%;
+            height: 520px;
+            object-fit: cover;
+            display: block;
+          }
+
+          .pdf-cover-empty {
+            width: 100%;
+            height: 520px;
+            background: #f8fafc;
+          }
+
+          .pdf-cover-content {
+            padding: 70px 72px 40px;
+            text-align: center;
+          }
+
+          .pdf-brand {
+            color: #16a34a;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            font-weight: 900;
+            font-size: 18px;
+            margin-bottom: 26px;
+          }
+
+          .pdf-cover h1 {
+            font-size: 58px;
+            line-height: 1.02;
+            margin: 0 0 28px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+          }
+
+          .pdf-cover-summary {
+            font-size: 23px;
+            line-height: 1.45;
+            color: #475569;
+            font-style: italic;
+            margin: 0 auto;
+            max-width: 640px;
+          }
+
+          .pdf-date {
+            margin-top: 72px;
+            font-size: 12px;
+            color: #16a34a;
+            font-weight: 900;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+          }
+
+          .pdf-summary {
+            min-height: 1122px;
+            padding: 86px 72px;
+            page-break-after: always;
+          }
+
+          .pdf-summary h2 {
+            font-size: 46px;
+            line-height: 1;
+            margin: 0 0 60px;
+            font-weight: 900;
+            display: inline-block;
+            border-bottom: 10px solid #16a34a;
+            padding-bottom: 12px;
+          }
+
+          .pdf-summary-row {
+            display: flex;
+            gap: 30px;
+            padding: 24px 0;
+            border-bottom: 1px solid #e2e8f0;
+            page-break-inside: avoid;
+          }
+
+          .pdf-summary-number {
+            width: 70px;
+            flex: 0 0 70px;
+            color: #dbe3ec;
+            font-size: 46px;
+            font-weight: 900;
+            line-height: 1;
+          }
+
+          .pdf-summary-title {
+            font-size: 25px;
+            font-weight: 900;
+            color: #0f172a;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+          }
+
+          .pdf-summary-text {
+            font-size: 15px;
+            color: #64748b;
+            line-height: 1.5;
+            font-style: italic;
+          }
+
+          .pdf-tag {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 5px 12px;
+            background: #f0fdf4;
+            border-radius: 999px;
+            color: #16a34a;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+
+          .pdf-article {
+            padding: 72px;
+            page-break-before: always;
+          }
+
+          .pdf-article-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 18px;
+            margin-bottom: 38px;
+          }
+
+          .pdf-category {
+            color: #16a34a;
+            font-weight: 900;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+          }
+
+          .pdf-page-number {
+            color: #cbd5e1;
+            font-weight: 900;
+            font-size: 12px;
+          }
+
+          .pdf-article h2 {
+            font-size: 46px;
+            line-height: 1.08;
+            margin: 0 0 34px;
+            font-weight: 900;
+            letter-spacing: -1.5px;
+            text-transform: uppercase;
+            page-break-after: avoid;
+          }
+
+          .pdf-main-image {
+            width: 100%;
+            height: 320px;
+            object-fit: cover;
+            border-radius: 22px;
+            display: block;
+            margin: 0 0 34px;
+            page-break-inside: avoid;
+          }
+
+          .pdf-article-summary {
+            background: #f8fafc;
+            border-left: 12px solid #16a34a;
+            padding: 28px 32px;
+            font-style: italic;
+            font-size: 21px;
+            color: #334155;
+            margin-bottom: 34px;
+            border-radius: 0 22px 22px 0;
+            line-height: 1.45;
+            page-break-inside: avoid;
+          }
+
+          .pdf-blocks {
+            font-size: 17px;
+            line-height: 1.75;
+            color: #1e293b;
+          }
+
+          .pdf-text-block {
+            margin: 0 0 24px;
+            white-space: normal;
+            page-break-inside: auto;
+          }
+
+          .pdf-media-block {
+            margin: 28px 0;
+            page-break-inside: avoid;
+          }
+
+          .pdf-media-block img {
+            width: 100%;
+            max-height: 520px;
+            object-fit: contain;
+            border-radius: 20px;
+            display: block;
+          }
+
+          .pdf-video-block {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 44px 32px;
+            text-align: center;
+            border-radius: 26px;
+            margin: 30px 0;
+            page-break-inside: avoid;
+          }
+
+          .pdf-video-icon {
+            width: 70px;
+            height: 70px;
+            line-height: 70px;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            background: rgba(255,255,255,0.16);
+            font-size: 30px;
+          }
+
+          .pdf-video-title {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+          }
+
+          .pdf-video-block a,
+          .pdf-button-block a {
+            display: inline-block;
+            background: #14532d;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+          }
+
+          .pdf-button-block {
+            margin: 30px 0;
+            text-align: center;
+            page-break-inside: avoid;
+          }
+
+          .pdf-gallery-block {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 30px 0;
+            page-break-inside: avoid;
+          }
+
+          .pdf-gallery-block img {
+            width: 100%;
+            height: 230px;
+            object-fit: cover;
+            border-radius: 18px;
+            display: block;
+          }
+
+          .pdf-footer {
+            margin-top: 56px;
+            border-top: 2px solid #f1f5f9;
+            padding-top: 28px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            page-break-inside: avoid;
+          }
+        </style>
+
+        <section class="pdf-cover">
+          ${readingNewsletter.coverImage ? `<img src="${readingNewsletter.coverImage}" class="pdf-cover-image" />` : '<div class="pdf-cover-empty"></div>'}
+          <div class="pdf-cover-content">
+            <div class="pdf-brand">STAR FRUITS</div>
+            <h1>${escapeHtml(readingNewsletter.title)}</h1>
+            <p class="pdf-cover-summary">“${escapeHtml(readingNewsletter.summary)}”</p>
+            <div class="pdf-date">ÉDITION OFFICIELLE • ${formatDate(readingNewsletter.publishedAt).toUpperCase()}</div>
+          </div>
+        </section>
+
+        <section class="pdf-summary">
+          <h2>AU SOMMAIRE</h2>
+          ${readingNewsletter.articles.map((art, idx) => `
+            <div class="pdf-summary-row">
+              <div class="pdf-summary-number">${String(idx + 1).padStart(2, '0')}</div>
+              <div>
+                <div class="pdf-summary-title">${escapeHtml(art.title)}</div>
+                <div class="pdf-summary-text">${escapeHtml(art.summary)}</div>
+                ${art.category ? `<div class="pdf-tag">${escapeHtml(art.category)}</div>` : ''}
               </div>
-            `).join('')}
-          </div>
-        </div>
+            </div>
+          `).join('')}
+        </section>
 
-        <!-- PAGES ARTICLES -->
         ${readingNewsletter.articles.map((art, i) => `
-          <div style="width: 100%; min-height: 1120px; padding: 80px; box-sizing: border-box; page-break-after: always; background: white; position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 50px;">
-              <div style="color: #16a34a; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 3px;">${art.category}</div>
-              <div style="color: #cbd5e1; font-weight: 900; font-size: 14px;">PAGE ${i + 3}</div>
+          <section class="pdf-article">
+            <div class="pdf-article-header">
+              <div class="pdf-category">${escapeHtml(art.category)}</div>
+              <div class="pdf-page-number">ARTICLE ${String(i + 1).padStart(2, '0')}</div>
             </div>
-            
-            <h2 style="font-size: 54px; margin: 0 0 50px; color: #0f172a; line-height: 1.05; font-weight: 900; letter-spacing: -2px; text-transform: uppercase;">${art.title}</h2>
-            
-            ${art.image ? `
-              <div style="width: 100%; height: 450px; border-radius: 30px; overflow: hidden; margin-bottom: 50px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
-                <img src="${art.image}" style="width: 100%; height: 100%; object-fit: cover;" />
-              </div>` : ''}
-            
-            <div style="background: #f8fafc; border-left: 15px solid #16a34a; padding: 40px; font-style: italic; font-size: 24px; color: #334155; margin-bottom: 50px; border-radius: 0 30px 30px 0; line-height: 1.5; font-weight: 500;">
-              "${art.summary}"
+            <h2>${escapeHtml(art.title)}</h2>
+            ${art.image ? `<img src="${art.image}" class="pdf-main-image" />` : ''}
+            ${art.summary ? `<div class="pdf-article-summary">“${escapeHtml(art.summary)}”</div>` : ''}
+            <div class="pdf-blocks">
+              ${(art.blocks || []).map(renderPdfBlock).join('')}
             </div>
-            
-            <div style="font-size: 20px; line-height: 1.9; color: #1e293b;">
-              ${art.blocks.map(b => {
-                if (b.type === 'text') return `<p style="margin-bottom: 30px; white-space: pre-wrap;">${b.content}</p>`;
-                if (b.type === 'image') return `<div style="margin-bottom: 40px; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);"><img src="${b.content}" style="width: 100%;" /></div>`;
-                if (b.type === 'video') return `<div style="background: #0f172a; color: #f8fafc; padding: 80px 40px; text-align: center; border-radius: 30px; margin-bottom: 40px; border: 4px solid #1e293b;">
-                  <div style="font-size: 60px; margin-bottom: 15px;">🎥</div>
-                  <div style="font-size: 22px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;">Média Interactif</div>
-                  <div style="font-size: 16px; color: #94a3b8; margin-top: 15px; font-weight: 500;">Scannez le QR Code ou utilisez l'application en ligne pour voir cette vidéo.</div>
-                </div>`;
-                if (b.type === 'button') return `<div style="margin: 40px 0; text-align: center;">
-                  <a href="${b.content}" target="_blank" rel="noreferrer" style="display: inline-block; background: #14532d; color: white; text-decoration: none; padding: 18px 32px; border-radius: 16px; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">${b.label || 'En savoir plus'}</a>
-                </div>`;
-                if (b.type === 'gallery') return `
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
-                    ${(b.images || []).map(img => `
-                      <div style="border-radius: 20px; overflow: hidden; height: 280px;"><img src="${img}" style="width: 100%; height: 100%; object-fit: cover;" /></div>
-                    `).join('')}
-                  </div>`;
-                return '';
-              }).join('')}
-            </div>
-            
-            <div style="margin-top: 80px; text-align: center; border-top: 2px solid #f1f5f9; padding-top: 40px; color: #94a3b8; font-size: 14px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase;">
-              STAR FRUITS • CONNECTED COMM
-            </div>
-          </div>
+            <div class="pdf-footer">STAR FRUITS • CONNECTED COMM</div>
+          </section>
         `).join('')}
       </div>
     `;
@@ -128,26 +452,24 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     container.innerHTML = html;
     staging.appendChild(container);
 
-    // Attente critique du chargement des visuels
     const images = Array.from(container.getElementsByTagName('img'));
     await Promise.all(images.map(img => {
-      if (img.complete) return Promise.resolve();
+      if (img.complete) return Promise.resolve(true);
       return new Promise(resolve => {
-        img.onload = resolve;
-        img.onerror = resolve;
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(true);
       });
     }));
 
-    // Pause de sécurité pour laisser le moteur de rendu finir le layout
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     const opt = {
       margin: 0,
       filename: `StarFruits_Newsletter_${readingNewsletter.title.replace(/\s+/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
         logging: false,
         letterRendering: true,
         allowTaint: false,
@@ -156,11 +478,10 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
         scrollX: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      pagebreak: { mode: ['css', 'legacy'], before: '.pdf-article' }
     };
 
     try {
-      // Utilisation du worker html2pdf pour plus de contrôle
       // @ts-ignore
       await html2pdf().set(opt).from(container).save();
     } catch (e) {
