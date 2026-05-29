@@ -314,14 +314,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleAddBlock = (artId: string, type: NewsletterBlockType) => {
-    const newBlock: NewsletterBlock = { id: Math.random().toString(36).substr(2, 9), type, content: type === 'text' ? 'Nouveau paragraphe...' : '' };
+    const newBlock: NewsletterBlock = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      content: type === 'text' ? 'Nouveau paragraphe...' : '',
+      label: type === 'button' ? 'En savoir plus' : undefined,
+      images: type === 'gallery' ? [] : undefined,
+    };
     setNewsArticles(newsArticles.map(a => a.id === artId ? { ...a, blocks: [...a.blocks, newBlock] } : a));
   };
 
-  const handleUpdateBlock = (artId: string, blockId: string, content: string, images?: string[]) => {
+  const handleUpdateBlock = (artId: string, blockId: string, content: string, images?: string[], label?: string) => {
     setNewsArticles(newsArticles.map(a => a.id === artId ? {
       ...a,
-      blocks: a.blocks.map(b => b.id === blockId ? { ...b, content, images: images || b.images } : b)
+      blocks: a.blocks.map(b => b.id === blockId ? { ...b, content, images: images ?? b.images, label: label ?? b.label } : b)
     } : a));
   };
 
@@ -1100,7 +1106,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                  { type: 'text', icon: 'T', label: 'Texte' },
                                  { type: 'image', icon: '🖼️', label: 'Image' },
                                  { type: 'video', icon: '🎥', label: 'Vidéo' },
-                                 { type: 'gallery', icon: '🎴', label: 'Galerie' }
+                                 { type: 'gallery', icon: '🎴', label: 'Galerie' },
+                                 { type: 'button', icon: '🔗', label: 'Lien' }
                                ].map(b => (
                                  <button key={b.type} onClick={() => handleAddBlock(editingArticle!.id, b.type as any)} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all">
                                    + {b.label}
@@ -1130,6 +1137,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                          <input type="file" className="hidden" id={`block-vid-${block.id}`} accept="video/*" onChange={e => handleFileUpload(e, (data) => handleUpdateBlock(editingArticle!.id, block.id, data), 'newsletters')} />
                                          <div onClick={() => document.getElementById(`block-vid-${block.id}`)?.click()} className="w-full aspect-video bg-black rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden">
                                             {block.content ? <video src={block.content} className="w-full h-full" /> : <span className="text-xs font-bold text-slate-500">Charger vidéo locale</span>}
+                                         </div>
+                                      </div>
+                                    )}
+                                    {block.type === 'button' && (
+                                      <div className="space-y-4">
+                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                               <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Texte du bouton</label>
+                                               <input
+                                                 value={block.label || ''}
+                                                 onChange={e => handleUpdateBlock(editingArticle!.id, block.id, block.content, block.images, e.target.value)}
+                                                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                                                 placeholder="Ex : Lire l'article, Voir le replay..."
+                                               />
+                                            </div>
+                                            <div className="space-y-2">
+                                               <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">URL du lien</label>
+                                               <input
+                                                 value={block.content}
+                                                 onChange={e => handleUpdateBlock(editingArticle!.id, block.id, e.target.value, block.images, block.label)}
+                                                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                                                 placeholder="https://..."
+                                               />
+                                            </div>
+                                         </div>
+                                         <div className="pt-2">
+                                            <a
+                                              href={block.content || '#'}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              onClick={e => { if (!block.content) e.preventDefault(); }}
+                                              className="inline-flex items-center gap-2 px-6 py-3 bg-[#14532d] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-green-800 transition-all"
+                                            >
+                                              {block.label || 'En savoir plus'}
+                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 8l4 4m0 0l-4 4m4-4H3" strokeWidth="3" /></svg>
+                                            </a>
                                          </div>
                                       </div>
                                     )}

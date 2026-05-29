@@ -104,6 +104,9 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
                   <div style="font-size: 22px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;">Média Interactif</div>
                   <div style="font-size: 16px; color: #94a3b8; margin-top: 15px; font-weight: 500;">Scannez le QR Code ou utilisez l'application en ligne pour voir cette vidéo.</div>
                 </div>`;
+                if (b.type === 'button') return `<div style="margin: 40px 0; text-align: center;">
+                  <a href="${b.content}" target="_blank" rel="noreferrer" style="display: inline-block; background: #14532d; color: white; text-decoration: none; padding: 18px 32px; border-radius: 16px; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">${b.label || 'En savoir plus'}</a>
+                </div>`;
                 if (b.type === 'gallery') return `
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px;">
                     ${(b.images || []).map(img => `
@@ -292,6 +295,19 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
                                {block.type === 'video' && (
                                   <div className="rounded-[40px] overflow-hidden shadow-2xl bg-black aspect-video">
                                      <video controls src={block.content} className="w-full h-full" />
+                                  </div>
+                               )}
+                               {block.type === 'button' && (
+                                  <div className="flex justify-center">
+                                     <a
+                                       href={block.content}
+                                       target="_blank"
+                                       rel="noreferrer"
+                                       className="inline-flex items-center gap-3 px-8 py-4 bg-[#14532d] text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-green-800 transition-all active:scale-95"
+                                     >
+                                       {block.label || 'En savoir plus'}
+                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 8l4 4m0 0l-4 4m4-4H3" strokeWidth="3" /></svg>
+                                     </a>
                                   </div>
                                )}
                                {block.type === 'gallery' && (
