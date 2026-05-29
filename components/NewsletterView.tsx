@@ -124,8 +124,8 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-cover {
-            min-height: 1122px;
             page-break-after: always;
+            break-after: page;
           }
 
           .pdf-cover-image {
@@ -183,9 +183,9 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-summary {
-            min-height: 1122px;
             padding: 86px 72px;
             page-break-after: always;
+            break-after: page;
           }
 
           .pdf-summary h2 {
@@ -245,7 +245,6 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
 
           .pdf-article {
             padding: 72px;
-            page-break-before: always;
           }
 
           .pdf-article-header {
@@ -478,7 +477,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
         scrollX: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['css', 'legacy'], before: '.pdf-article' }
+      pagebreak: { mode: ['css'] }
     };
 
     try {
