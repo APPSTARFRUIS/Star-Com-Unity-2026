@@ -42,6 +42,11 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       .sort((a, b) => new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime());
   }, [documents, selectedCategory, searchQuery]);
 
+  const getDocumentUrl = (doc: DocumentFile) => doc.data || '';
+  const isPdf = (doc: DocumentFile) => (doc.type || '').includes('pdf') || getDocumentUrl(doc).startsWith('data:application/pdf');
+  const isImage = (doc: DocumentFile) => (doc.type || '').includes('image') || getDocumentUrl(doc).startsWith('data:image');
+  const canPreviewInline = (doc: DocumentFile) => isPdf(doc) || isImage(doc);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -60,21 +65,32 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   };
 
   const handleViewDocument = (doc: DocumentFile) => {
-    const data = doc.data || '';
-    const type = doc.type || '';
+    const url = getDocumentUrl(doc);
+    if (!url) return;
 
-    if (type.includes('pdf') || type.includes('image') || data.startsWith('data:application/pdf') || data.startsWith('data:image')) {
+    if (canPreviewInline(doc)) {
       setPreviewDocument(doc);
       return;
     }
 
-    handleDownloadDocument(doc);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenDocument = (doc: DocumentFile) => {
+    const url = getDocumentUrl(doc);
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleDownloadDocument = (doc: DocumentFile) => {
+    const url = getDocumentUrl(doc);
+    if (!url) return;
+
     const link = document.createElement('a');
-    link.href = doc.data;
+    link.href = url;
     link.download = doc.name;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -96,8 +112,12 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   };
 
   const getFileIcon = (type: string) => {
-    if ((type || '').includes('pdf')) return '📄';
-    if ((type || '').includes('image')) return '🖼️';
+    const safeType = type || '';
+    if (safeType.includes('pdf')) return '📄';
+    if (safeType.includes('image')) return '🖼️';
+    if (safeType.includes('video')) return '🎬';
+    if (safeType.includes('spreadsheet') || safeType.includes('excel')) return '📊';
+    if (safeType.includes('word') || safeType.includes('document')) return '📝';
     return '📁';
   };
 
@@ -197,11 +217,12 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <button type="button" onClick={() => handleViewDocument(doc)} className="text-slate-500 hover:text-green-600">👁️</button>
-                        <button type="button" onClick={() => handleDownloadDocument(doc)} className="text-slate-500 hover:text-blue-600">⬇️</button>
+                        <button type="button" title="Prévisualiser" onClick={() => handleViewDocument(doc)} className="text-slate-500 hover:text-green-600">👁️</button>
+                        <button type="button" title="Ouvrir" onClick={() => handleOpenDocument(doc)} className="text-slate-500 hover:text-blue-600">↗️</button>
+                        <button type="button" title="Télécharger" onClick={() => handleDownloadDocument(doc)} className="text-slate-500 hover:text-blue-600">⬇️</button>
 
                         {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR) && (
-                          <button type="button" onClick={() => onDelete(doc.id)} className="text-slate-500 hover:text-red-600">🗑️</button>
+                          <button type="button" title="Supprimer" onClick={() => onDelete(doc.id)} className="text-slate-500 hover:text-red-600">🗑️</button>
                         )}
                       </div>
                     </td>
@@ -223,17 +244,65 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       {previewDocument && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] overflow-hidden relative">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-800">{previewDocument.name}</h2>
-              <button type="button" onClick={() => setPreviewDocument(null)} className="text-slate-500 hover:text-red-600 text-2xl">×</button>
+          <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] overflow-hidden relative flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+              <div>
+                <h2 className="font-semibold text-slate-800">{previewDocument.name}</h2>
+                <p className="text-xs text-slate-400 mt-1">Aperçu du document</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDocument(previewDocument)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
+                >
+                  Ouvrir dans un onglet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadDocument(previewDocument)}
+                  className="px-4 py-2 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-semibold"
+                >
+                  Télécharger
+                </button>
+                <button type="button" onClick={() => setPreviewDocument(null)} className="text-slate-500 hover:text-red-600 text-2xl">×</button>
+              </div>
             </div>
 
-            <div className="w-full h-full bg-slate-100">
-              {(previewDocument.type || '').includes('pdf') || previewDocument.data.startsWith('data:application/pdf') ? (
-                <iframe src={previewDocument.data} title={previewDocument.name} className="w-full h-full" />
+            <div className="w-full flex-1 bg-slate-100 overflow-auto flex items-center justify-center p-4">
+              {isPdf(previewDocument) ? (
+                <object
+                  data={`${getDocumentUrl(previewDocument)}#toolbar=1&navpanes=0&scrollbar=1`}
+                  type="application/pdf"
+                  className="w-full h-full bg-white rounded-xl"
+                >
+                  <div className="text-center space-y-4 text-slate-600">
+                    <div className="text-5xl">📄</div>
+                    <p className="font-semibold">L’aperçu PDF n’est pas disponible dans cette fenêtre.</p>
+                    <p className="text-sm text-slate-400">Le fichier peut quand même être ouvert dans un nouvel onglet.</p>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDocument(previewDocument)}
+                      className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
+                    >
+                      Ouvrir le PDF
+                    </button>
+                  </div>
+                </object>
+              ) : isImage(previewDocument) ? (
+                <img src={getDocumentUrl(previewDocument)} alt={previewDocument.name} className="max-w-full max-h-full mx-auto object-contain rounded-xl" />
               ) : (
-                <img src={previewDocument.data} alt={previewDocument.name} className="max-w-full max-h-full mx-auto object-contain" />
+                <div className="text-center space-y-4 text-slate-600">
+                  <div className="text-5xl">📁</div>
+                  <p className="font-semibold">Aperçu non disponible pour ce type de fichier.</p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDocument(previewDocument)}
+                    className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
+                  >
+                    Ouvrir le fichier
+                  </button>
+                </div>
               )}
             </div>
           </div>
