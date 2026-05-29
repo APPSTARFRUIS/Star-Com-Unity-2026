@@ -27,8 +27,6 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DocumentFile | null>(null);
-  const [previewObjectUrl, setPreviewObjectUrl] = useState<string>('');
-  const [previewError, setPreviewError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadCategory, setUploadCategory] = useState(categories[0] || 'Général');
 
@@ -47,7 +45,6 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const getDocumentUrl = (doc: DocumentFile) => doc.data || '';
   const isPdf = (doc: DocumentFile) => (doc.type || '').includes('pdf') || getDocumentUrl(doc).startsWith('data:application/pdf');
   const isImage = (doc: DocumentFile) => (doc.type || '').includes('image') || getDocumentUrl(doc).startsWith('data:image');
-  const canPreviewInline = (doc: DocumentFile) => isPdf(doc) || isImage(doc);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,59 +63,13 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
-  const handleViewDocument = async (doc: DocumentFile) => {
-    const url = getDocumentUrl(doc);
-    if (!url) return;
-
-    if (previewObjectUrl) {
-      URL.revokeObjectURL(previewObjectUrl);
-      setPreviewObjectUrl('');
-    }
-
+  const handleViewDocument = (doc: DocumentFile) => {
     setPreviewDocument(doc);
-    setPreviewError('');
-
-    if (!canPreviewInline(doc)) return;
-
-    if (url.startsWith('data:')) {
-      setPreviewObjectUrl(url);
-      return;
-    }
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Impossible de charger le fichier.');
-
-      const blob = await response.blob();
-      const typedBlob = doc.type && blob.type !== doc.type ? new Blob([blob], { type: doc.type }) : blob;
-      const objectUrl = URL.createObjectURL(typedBlob);
-      setPreviewObjectUrl(objectUrl);
-    } catch (error) {
-      console.error('Erreur aperçu document:', error);
-      setPreviewError('Aperçu impossible dans cette fenêtre. Vous pouvez ouvrir ou télécharger le fichier.');
-    }
   };
 
-  const handleOpenDocument = async (doc: DocumentFile) => {
+  const handleOpenDocument = (doc: DocumentFile) => {
     const url = getDocumentUrl(doc);
     if (!url) return;
-
-    if (canPreviewInline(doc) && !url.startsWith('data:')) {
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          const blob = await response.blob();
-          const typedBlob = doc.type && blob.type !== doc.type ? new Blob([blob], { type: doc.type }) : blob;
-          const objectUrl = URL.createObjectURL(typedBlob);
-          window.open(objectUrl, '_blank', 'noopener,noreferrer');
-          setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-          return;
-        }
-      } catch (error) {
-        console.error('Ouverture document:', error);
-      }
-    }
-
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -160,6 +111,8 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     if (safeType.includes('word') || safeType.includes('document')) return '📝';
     return '📁';
   };
+
+  const previewUrl = previewDocument ? getDocumentUrl(previewDocument) : '';
 
   return (
     <div className="p-6 space-y-6">
@@ -305,27 +258,15 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 >
                   Télécharger
                 </button>
-                <button type="button" onClick={() => { if (previewObjectUrl && !previewObjectUrl.startsWith('data:')) URL.revokeObjectURL(previewObjectUrl); setPreviewObjectUrl(''); setPreviewError(''); setPreviewDocument(null); }} className="text-slate-500 hover:text-red-600 text-2xl">×</button>
+                <button type="button" onClick={() => setPreviewDocument(null)} className="text-slate-500 hover:text-red-600 text-2xl">×</button>
               </div>
             </div>
 
             <div className="w-full flex-1 bg-slate-100 overflow-auto flex items-center justify-center p-4">
-              {previewError ? (
-                <div className="text-center space-y-4 text-slate-600">
-                  <div className="text-5xl">📁</div>
-                  <p className="font-semibold">{previewError}</p>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenDocument(previewDocument)}
-                    className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
-                  >
-                    Ouvrir le fichier
-                  </button>
-                </div>
-              ) : isPdf(previewDocument) ? (
-                previewObjectUrl ? (
+              {isPdf(previewDocument) ? (
+                previewUrl.startsWith('data:') ? (
                   <object
-                    data={`${previewObjectUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                    data={`${previewUrl}#toolbar=1&navpanes=0&scrollbar=1`}
                     type="application/pdf"
                     className="w-full h-full bg-white rounded-xl"
                   >
@@ -343,19 +284,22 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                   </object>
                 ) : (
                   <div className="text-center space-y-4 text-slate-600">
-                    <div className="animate-spin rounded-full h-10 w-10 border-4 border-green-700 border-t-transparent mx-auto"></div>
-                    <p className="font-semibold">Chargement de l’aperçu...</p>
+                    <div className="text-5xl">📄</div>
+                    <p className="font-semibold">Aperçu direct limité selon le navigateur et Supabase.</p>
+                    <p className="text-sm text-slate-500 max-w-xl">
+                      Utilisez “Ouvrir dans un onglet” ou “Télécharger”. Cela évite de charger le fichier lourdement dans l’application.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDocument(previewDocument)}
+                      className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
+                    >
+                      Ouvrir le PDF
+                    </button>
                   </div>
                 )
               ) : isImage(previewDocument) ? (
-                previewObjectUrl ? (
-                  <img src={previewObjectUrl} alt={previewDocument.name} className="max-w-full max-h-full mx-auto object-contain rounded-xl" />
-                ) : (
-                  <div className="text-center space-y-4 text-slate-600">
-                    <div className="animate-spin rounded-full h-10 w-10 border-4 border-green-700 border-t-transparent mx-auto"></div>
-                    <p className="font-semibold">Chargement de l’image...</p>
-                  </div>
-                )
+                <img src={previewUrl} alt={previewDocument.name} className="max-w-full max-h-full mx-auto object-contain rounded-xl" />
               ) : (
                 <div className="text-center space-y-4 text-slate-600">
                   <div className="text-5xl">📁</div>
