@@ -5,6 +5,7 @@ import { CompanyGame, GameCategory, GamePrediction, User, TimelineItem, HiddenOb
 interface JeuxViewProps {
   games: CompanyGame[];
   currentUser: User;
+  users: User[];
   predictions: GamePrediction[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string) => void;
@@ -26,7 +27,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, onAddPrediction, onEarnPoints }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, onAddPrediction, onEarnPoints }) => {
   const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
 
@@ -63,6 +64,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
   const timerRef = useRef<any>(null);
 
   const [isProcessingPoints, setIsProcessingPoints] = useState(false);
+  const [sportTab, setSportTab] = useState<'matches' | 'ranking'>('matches');
   const [sportDrafts, setSportDrafts] = useState<Record<string, { home: string; away: string }>>({});
 
   const getPredictionForFixture = (gameId: string, eventId: string) =>
@@ -73,6 +75,19 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
     if (!draft || draft.home === '' || draft.away === '') return;
     onAddPrediction(gameId, eventId, Number(draft.home), Number(draft.away));
   };
+
+  const sportRanking = useMemo(() => {
+    if (!playingGame || playingGame.type !== 'Pari') return [];
+    const totals = new Map<string, { userId: string; points: number; exact: number; played: number }>();
+    predictions.filter(p => p.gameId === playingGame.id).forEach(p => {
+      const current = totals.get(p.userId) || { userId: p.userId, points: 0, exact: 0, played: 0 };
+      current.points += p.pointsAwarded || 0;
+      current.played += 1;
+      if ((p.pointsAwarded || 0) === (playingGame.exactScorePoints || playingGame.rewardPoints || 10)) current.exact += 1;
+      totals.set(p.userId, current);
+    });
+    return [...totals.values()].map(row => ({ ...row, user: users.find(u => u.id === row.userId) })).sort((a,b) => b.points - a.points || b.exact - a.exact);
+  }, [playingGame, predictions, users]);
 
   useEffect(() => {
     const isPlaying = memoryStep === 'play' || timelineStep === 'play' || hiddenStep === 'play' || quizStep === 'play' || (trivialStep === 'board' || trivialStep === 'question');
@@ -103,6 +118,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
     setPlayingGame(game);
     setIsProcessingPoints(false);
     setSeconds(0);
+    if (game.type === 'Pari') setSportTab('matches');
     
     if (game.type === 'Quiz') {
       setQuizStep('intro');
@@ -381,7 +397,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
               {game.thumbnail || game.hiddenObjectsImage ? <img src={game.thumbnail || game.hiddenObjectsImage} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" /> : (
                 <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100`}><span className="text-6xl">{game.type === 'Objets Cachés' ? '🕵️‍♂️' : game.type === 'Memory' ? '🧠' : game.type === 'Trivial' ? '🎓' : game.type === 'Pari' ? '🏆' : '⏳'}</span></div>
               )}
-              <div className="absolute top-4 right-4"><span className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">{game.type === 'Pari' ? '5 pts / match' : `+${game.rewardPoints} pts`}</span></div>
+              <div className="absolute top-4 right-4"><span className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">{game.type === 'Pari' ? `${game.exactScorePoints || game.rewardPoints || 10} pts exact` : `+${game.rewardPoints} pts`}</span></div>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{game.type}</span></div>
@@ -403,7 +419,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
                    </div>
                    <div className="text-left">
                      <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">{playingGame.title}</h2>
-                     <p className="text-[10px] text-slate-400 font-bold uppercase">{playingGame.type}</p>
+                     <p className="text-[10px] text-slate-400 font-bold uppercase">{playingGame.type === 'Pari' ? `Pronostics · ${playingGame.sportName || 'Sport'}` : playingGame.type}</p>
                    </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -423,9 +439,13 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
                        <div className="text-6xl mb-4">🏆</div>
                        <h2 className="text-3xl font-black text-white">{playingGame.title}</h2>
                        <p className="text-slate-400 mt-2">{playingGame.description}</p>
-                       <div className="inline-flex mt-4 px-4 py-2 rounded-full bg-white/10 text-white text-xs font-bold">5 pts score exact · 2 pts bon résultat</div>
+                       <div className="inline-flex mt-4 px-4 py-2 rounded-full bg-white/10 text-white text-xs font-bold">{playingGame.exactScorePoints || playingGame.rewardPoints || 10} pts score exact · {playingGame.outcomePoints ?? 5} pts bon résultat</div>
+                       <div className="mt-5 inline-flex bg-white/10 rounded-2xl p-1">
+                         <button onClick={() => setSportTab('matches')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase ${sportTab === 'matches' ? 'bg-white text-slate-900' : 'text-white'}`}>Rencontres</button>
+                         <button onClick={() => setSportTab('ranking')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase ${sportTab === 'ranking' ? 'bg-white text-slate-900' : 'text-white'}`}>Classement</button>
+                       </div>
                      </div>
-                     <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+                     {sportTab === 'matches' ? <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
                        {(playingGame.sportEvents || []).map(f => {
                          const existing = getPredictionForFixture(playingGame.id, f.id);
                          const closed = new Date(f.closingDate).getTime() <= Date.now() || f.isFinished;
@@ -434,9 +454,9 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
                            <div key={f.id} className="bg-white rounded-[28px] p-5 md:p-6 shadow-xl">
                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                <div>
-                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">{new Date(f.eventDate).toLocaleString('fr-FR')}</p>
+                                 <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-widest text-slate-400">{new Date(f.eventDate).toLocaleString('fr-FR')}</p>{f.roundLabel && <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-black uppercase">{f.roundLabel}</span>}</div>
                                  <h3 className="text-xl font-black text-slate-800 mt-1">{f.homeTeam} <span className="text-slate-300">vs</span> {f.awayTeam}</h3>
-                                 <p className="text-xs text-slate-500 mt-1">Pronostics jusqu'au {new Date(f.closingDate).toLocaleString('fr-FR')}</p>
+                                 <p className="text-xs text-slate-500 mt-1">Pronostics jusqu'au {new Date(f.closingDate).toLocaleString('fr-FR')}{f.venue ? ` · ${f.venue}` : ''}</p>
                                </div>
                                {f.isFinished ? (
                                  <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xl">{f.homeScore} – {f.awayScore}</div>
@@ -457,7 +477,16 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
                          );
                        })}
                        {(playingGame.sportEvents || []).length === 0 && <div className="text-center text-slate-400">Aucune rencontre programmée.</div>}
-                     </div>
+                     </div> : <div className="overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                       {sportRanking.length === 0 ? <div className="text-center text-slate-400 py-16">Le classement apparaîtra après les premiers pronostics.</div> : sportRanking.map((row, index) => (
+                         <div key={row.userId} className={`bg-white rounded-3xl p-5 flex items-center gap-4 ${row.userId === currentUser.id ? 'ring-4 ring-green-500/30' : ''}`}>
+                           <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black ${index === 0 ? 'bg-amber-100 text-amber-700' : index === 1 ? 'bg-slate-200 text-slate-600' : index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-500'}`}>{index + 1}</div>
+                           <img src={row.user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${row.user?.name || row.userId}`} className="w-11 h-11 rounded-full object-cover" alt="" />
+                           <div className="flex-1"><p className="font-black text-slate-800">{row.user?.name || 'Participant'}</p><p className="text-xs text-slate-400">{row.exact} score(s) exact(s) · {row.played} prono(s)</p></div>
+                           <div className="text-right"><p className="text-2xl font-black text-green-600">{row.points}</p><p className="text-[9px] font-black uppercase text-slate-400">points</p></div>
+                         </div>
+                       ))}
+                     </div>}
                    </div>
                  ) : playingGame.type === 'Trivial' ? (
                     <div className="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center animate-in fade-in duration-700 text-center">

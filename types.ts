@@ -306,6 +306,8 @@ export interface SportFixture {
   homeScore?: number;
   awayScore?: number;
   isFinished?: boolean;
+  roundLabel?: string;
+  venue?: string;
 }
 
 export interface CompanyGame {
@@ -332,6 +334,9 @@ export interface CompanyGame {
   hiddenObjects?: HiddenObject[]; 
   hiddenObjectsImage?: string; 
   sportEvents?: SportFixture[];
+  sportName?: string;
+  exactScorePoints?: number;
+  outcomePoints?: number;
   rewardPoints: number; 
 }
 

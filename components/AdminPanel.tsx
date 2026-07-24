@@ -149,7 +149,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showGameModal, setShowGameModal] = useState(false);
   const [newGame, setNewGame] = useState<Omit<CompanyGame, 'id' | 'createdAt'>>({
     title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: []
+    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5
   });
   const [currentObjectName, setCurrentObjectName] = useState('');
   const [currentObjectQuestion, setCurrentObjectQuestion] = useState('');
@@ -159,6 +159,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [sportAwayTeam, setSportAwayTeam] = useState('');
   const [sportEventDate, setSportEventDate] = useState('');
   const [sportClosingDate, setSportClosingDate] = useState('');
+  const [sportRoundLabel, setSportRoundLabel] = useState('');
+  const [sportVenue, setSportVenue] = useState('');
   const [sportResultDrafts, setSportResultDrafts] = useState<Record<string, { home: string; away: string }>>({});
 
   const handleAddSportFixture = () => {
@@ -172,6 +174,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       awayTeam: sportAwayTeam.trim(),
       eventDate: sportEventDate,
       closingDate: sportClosingDate,
+      roundLabel: sportRoundLabel.trim() || undefined,
+      venue: sportVenue.trim() || undefined,
       isFinished: false
     };
     setNewGame(prev => ({ ...prev, type: 'Pari', category: 'Pari Sportif', sportEvents: [...(prev.sportEvents || []), fixture] }));
@@ -179,6 +183,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setSportAwayTeam('');
     setSportEventDate('');
     setSportClosingDate('');
+    setSportRoundLabel('');
+    setSportVenue('');
   };
 
   const handleRemoveSportFixture = (fixtureId: string) => {
@@ -314,7 +320,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setShowGameModal(false);
     setNewGame({ 
       title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [] 
+      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5 
     });
   };
 
@@ -780,7 +786,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                       <div className="overflow-hidden">
                          <p className="font-bold text-slate-800 truncate">{g.title}</p>
-                         <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">{g.type} • {g.status}</p>
+                         <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">{g.type === 'Pari' ? 'Pronostics' : g.type} • {g.status}</p>
                       </div>
                    </div>
                    <button onClick={() => onDeleteGame(g.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors shrink-0"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" /></svg></button>
@@ -810,13 +816,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Type de jeu</label>
-                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.type} onChange={e => { const nextType = e.target.value as GameType; setNewGame({...newGame, type: nextType, category: nextType === 'Pari' ? 'Pari Sportif' : newGame.category, rewardPoints: nextType === 'Pari' ? 5 : (newGame.type === 'Pari' ? 100 : newGame.rewardPoints)}); }}>
+                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.type} onChange={e => { const nextType = e.target.value as GameType; setNewGame({...newGame, type: nextType, category: nextType === 'Pari' ? 'Pari Sportif' : newGame.category, rewardPoints: nextType === 'Pari' ? 10 : (newGame.type === 'Pari' ? 100 : newGame.rewardPoints), exactScorePoints: nextType === 'Pari' ? 10 : newGame.exactScorePoints, outcomePoints: nextType === 'Pari' ? 5 : newGame.outcomePoints}); }}>
                               <option value="Quiz">Quiz</option>
                               <option value="Trivial">Trivial Pursuit</option>
                               <option value="Memory">Memory</option>
                               <option value="Chronologie">Chronologie</option>
                               <option value="Objets Cachés">Objets Cachés</option>
-                              <option value="Pari">Pari Sportif</option>
+                              <option value="Pari">Pronostics</option>
                            </select>
                         </div>
                         <div className="space-y-2">
@@ -838,7 +844,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
-                           <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">{newGame.type === 'Pari' ? 'Points pour un score exact' : 'Récompense finale'}</label>
+                           <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">{newGame.type === 'Pari' ? 'Points score exact' : 'Récompense finale'}</label>
                            <input type="number" placeholder="Points à gagner" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-black text-green-600 outline-none text-xl" value={newGame.rewardPoints} onChange={e => setNewGame({...newGame, rewardPoints: parseInt(e.target.value)})} />
                         </div>
                         <div className="space-y-2">
@@ -852,6 +858,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       {newGame.type === 'Pari' && (
                         <div className="p-8 bg-slate-50 rounded-[40px] border border-slate-200 space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Discipline</label>
+                              <select value={newGame.sportName || 'Football'} onChange={e => setNewGame({...newGame, sportName: e.target.value})} className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold">
+                                {['Football','Rugby','Tennis','Basketball','Handball','Jeux olympiques','Autre'].map(sport => <option key={sport}>{sport}</option>)}
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Score exact</label>
+                              <input type="number" min="1" value={newGame.exactScorePoints || 10} onChange={e => setNewGame({...newGame, exactScorePoints: Number(e.target.value), rewardPoints: Number(e.target.value)})} className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-black text-green-600" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Bon résultat</label>
+                              <input type="number" min="0" value={newGame.outcomePoints || 5} onChange={e => setNewGame({...newGame, outcomePoints: Number(e.target.value)})} className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-black text-indigo-600" />
+                            </div>
+                          </div>
                           <div className="flex items-center justify-between px-2">
                             <div>
                               <h4 className="text-xs font-black uppercase text-indigo-700 tracking-[0.3em]">MATCHS DU TOURNOI ({newGame.sportEvents?.length || 0})</h4>
@@ -863,18 +885,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             <input value={sportAwayTeam} onChange={e => setSportAwayTeam(e.target.value)} placeholder="Équipe / joueur B" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" />
                             <div><label className="text-[10px] font-black uppercase text-slate-400">Date et heure de l'événement</label><input type="datetime-local" value={sportEventDate} onChange={e => setSportEventDate(e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" /></div>
                             <div><label className="text-[10px] font-black uppercase text-slate-400">Clôture des pronostics</label><input type="datetime-local" value={sportClosingDate} onChange={e => setSportClosingDate(e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" /></div>
+                            <input value={sportRoundLabel} onChange={e => setSportRoundLabel(e.target.value)} placeholder="Phase / tour (ex. Quart de finale)" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" />
+                            <input value={sportVenue} onChange={e => setSportVenue(e.target.value)} placeholder="Lieu (optionnel)" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" />
                           </div>
                           <button type="button" onClick={handleAddSportFixture} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs">+ Ajouter la rencontre</button>
                           <div className="space-y-3">
                             {(newGame.sportEvents || []).map(f => (
                               <div key={f.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4">
-                                <div><p className="font-black text-slate-800">{f.homeTeam} — {f.awayTeam}</p><p className="text-xs text-slate-500">{new Date(f.eventDate).toLocaleString('fr-FR')} · clôture {new Date(f.closingDate).toLocaleString('fr-FR')}</p></div>
+                                <div><p className="font-black text-slate-800">{f.homeTeam} — {f.awayTeam}</p>{f.roundLabel && <p className="text-[10px] font-black uppercase text-indigo-600">{f.roundLabel}</p>}<p className="text-xs text-slate-500">{new Date(f.eventDate).toLocaleString('fr-FR')} · clôture {new Date(f.closingDate).toLocaleString('fr-FR')}</p></div>
                                 <button type="button" onClick={() => handleRemoveSportFixture(f.id)} className="text-red-500 font-bold">Supprimer</button>
                               </div>
                             ))}
                           </div>
                           <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-sm text-indigo-900">
-                            Barème automatique : <strong>5 points</strong> pour le score exact, <strong>2 points</strong> pour le bon vainqueur ou le bon match nul.
+                            Barème automatique : <strong>{newGame.exactScorePoints || 10} points</strong> pour le score exact, <strong>{newGame.outcomePoints || 5} points</strong> pour le bon vainqueur ou le bon match nul.
                           </div>
                         </div>
                       )}

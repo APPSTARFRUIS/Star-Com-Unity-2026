@@ -498,6 +498,10 @@ CREATE TABLE public.games (
   hidden_objects jsonb DEFAULT '[]'::jsonb,
   hidden_objects_image text,
   reward_points integer DEFAULT 0,
+  sport_events jsonb DEFAULT '[]'::jsonb,
+  sport_name text DEFAULT 'Football',
+  exact_score_points integer DEFAULT 10,
+  outcome_points integer DEFAULT 5,
   created_at timestamptz DEFAULT now() NOT NULL
 );
 
@@ -531,6 +535,7 @@ ALTER TABLE public.game_predictions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Anyone can view predictions" ON public.game_predictions FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Anyone can create predictions" ON public.game_predictions FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "Anyone can update predictions" ON public.game_predictions FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 
 CREATE INDEX idx_predictions_user_id ON public.game_predictions(user_id);
 CREATE INDEX idx_predictions_game_id ON public.game_predictions(game_id);

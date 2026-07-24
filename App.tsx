@@ -231,6 +231,9 @@ const App: React.FC = () => {
         hiddenObjects: g.hidden_objects,
         hiddenObjectsImage: g.hidden_objects_image,
         sportEvents: g.sport_events || [],
+        sportName: g.sport_name || 'Football',
+        exactScorePoints: g.exact_score_points || g.reward_points || 10,
+        outcomePoints: g.outcome_points ?? 5,
         matchDate: g.match_date,
         isProcessed: g.is_processed,
         createdAt: g.created_at,
@@ -700,7 +703,10 @@ const App: React.FC = () => {
                 timeline_items: g.timelineItems,
                 hidden_objects: g.hiddenObjects,
                 hidden_objects_image: g.hiddenObjectsImage,
-                sport_events: g.sportEvents || []
+                sport_events: g.sportEvents || [],
+                sport_name: g.sportName || 'Football',
+                exact_score_points: g.exactScorePoints || g.rewardPoints || 10,
+                outcome_points: g.outcomePoints ?? 5
               });
               addToast("Jeu ajouté !");
               fetchAllData();
@@ -721,7 +727,7 @@ const App: React.FC = () => {
                 if (prediction.homeScore === undefined || prediction.awayScore === undefined || !prediction.id) continue;
                 const exact = prediction.homeScore === homeScore && prediction.awayScore === awayScore;
                 const correctOutcome = outcome(prediction.homeScore, prediction.awayScore) === outcome(homeScore, awayScore);
-                const points = exact ? 5 : correctOutcome ? 2 : 0;
+                const points = exact ? (game.exactScorePoints || game.rewardPoints || 10) : correctOutcome ? (game.outcomePoints ?? 5) : 0;
                 const payload = JSON.stringify({ eventId: fixtureId, homeScore: prediction.homeScore, awayScore: prediction.awayScore, awarded: true, pointsAwarded: points });
                 await supabase.from('game_predictions').update({ choice: payload }).eq('id', prediction.id);
                 if (points > 0) {
@@ -885,6 +891,7 @@ const App: React.FC = () => {
           <JeuxView
             games={games}
             currentUser={currentUser}
+            users={users}
             predictions={predictions}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
               const existing = predictions.find(p => p.userId === currentUser.id && p.gameId === gameId && p.eventId === eventId);
