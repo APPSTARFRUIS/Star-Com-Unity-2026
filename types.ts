@@ -297,6 +297,17 @@ export interface HiddenObject {
   radius: number; 
 }
 
+export interface SportFixture {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  eventDate: string;
+  closingDate: string;
+  homeScore?: number;
+  awayScore?: number;
+  isFinished?: boolean;
+}
+
 export interface CompanyGame {
   id: string;
   title: string;
@@ -320,14 +331,21 @@ export interface CompanyGame {
   timelineItems?: TimelineItem[]; 
   hiddenObjects?: HiddenObject[]; 
   hiddenObjectsImage?: string; 
+  sportEvents?: SportFixture[];
   rewardPoints: number; 
 }
 
 export interface GamePrediction {
+  id?: string;
   userId: string;
   gameId: string;
-  choice: 'A' | 'Nul' | 'B';
+  eventId?: string;
+  homeScore?: number;
+  awayScore?: number;
+  choice?: 'A' | 'Nul' | 'B';
   submittedAt: string;
+  pointsAwarded?: number;
+  awarded?: boolean;
 }
 
 export interface Reward {

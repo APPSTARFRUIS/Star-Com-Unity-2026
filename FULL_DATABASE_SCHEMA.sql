@@ -672,3 +672,9 @@ GRANT SELECT ON v_user_stats TO anon, authenticated;
   5. La table app_config ne peut avoir qu'une seule ligne (id=1)
      pour stocker la configuration globale
 */
+
+-- ============================================
+-- MIGRATION PARIS SPORTIFS MULTI-RENCONTRES
+-- ============================================
+ALTER TABLE public.games
+ADD COLUMN IF NOT EXISTS sport_events jsonb DEFAULT '[]'::jsonb;

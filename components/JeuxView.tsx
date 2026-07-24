@@ -6,7 +6,7 @@ interface JeuxViewProps {
   games: CompanyGame[];
   currentUser: User;
   predictions: GamePrediction[];
-  onAddPrediction: (gameId: string, choice: 'A' | 'Nul' | 'B') => void;
+  onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string) => void;
 }
 
@@ -63,6 +63,16 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
   const timerRef = useRef<any>(null);
 
   const [isProcessingPoints, setIsProcessingPoints] = useState(false);
+  const [sportDrafts, setSportDrafts] = useState<Record<string, { home: string; away: string }>>({});
+
+  const getPredictionForFixture = (gameId: string, eventId: string) =>
+    predictions.find(p => p.gameId === gameId && p.eventId === eventId && p.userId === currentUser.id);
+
+  const submitSportPrediction = (gameId: string, eventId: string) => {
+    const draft = sportDrafts[eventId];
+    if (!draft || draft.home === '' || draft.away === '') return;
+    onAddPrediction(gameId, eventId, Number(draft.home), Number(draft.away));
+  };
 
   useEffect(() => {
     const isPlaying = memoryStep === 'play' || timelineStep === 'play' || hiddenStep === 'play' || quizStep === 'play' || (trivialStep === 'board' || trivialStep === 'question');
@@ -369,9 +379,9 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
           <div key={game.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group">
             <div className="h-48 bg-slate-100 relative overflow-hidden">
               {game.thumbnail || game.hiddenObjectsImage ? <img src={game.thumbnail || game.hiddenObjectsImage} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" /> : (
-                <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100`}><span className="text-6xl">{game.type === 'Objets Cachés' ? '🕵️‍♂️' : game.type === 'Memory' ? '🧠' : game.type === 'Trivial' ? '🎓' : '⏳'}</span></div>
+                <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100`}><span className="text-6xl">{game.type === 'Objets Cachés' ? '🕵️‍♂️' : game.type === 'Memory' ? '🧠' : game.type === 'Trivial' ? '🎓' : game.type === 'Pari' ? '🏆' : '⏳'}</span></div>
               )}
-              <div className="absolute top-4 right-4"><span className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">+{game.rewardPoints} pts</span></div>
+              <div className="absolute top-4 right-4"><span className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">{game.type === 'Pari' ? '5 pts / match' : `+${game.rewardPoints} pts`}</span></div>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{game.type}</span></div>
@@ -389,7 +399,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
               <div className="bg-white px-8 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-green-50 text-green-600`}>
-                      <span className="text-xl">{playingGame.type === 'Objets Cachés' ? '🕵️‍♂️' : playingGame.type === 'Trivial' ? '🎓' : '🎮'}</span>
+                      <span className="text-xl">{playingGame.type === 'Objets Cachés' ? '🕵️‍♂️' : playingGame.type === 'Trivial' ? '🎓' : playingGame.type === 'Pari' ? '🏆' : '🎮'}</span>
                    </div>
                    <div className="text-left">
                      <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">{playingGame.title}</h2>
@@ -407,7 +417,49 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, predictions, on
 
               <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center p-8 overflow-y-auto custom-scrollbar">
                  {/* --- JEUX TERNARY CHAIN --- */}
-                 {playingGame.type === 'Trivial' ? (
+                 {playingGame.type === 'Pari' ? (
+                   <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
+                     <div className="text-center mb-8">
+                       <div className="text-6xl mb-4">🏆</div>
+                       <h2 className="text-3xl font-black text-white">{playingGame.title}</h2>
+                       <p className="text-slate-400 mt-2">{playingGame.description}</p>
+                       <div className="inline-flex mt-4 px-4 py-2 rounded-full bg-white/10 text-white text-xs font-bold">5 pts score exact · 2 pts bon résultat</div>
+                     </div>
+                     <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+                       {(playingGame.sportEvents || []).map(f => {
+                         const existing = getPredictionForFixture(playingGame.id, f.id);
+                         const closed = new Date(f.closingDate).getTime() <= Date.now() || f.isFinished;
+                         const draft = sportDrafts[f.id] || { home: existing?.homeScore?.toString() || '', away: existing?.awayScore?.toString() || '' };
+                         return (
+                           <div key={f.id} className="bg-white rounded-[28px] p-5 md:p-6 shadow-xl">
+                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                               <div>
+                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">{new Date(f.eventDate).toLocaleString('fr-FR')}</p>
+                                 <h3 className="text-xl font-black text-slate-800 mt-1">{f.homeTeam} <span className="text-slate-300">vs</span> {f.awayTeam}</h3>
+                                 <p className="text-xs text-slate-500 mt-1">Pronostics jusqu'au {new Date(f.closingDate).toLocaleString('fr-FR')}</p>
+                               </div>
+                               {f.isFinished ? (
+                                 <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xl">{f.homeScore} – {f.awayScore}</div>
+                               ) : closed ? (
+                                 <span className="px-4 py-2 bg-amber-100 text-amber-800 rounded-full text-xs font-black uppercase">Pronostics clos</span>
+                               ) : null}
+                             </div>
+                             <div className="mt-5 flex flex-wrap items-center gap-3">
+                               <div className="flex items-center gap-2">
+                                 <input disabled={closed} type="number" min="0" value={draft.home} onChange={e => setSportDrafts(prev => ({...prev, [f.id]: {...draft, home: e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100" aria-label={`Score ${f.homeTeam}`} />
+                                 <span className="font-black text-slate-400">–</span>
+                                 <input disabled={closed} type="number" min="0" value={draft.away} onChange={e => setSportDrafts(prev => ({...prev, [f.id]: {...draft, away: e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100" aria-label={`Score ${f.awayTeam}`} />
+                               </div>
+                               {!closed && <button onClick={() => submitSportPrediction(playingGame.id, f.id)} className="px-6 h-14 bg-green-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-green-700">{existing ? 'Modifier mon prono' : 'Valider mon prono'}</button>}
+                               {existing && <span className="text-xs font-bold text-green-700">Pronostic enregistré : {existing.homeScore} – {existing.awayScore}{existing.awarded ? ` · +${existing.pointsAwarded || 0} pts` : ''}</span>}
+                             </div>
+                           </div>
+                         );
+                       })}
+                       {(playingGame.sportEvents || []).length === 0 && <div className="text-center text-slate-400">Aucune rencontre programmée.</div>}
+                     </div>
+                   </div>
+                 ) : playingGame.type === 'Trivial' ? (
                     <div className="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center animate-in fade-in duration-700 text-center">
                        {trivialStep === 'intro' && (
                          <div className="space-y-8 animate-in zoom-in duration-500">

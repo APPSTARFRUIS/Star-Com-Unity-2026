@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction } from '../types';
+import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture } from '../types';
 import { DEPARTMENTS } from '../constants';
 import { uploadMediaToStorage } from '../storageUtils';
 
@@ -30,6 +30,7 @@ interface AdminPanelProps {
   onDeleteGame: (id: string) => void;
   onToggleGameStatus: (id: string) => void;
   onSetGameResult: (gameId: string, result: 'A' | 'Nul' | 'B') => void;
+  onUpdateSportResult: (gameId: string, fixtureId: string, homeScore: number, awayScore: number) => void;
   predictions: GamePrediction[];
   rewards: Reward[];
   onAddReward: (r: Omit<Reward, 'id'>) => void;
@@ -81,7 +82,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   newsletters, onCreateNewsletter, onDeleteNewsletter,
   wellnessContents, onAddWellnessContent, onDeleteWellnessContent,
   wellnessChallenges, onAddWellnessChallenge, onDeleteWellnessChallenge, onToggleWellnessChallenge,
-  games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult,
+  games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult,
   rewards, onAddReward, onDeleteReward,
   appConfig, onUpdateConfig, currentUser,
   transactions
@@ -148,12 +149,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showGameModal, setShowGameModal] = useState(false);
   const [newGame, setNewGame] = useState<Omit<CompanyGame, 'id' | 'createdAt'>>({
     title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: []
+    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: []
   });
   const [currentObjectName, setCurrentObjectName] = useState('');
   const [currentObjectQuestion, setCurrentObjectQuestion] = useState('');
   const gameThumbnailRef = useRef<HTMLInputElement>(null);
   const gameHiddenImgRef = useRef<HTMLInputElement>(null);
+  const [sportHomeTeam, setSportHomeTeam] = useState('');
+  const [sportAwayTeam, setSportAwayTeam] = useState('');
+  const [sportEventDate, setSportEventDate] = useState('');
+  const [sportClosingDate, setSportClosingDate] = useState('');
+  const [sportResultDrafts, setSportResultDrafts] = useState<Record<string, { home: string; away: string }>>({});
+
+  const handleAddSportFixture = () => {
+    if (!sportHomeTeam.trim() || !sportAwayTeam.trim() || !sportEventDate || !sportClosingDate) {
+      alert('Renseignez les deux équipes, la date du match et la date de clôture des pronostics.');
+      return;
+    }
+    const fixture: SportFixture = {
+      id: self.crypto.randomUUID(),
+      homeTeam: sportHomeTeam.trim(),
+      awayTeam: sportAwayTeam.trim(),
+      eventDate: sportEventDate,
+      closingDate: sportClosingDate,
+      isFinished: false
+    };
+    setNewGame(prev => ({ ...prev, type: 'Pari', category: 'Pari Sportif', sportEvents: [...(prev.sportEvents || []), fixture] }));
+    setSportHomeTeam('');
+    setSportAwayTeam('');
+    setSportEventDate('');
+    setSportClosingDate('');
+  };
+
+  const handleRemoveSportFixture = (fixtureId: string) => {
+    setNewGame(prev => ({ ...prev, sportEvents: (prev.sportEvents || []).filter(f => f.id !== fixtureId) }));
+  };
 
   // --- QUIZ EDITOR HELPERS ---
   const handleAddQuestion = () => {
@@ -278,12 +308,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (newGame.type === 'Memory' && (!newGame.memoryItems || newGame.memoryItems.length < 2)) { alert("Ajoutez au moins 2 paires au Memory !"); return; }
     if (newGame.type === 'Chronologie' && (!newGame.timelineItems || newGame.timelineItems.length < 2)) { alert("Ajoutez au moins 2 dates à la Chronologie !"); return; }
     if (newGame.type === 'Objets Cachés' && (!newGame.hiddenObjects || newGame.hiddenObjects.length === 0)) { alert("Placez au moins un objet caché !"); return; }
+    if (newGame.type === 'Pari' && (!newGame.sportEvents || newGame.sportEvents.length === 0)) { alert("Ajoutez au moins une rencontre au tournoi !"); return; }
     
     onAddGame(newGame);
     setShowGameModal(false);
     setNewGame({ 
       title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [] 
+      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [] 
     });
   };
 
@@ -742,7 +773,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {games.map(g => (
-                <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200 flex items-center justify-between group shadow-sm transition-all hover:shadow-md">
+                <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200 grid grid-cols-[1fr_auto] items-center justify-between group shadow-sm transition-all hover:shadow-md">
                    <div className="flex items-center gap-4 overflow-hidden">
                       <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
                          {g.thumbnail || g.hiddenObjectsImage ? <img src={g.thumbnail || g.hiddenObjectsImage} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-2xl">🎮</span>}
@@ -753,6 +784,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                    </div>
                    <button onClick={() => onDeleteGame(g.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors shrink-0"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" /></svg></button>
+                   {g.type === 'Pari' && (g.sportEvents || []).length > 0 && (
+                     <div className="col-span-full w-full mt-4 pt-4 border-t border-slate-100 space-y-3">
+                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Résultats et attribution des points</p>
+                       {(g.sportEvents || []).map(f => {
+                         const draft = sportResultDrafts[f.id] || { home: f.homeScore?.toString() || '', away: f.awayScore?.toString() || '' };
+                         return <div key={f.id} className="flex flex-wrap items-center gap-2 bg-slate-50 p-3 rounded-xl">
+                           <span className="text-xs font-bold flex-1 min-w-[180px]">{f.homeTeam} — {f.awayTeam}</span>
+                           <input type="number" min="0" value={draft.home} onChange={e => setSportResultDrafts(prev => ({...prev, [f.id]: {...draft, home: e.target.value}}))} className="w-16 border rounded-lg px-2 py-1 text-center" />
+                           <span>–</span>
+                           <input type="number" min="0" value={draft.away} onChange={e => setSportResultDrafts(prev => ({...prev, [f.id]: {...draft, away: e.target.value}}))} className="w-16 border rounded-lg px-2 py-1 text-center" />
+                           <button type="button" onClick={() => { if (draft.home === '' || draft.away === '') return; onUpdateSportResult(g.id, f.id, Number(draft.home), Number(draft.away)); }} className="px-3 py-2 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase">Valider</button>
+                         </div>;
+                       })}
+                     </div>
+                   )}
                 </div>
               ))}
            </div>
@@ -764,12 +810,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Type de jeu</label>
-                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.type} onChange={e => setNewGame({...newGame, type: e.target.value as any})}>
+                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.type} onChange={e => { const nextType = e.target.value as GameType; setNewGame({...newGame, type: nextType, category: nextType === 'Pari' ? 'Pari Sportif' : newGame.category, rewardPoints: nextType === 'Pari' ? 5 : (newGame.type === 'Pari' ? 100 : newGame.rewardPoints)}); }}>
                               <option value="Quiz">Quiz</option>
                               <option value="Trivial">Trivial Pursuit</option>
                               <option value="Memory">Memory</option>
                               <option value="Chronologie">Chronologie</option>
                               <option value="Objets Cachés">Objets Cachés</option>
+                              <option value="Pari">Pari Sportif</option>
                            </select>
                         </div>
                         <div className="space-y-2">
@@ -778,6 +825,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <option value="Produits">Produits</option>
                               <option value="Histoire">Histoire</option>
                               <option value="Valeurs">Valeurs</option>
+                              <option value="Processus">Processus</option>
+                              <option value="Pari Sportif">Pari Sportif</option>
                            </select>
                         </div>
                       </div>
@@ -789,7 +838,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
-                           <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Récompense finale</label>
+                           <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">{newGame.type === 'Pari' ? 'Points pour un score exact' : 'Récompense finale'}</label>
                            <input type="number" placeholder="Points à gagner" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-black text-green-600 outline-none text-xl" value={newGame.rewardPoints} onChange={e => setNewGame({...newGame, rewardPoints: parseInt(e.target.value)})} />
                         </div>
                         <div className="space-y-2">
@@ -800,6 +849,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            </button>
                         </div>
                       </div>
+
+                      {newGame.type === 'Pari' && (
+                        <div className="p-8 bg-slate-50 rounded-[40px] border border-slate-200 space-y-6">
+                          <div className="flex items-center justify-between px-2">
+                            <div>
+                              <h4 className="text-xs font-black uppercase text-indigo-700 tracking-[0.3em]">MATCHS DU TOURNOI ({newGame.sportEvents?.length || 0})</h4>
+                              <p className="text-xs text-slate-500 mt-2">Exemples : Coupe du monde, Tournoi des 6 Nations, Roland-Garros, Jeux olympiques.</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input value={sportHomeTeam} onChange={e => setSportHomeTeam(e.target.value)} placeholder="Équipe / joueur A" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" />
+                            <input value={sportAwayTeam} onChange={e => setSportAwayTeam(e.target.value)} placeholder="Équipe / joueur B" className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" />
+                            <div><label className="text-[10px] font-black uppercase text-slate-400">Date et heure de l'événement</label><input type="datetime-local" value={sportEventDate} onChange={e => setSportEventDate(e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" /></div>
+                            <div><label className="text-[10px] font-black uppercase text-slate-400">Clôture des pronostics</label><input type="datetime-local" value={sportClosingDate} onChange={e => setSportClosingDate(e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold" /></div>
+                          </div>
+                          <button type="button" onClick={handleAddSportFixture} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs">+ Ajouter la rencontre</button>
+                          <div className="space-y-3">
+                            {(newGame.sportEvents || []).map(f => (
+                              <div key={f.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+                                <div><p className="font-black text-slate-800">{f.homeTeam} — {f.awayTeam}</p><p className="text-xs text-slate-500">{new Date(f.eventDate).toLocaleString('fr-FR')} · clôture {new Date(f.closingDate).toLocaleString('fr-FR')}</p></div>
+                                <button type="button" onClick={() => handleRemoveSportFixture(f.id)} className="text-red-500 font-bold">Supprimer</button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-sm text-indigo-900">
+                            Barème automatique : <strong>5 points</strong> pour le score exact, <strong>2 points</strong> pour le bon vainqueur ou le bon match nul.
+                          </div>
+                        </div>
+                      )}
 
                       {/* --- ÉDITEUR DE QUIZ / TRIVIAL --- */}
                       {(newGame.type === 'Quiz' || newGame.type === 'Trivial') && (
@@ -986,7 +1064,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
            </div>
            <div className="space-y-4">
               {newsletters.map(n => (
-                <div key={n.id} className="bg-white p-6 rounded-3xl border border-slate-200 flex items-center justify-between group shadow-sm transition-all hover:shadow-md">
+                <div key={n.id} className="bg-white p-6 rounded-3xl border border-slate-200 grid grid-cols-[1fr_auto] items-center justify-between group shadow-sm transition-all hover:shadow-md">
                    <div className="flex items-center gap-4 overflow-hidden">
                       <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
                          {n.coverImage ? <img src={n.coverImage} className="w-full h-full object-cover rounded-2xl" /> : <span className="text-2xl">📰</span>}

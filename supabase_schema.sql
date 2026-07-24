@@ -61,3 +61,6 @@ using (
 -- 6. Attribution des permissions aux rôles API
 grant all on table public.polls to postgres, service_role;
 grant select, insert, update, delete on table public.polls to authenticated;
+-- Migration paris sportifs multi-rencontres
+ALTER TABLE public.games
+ADD COLUMN IF NOT EXISTS sport_events jsonb DEFAULT '[]'::jsonb;
