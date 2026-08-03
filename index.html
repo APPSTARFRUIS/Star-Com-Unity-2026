@@ -31,7 +31,55 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-    </style>
+    
+        /* Fenêtre de jeu mobile : un seul vrai conteneur scrollable. */
+        @media (max-width: 639px) {
+            .game-overlay {
+                position: fixed !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                overflow-x: hidden !important;
+                overflow-y: scroll !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior-y: contain !important;
+                touch-action: pan-y !important;
+            }
+            .game-shell {
+                display: block !important;
+                width: 100% !important;
+                min-height: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            .game-content {
+                display: block !important;
+                min-height: calc(100dvh - 65px) !important;
+                height: auto !important;
+                overflow: visible !important;
+                padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+            }
+            .quiz-wrapper,
+            .quiz-play,
+            .quiz-scroll {
+                display: block !important;
+                min-height: 0 !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                touch-action: pan-y !important;
+            }
+            .quiz-scroll button {
+                touch-action: manipulation !important;
+            }
+            .quiz-footer {
+                position: relative !important;
+                bottom: auto !important;
+                padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+            }
+        }
+</style>
 <script type="importmap">
 {
   "imports": {
