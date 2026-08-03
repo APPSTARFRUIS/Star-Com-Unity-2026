@@ -62,6 +62,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   // Chronomètre global
   const [seconds, setSeconds] = useState(0);
   const timerRef = useRef<any>(null);
+  const gameOverlayRef = useRef<HTMLDivElement | null>(null);
 
   const [isProcessingPoints, setIsProcessingPoints] = useState(false);
   const [sportTab, setSportTab] = useState<'matches' | 'ranking'>('matches');
@@ -103,6 +104,48 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [memoryStep, timelineStep, hiddenStep, quizStep, trivialStep]);
+
+  // iOS/Safari can occasionally refuse to scroll a fixed modal when several nested
+  // flex containers are present. This listener provides a direct touch-scroll fallback.
+  useEffect(() => {
+    const overlay = gameOverlayRef.current;
+    if (!playingGame || !overlay) return;
+
+    overlay.scrollTop = 0;
+    let lastTouchY: number | null = null;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (lastTouchY === null || event.touches.length !== 1) return;
+      const currentY = event.touches[0].clientY;
+      const deltaY = lastTouchY - currentY;
+
+      if (Math.abs(deltaY) > 0) {
+        overlay.scrollTop += deltaY;
+        lastTouchY = currentY;
+        event.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchY = null;
+    };
+
+    overlay.addEventListener('touchstart', handleTouchStart, { passive: true });
+    overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
+    overlay.addEventListener('touchend', handleTouchEnd, { passive: true });
+    overlay.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+    return () => {
+      overlay.removeEventListener('touchstart', handleTouchStart);
+      overlay.removeEventListener('touchmove', handleTouchMove);
+      overlay.removeEventListener('touchend', handleTouchEnd);
+      overlay.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [playingGame, quizStep, trivialStep, memoryStep, timelineStep, hiddenStep]);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -410,8 +453,17 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       </div>
 
       {playingGame && (
-        <div className="game-overlay fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[200] sm:flex sm:items-center sm:justify-center sm:p-4">
-           <div className="game-shell bg-white w-full max-w-5xl rounded-none sm:rounded-[48px] shadow-2xl relative sm:flex sm:flex-col sm:max-h-[94dvh] sm:overflow-hidden">
+        <div
+          ref={gameOverlayRef}
+          className="game-overlay fixed inset-0 z-[200] overflow-y-auto overflow-x-hidden bg-slate-900/95 backdrop-blur-xl sm:flex sm:items-center sm:justify-center sm:p-4"
+          style={{
+            height: '100dvh',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+            overscrollBehaviorY: 'contain'
+          }}
+        >
+           <div className="game-shell relative w-full max-w-5xl min-h-[100dvh] bg-white rounded-none shadow-2xl sm:flex sm:min-h-0 sm:max-h-[94dvh] sm:flex-col sm:overflow-hidden sm:rounded-[48px]">
               <div className="sticky top-0 z-50 bg-white px-4 sm:px-8 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0 sm:static">
                 <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center bg-green-50 text-green-600`}>
@@ -431,7 +483,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 </div>
               </div>
 
-              <div className="game-content relative bg-slate-900 flex flex-col items-center justify-start p-0 sm:flex-1 sm:min-h-0 sm:justify-center sm:p-8 sm:overflow-y-auto custom-scrollbar">
+              <div className="game-content relative flex min-h-[calc(100dvh-65px)] flex-col items-center justify-start bg-slate-900 p-0 pb-28 sm:min-h-0 sm:flex-1 sm:justify-center sm:overflow-y-auto sm:p-8 custom-scrollbar">
                  {/* --- JEUX TERNARY CHAIN --- */}
                  {playingGame.type === 'Pari' ? (
                    <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
@@ -617,7 +669,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                            </div>
 
                            {playingGame.questions![currentQuestionIdx].type !== 'QCU' && playingGame.questions![currentQuestionIdx].type !== 'Vrai/Faux' && (
-                             <div className="quiz-footer sticky bottom-0 z-40 shrink-0 border-t border-white/10 bg-slate-900/95 backdrop-blur px-4 pt-3 sm:static sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+                             <div className="quiz-footer fixed inset-x-0 bottom-0 z-[220] shrink-0 border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur sm:static sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
                                 <button 
                                   onClick={handleNextQuizQuestion}
                                   disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
