@@ -440,7 +440,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 </div>
               </div>
 
-              <div className={`flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-8 overscroll-contain custom-scrollbar ${playingGame.type === 'Quiz' && quizStep === 'play' ? 'overflow-hidden' : 'overflow-y-auto'}`} >
+              <div className="relative flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-0 sm:p-8 overflow-hidden sm:overflow-y-auto overscroll-contain custom-scrollbar">
                  {/* --- JEUX TERNARY CHAIN --- */}
                  {playingGame.type === 'Pari' ? (
                    <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
@@ -584,62 +584,68 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        )}
                     </div>
                  ) : playingGame.type === 'Quiz' && playingGame.questions ? (
-                    <div className="relative z-10 w-full max-w-3xl h-full min-h-0 flex flex-col justify-start sm:justify-center py-2 sm:py-0 animate-in fade-in duration-700 text-center">
+                    <div className="absolute inset-0 z-10 w-full min-h-0 flex flex-col overflow-hidden animate-in fade-in duration-700 text-center sm:static sm:max-w-3xl sm:min-h-full sm:overflow-visible">
                       {quizStep === 'intro' && (
-                        <div className="space-y-8 animate-in zoom-in duration-500">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-8 sm:p-0 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-500">
                            <div className="text-7xl">❓</div>
-                           <h2 className="text-4xl font-black text-white uppercase tracking-[0.2em]">{playingGame.title}</h2>
+                           <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-[0.12em] sm:tracking-[0.2em]">{playingGame.title}</h2>
                            <p className="text-slate-400 max-w-md mx-auto">{playingGame.description}</p>
-                           <button onClick={() => setQuizStep('play')} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase tracking-[0.2em] text-sm hover:scale-105 transition-all shadow-2xl active:scale-95">Commencer le défi</button>
+                           <button onClick={() => setQuizStep('play')} className="px-8 sm:px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-sm hover:scale-105 transition-all shadow-2xl active:scale-95">Commencer le défi</button>
                         </div>
                       )}
                       {quizStep === 'play' && (
-                        <div className="w-full flex-1 min-h-0 flex flex-col text-center">
-                           <div className="w-full flex items-center gap-3 sm:gap-4 px-1 pb-3 sm:pb-5 shrink-0">
-                              <div className="flex-1 h-2.5 sm:h-3 bg-white/10 rounded-full overflow-hidden">
-                                 <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${((currentQuestionIdx + 1) / playingGame.questions!.length) * 100}%` }} />
-                              </div>
-                              <span className="text-white font-black text-[10px] sm:text-xs uppercase tracking-widest whitespace-nowrap">{currentQuestionIdx + 1} / {playingGame.questions!.length}</span>
-                           </div>
-
-                           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-1 pb-5" style={{ WebkitOverflowScrolling: 'touch' }}>
-                              <h3 className="text-[clamp(1.45rem,7vw,2.25rem)] font-black text-white leading-[1.12] mb-5 sm:mb-8 px-1">{playingGame.questions![currentQuestionIdx].question}</h3>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pb-2">
-                                 {playingGame.questions![currentQuestionIdx].options.map((opt, oIdx) => {
-                                   const isSelected = (userSelections[currentQuestionIdx] || []).includes(oIdx);
-                                   return (
-                                     <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group min-h-[76px] sm:min-h-[92px] p-3.5 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
-                                        <div className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 flex items-center justify-center text-sm font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-105' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
-                                        <span className={`font-bold text-base sm:text-lg text-left leading-snug transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
-                                     </button>
-                                   );
-                                 })}
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                           <div className="shrink-0 px-4 pt-4 pb-3 sm:px-0 sm:pt-0">
+                              <div className="w-full flex items-center gap-4">
+                                 <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden">
+                                    <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${((currentQuestionIdx + 1) / playingGame.questions!.length) * 100}%` }} />
+                                 </div>
+                                 <span className="text-white font-black text-xs uppercase tracking-widest">{currentQuestionIdx + 1} / {playingGame.questions!.length}</span>
                               </div>
                            </div>
 
-                           <div className="shrink-0 border-t border-white/10 bg-slate-900 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-1">
-                              <button
-                                onClick={handleNextQuizQuestion}
-                                disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
-                                className="w-full px-5 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.12em] sm:tracking-[0.2em] text-xs sm:text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-                              >
-                                {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
-                              </button>
-                              {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
-                                <p className="mt-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">Choix multiples possibles</p>
-                              )}
+                           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 pb-6 sm:px-0 sm:pb-8 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                              <div className="space-y-5 sm:space-y-8 pb-4">
+                                 <h3 className="text-xl sm:text-3xl font-black text-white leading-tight">{playingGame.questions![currentQuestionIdx].question}</h3>
+                                 
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                                    {playingGame.questions![currentQuestionIdx].options.map((opt, oIdx) => {
+                                      const isSelected = (userSelections[currentQuestionIdx] || []).includes(oIdx);
+                                      return (
+                                        <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group p-3.5 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
+                                           <div className={`w-10 h-10 shrink-0 flex items-center justify-center text-xs font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
+                                           <span className={`font-bold text-sm sm:text-lg text-left transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
+                                        </button>
+                                      );
+                                    })}
+                                 </div>
+                                 {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
+                                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Choix multiples possible</p>
+                                 )}
+                              </div>
                            </div>
+
+                           {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
+                             <div className="shrink-0 border-t border-white/10 bg-slate-900 px-4 pt-3 sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+                                <button 
+                                  onClick={handleNextQuizQuestion}
+                                  disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
+                                  className="w-full sm:w-auto sm:min-w-[320px] px-6 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.14em] sm:tracking-[0.2em] text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 transition-all active:scale-95"
+                                >
+                                  {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
+                                </button>
+                             </div>
+                           )}
                         </div>
                       )}
                       {quizStep === 'finished' && (
-                        <div className="space-y-8 animate-in zoom-in duration-500 text-center max-w-md mx-auto">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-8 sm:p-0 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-500 text-center">
                            <div className="text-8xl">
                              {quizScore.correct === quizScore.total ? '🏆' : quizScore.correct >= quizScore.total / 2 ? '👏' : '🤔'}
                            </div>
                            <h2 className="text-4xl font-black text-white uppercase tracking-[0.2em]">Quiz terminé</h2>
                            
-                           <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6 shadow-2xl">
+                           <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-[40px] p-8 space-y-6 shadow-2xl">
                               <div className="flex justify-around items-center">
                                  <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</p>
@@ -659,88 +665,10 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                     : "Oups, il y a encore quelques lacunes. Retente ta chance la prochaine fois !"}
                               </p>
                            </div>
-
-                           <button onClick={closeGame} className="px-16 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase text-sm tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-xl">Quitter le jeu</button>
+                           <button onClick={closeGame} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase text-sm tracking-widest hover:scale-105 transition-all">Quitter le jeu</button>
                         </div>
                       )}
                     </div>
-                 ) : playingGame.type === 'Objets Cachés' ? (
-                   <div className="w-full h-full flex flex-col items-center justify-center animate-in fade-in duration-500">
-                      {hiddenStep === 'intro' && (
-                        <div className="text-center space-y-8 animate-in zoom-in duration-500">
-                           <div className="text-7xl">🕵️‍♂️</div>
-                           <h2 className="text-4xl font-black text-white uppercase tracking-[0.2em]">Quiz Visuel</h2>
-                           <p className="text-slate-400 max-w-md mx-auto">Résolvez les énigmes en cliquant sur les bons objets dans l'image !</p>
-                           <button onClick={() => setHiddenStep('play')} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase tracking-[0.2em] text-sm hover:scale-105 transition-all">Démarrer le quiz</button>
-                        </div>
-                      )}
-
-                      {hiddenStep === 'play' && (
-                        <div className="w-full h-full flex flex-col lg:flex-row gap-8 items-center lg:items-start justify-center">
-                           <div className="flex-1 flex flex-col items-center gap-6">
-                              <div className="w-full bg-white/10 border border-white/20 p-6 rounded-[32px] text-center animate-pulse">
-                                 <p className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-2">Question actuelle</p>
-                                 <h3 className="text-2xl font-black text-white leading-tight">
-                                    {currentObjToFind?.question}
-                                 </h3>
-                              </div>
-
-                              <div 
-                                className="relative inline-block cursor-crosshair group rounded-[32px] overflow-hidden border-4 border-white/10 shadow-2xl bg-black" 
-                                onClick={handleHiddenImageClick}
-                              >
-                                <img 
-                                  src={playingGame.hiddenObjectsImage} 
-                                  className="block w-auto h-auto max-w-full max-h-[60vh] object-contain select-none" 
-                                  alt="Chercher ici" 
-                                  draggable={false}
-                                />
-                                {playingGame.hiddenObjects?.map(obj => foundObjectIds.includes(obj.id) && (
-                                  <div key={obj.id} className="absolute border-4 border-green-500 rounded-full bg-green-500/20 animate-in zoom-in duration-300 shadow-[0_0_20px_rgba(34,197,94,0.6)]" style={{ left: `${obj.x}%`, top: `${obj.y}%`, width: `${obj.radius * 2}%`, height: `${obj.radius * 2}%`, transform: 'translate(-50%, -50%)' }}>
-                                     <div className="absolute top-[-35px] left-1/2 -translate-x-1/2 bg-green-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap shadow-xl">✓ {obj.label}</div>
-                                  </div>
-                                ))}
-                              </div>
-                           </div>
-                           
-                           <div className="w-full lg:w-72 space-y-4 shrink-0">
-                              <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-4">
-                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">Progression ({foundObjectIds.length}/{playingGame.hiddenObjects?.length})</h3>
-                                 <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
-                                    {playingGame.hiddenObjects?.map((obj, idx) => {
-                                      const isFound = foundObjectIds.includes(obj.id);
-                                      const isCurrent = currentObjToFind?.id === obj.id;
-                                      return (
-                                        <div key={obj.id} className={`p-4 rounded-2xl border transition-all flex items-center gap-3 text-left ${isFound ? 'bg-green-600/20 border-green-500 text-green-400' : isCurrent ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-white/5 border-white/10 text-slate-600'}`}>
-                                           <div className={`w-3 h-3 rounded-full flex-shrink-0 ${isFound ? 'bg-green-500 shadow-[0_0_10px_green]' : isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-slate-800'}`}></div>
-                                           <div className="overflow-hidden">
-                                              <p className={`text-[9px] font-black uppercase ${isFound ? 'text-green-500' : 'text-slate-500'}`}>Étape 0{idx + 1}</p>
-                                              <span className={`text-sm font-bold truncate block ${isFound ? 'line-through opacity-50' : isCurrent ? 'text-white' : ''}`}>
-                                                {isFound ? obj.label : isCurrent ? 'En cours...' : '???'}
-                                              </span>
-                                           </div>
-                                        </div>
-                                      );
-                                    })}
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-                      )}
-
-                      {hiddenStep === 'finished' && (
-                        <div className="text-center space-y-8 animate-in zoom-in duration-500">
-                           <div className="text-7xl">🏆</div>
-                           <h2 className="text-5xl font-black text-white">CHAMPION !</h2>
-                           <p className="text-slate-400">Toutes les énigmes visuelles ont été résolues en <span className="text-white font-bold">{formatTime(seconds)}</span>.</p>
-                           <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-[40px] max-w-md mx-auto">
-                              <p className="text-green-500 font-black uppercase text-xs mb-2 tracking-[0.2em]">🎁 Gain obtenu</p>
-                              <p className="text-white text-3xl font-black">+{playingGame.rewardPoints} points</p>
-                           </div>
-                           <button onClick={closeGame} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase text-sm active:scale-95 transition-transform">Quitter</button>
-                        </div>
-                      )}
-                   </div>
                  ) : playingGame.type === 'Memory' ? (
                    <div className="w-full flex flex-col items-center">
                       {memoryStep === 'intro' && (
