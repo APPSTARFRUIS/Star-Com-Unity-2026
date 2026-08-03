@@ -419,8 +419,9 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       </div>
 
       {playingGame && (
-        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[200] flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
-           <div className="bg-white w-full max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] sm:min-h-[80vh] rounded-none sm:rounded-[48px] shadow-2xl overflow-hidden flex flex-col relative">
+        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[200] flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+
+           <div className="bg-white w-full max-w-5xl min-h-[100dvh] sm:min-h-[80vh] sm:max-h-[94dvh] rounded-none sm:rounded-[48px] shadow-2xl flex flex-col relative overflow-visible sm:overflow-hidden">
               <div className="bg-white px-4 sm:px-8 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
                 <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center bg-green-50 text-green-600`}>
@@ -440,7 +441,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 </div>
               </div>
 
-              <div className="relative flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-0 sm:p-8 overflow-hidden sm:overflow-y-auto overscroll-contain custom-scrollbar">
+              <div className="relative flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-0 sm:p-8 overflow-y-auto overscroll-contain custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                  {/* --- JEUX TERNARY CHAIN --- */}
                  {playingGame.type === 'Pari' ? (
                    <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
@@ -584,7 +585,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        )}
                     </div>
                  ) : playingGame.type === 'Quiz' && playingGame.questions ? (
-                    <div className="absolute inset-0 z-10 w-full min-h-0 flex flex-col overflow-hidden animate-in fade-in duration-700 text-center sm:static sm:max-w-3xl sm:min-h-full sm:overflow-visible">
+                    <div className="relative z-10 w-full min-h-full flex flex-col animate-in fade-in duration-700 text-center sm:max-w-3xl">
                       {quizStep === 'intro' && (
                         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-8 sm:p-0 flex flex-col items-center justify-center space-y-8 animate-in zoom-in duration-500">
                            <div className="text-7xl">❓</div>
@@ -594,8 +595,8 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                         </div>
                       )}
                       {quizStep === 'play' && (
-                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                           <div className="shrink-0 px-4 pt-4 pb-3 sm:px-0 sm:pt-0">
+                        <div className="w-full min-h-full flex flex-col">
+                           <div className="sticky top-0 z-20 shrink-0 bg-slate-900 px-4 pt-4 pb-3 sm:static sm:px-0 sm:pt-0">
                               <div className="w-full flex items-center gap-4">
                                  <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden">
                                     <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${((currentQuestionIdx + 1) / playingGame.questions!.length) * 100}%` }} />
@@ -604,7 +605,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                               </div>
                            </div>
 
-                           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 pb-6 sm:px-0 sm:pb-8 custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                           <div className="px-4 pb-28 sm:px-0 sm:pb-8">
                               <div className="space-y-5 sm:space-y-8 pb-4">
                                  <h3 className="text-xl sm:text-3xl font-black text-white leading-tight">{playingGame.questions![currentQuestionIdx].question}</h3>
                                  
@@ -626,7 +627,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                            </div>
 
                            {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
-                             <div className="shrink-0 border-t border-white/10 bg-slate-900 px-4 pt-3 sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+                             <div className="sticky bottom-0 z-30 shrink-0 border-t border-white/10 bg-slate-900/95 backdrop-blur px-4 pt-3 sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
                                 <button 
                                   onClick={handleNextQuizQuestion}
                                   disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
