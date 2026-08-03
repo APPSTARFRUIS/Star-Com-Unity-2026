@@ -90,6 +90,15 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   }, [playingGame, predictions, users]);
 
   useEffect(() => {
+    if (!playingGame) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [playingGame]);
+
+  useEffect(() => {
     const isPlaying = memoryStep === 'play' || timelineStep === 'play' || hiddenStep === 'play' || quizStep === 'play' || (trivialStep === 'board' || trivialStep === 'question');
     if (isPlaying) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -410,20 +419,20 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       </div>
 
       {playingGame && (
-        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
-           <div className="bg-white w-full max-w-5xl rounded-[48px] shadow-2xl overflow-hidden flex flex-col relative min-h-[80vh]">
-              <div className="bg-white px-8 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-green-50 text-green-600`}>
+        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl z-[200] flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
+           <div className="bg-white w-full max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] sm:min-h-[80vh] rounded-none sm:rounded-[48px] shadow-2xl overflow-hidden flex flex-col relative">
+              <div className="bg-white px-4 sm:px-8 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                   <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center bg-green-50 text-green-600`}>
                       <span className="text-xl">{playingGame.type === 'Objets Cachés' ? '🕵️‍♂️' : playingGame.type === 'Trivial' ? '🎓' : playingGame.type === 'Pari' ? '🏆' : '🎮'}</span>
                    </div>
-                   <div className="text-left">
-                     <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">{playingGame.title}</h2>
+                   <div className="text-left min-w-0">
+                     <h2 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide sm:tracking-widest truncate">{playingGame.title}</h2>
                      <p className="text-[10px] text-slate-400 font-bold uppercase">{playingGame.type === 'Pari' ? `Pronostics · ${playingGame.sportName || 'Sport'}` : playingGame.type}</p>
                    </div>
                 </div>
-                <div className="flex items-center gap-4">
-                   <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
+                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                   <div className="bg-slate-50 px-2.5 sm:px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
                       <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="3" /></svg>
                       <span className="text-sm font-black text-slate-700 font-mono">{formatTime(seconds)}</span>
                    </div>
@@ -431,7 +440,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 </div>
               </div>
 
-              <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center p-8 overflow-y-auto custom-scrollbar">
+              <div className="flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-8 overflow-y-auto overscroll-contain custom-scrollbar">
                  {/* --- JEUX TERNARY CHAIN --- */}
                  {playingGame.type === 'Pari' ? (
                    <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
@@ -548,7 +557,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                    <button 
                                      key={oIdx} 
                                      onClick={() => handleTrivialOptionClick(oIdx)}
-                                     className={`group p-6 border-2 transition-all flex items-center gap-4 rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                                     className={`group p-4 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                    >
                                       <div className={`w-10 h-10 flex items-center justify-center text-xs font-black rounded-2xl ${isSelected ? 'bg-green-600 text-white' : 'bg-white/10 text-white'}`}>{String.fromCharCode(65 + oIdx)}</div>
                                       <span className="font-bold text-lg text-left text-slate-200 group-hover:text-white">{opt}</span>
@@ -575,7 +584,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        )}
                     </div>
                  ) : playingGame.type === 'Quiz' && playingGame.questions ? (
-                    <div className="relative z-10 w-full max-w-3xl h-full flex flex-col justify-center animate-in fade-in duration-700 text-center">
+                    <div className="relative z-10 w-full max-w-3xl min-h-full flex flex-col justify-start sm:justify-center py-3 sm:py-0 animate-in fade-in duration-700 text-center">
                       {quizStep === 'intro' && (
                         <div className="space-y-8 animate-in zoom-in duration-500">
                            <div className="text-7xl">❓</div>
@@ -585,7 +594,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                         </div>
                       )}
                       {quizStep === 'play' && (
-                        <div className="space-y-8 h-full flex flex-col justify-center">
+                        <div className="space-y-5 sm:space-y-8 min-h-full flex flex-col justify-start sm:justify-center py-2 sm:py-0">
                            <div className="w-full flex items-center gap-4">
                               <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden">
                                  <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${((currentQuestionIdx + 1) / playingGame.questions!.length) * 100}%` }} />
@@ -593,27 +602,27 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                               <span className="text-white font-black text-xs uppercase tracking-widest">{currentQuestionIdx + 1} / {playingGame.questions!.length}</span>
                            </div>
                            
-                           <div className="space-y-8 flex-1 flex flex-col justify-center">
-                              <h3 className="text-3xl font-black text-white leading-tight">{playingGame.questions![currentQuestionIdx].question}</h3>
+                           <div className="space-y-5 sm:space-y-8 flex-1 flex flex-col justify-start sm:justify-center">
+                              <h3 className="text-xl sm:text-3xl font-black text-white leading-tight">{playingGame.questions![currentQuestionIdx].question}</h3>
                               
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                  {playingGame.questions![currentQuestionIdx].options.map((opt, oIdx) => {
                                    const isSelected = (userSelections[currentQuestionIdx] || []).includes(oIdx);
                                    return (
-                                     <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group p-6 border-2 transition-all flex items-center gap-4 rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
+                                     <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group p-4 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
                                         <div className={`w-10 h-10 flex items-center justify-center text-xs font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
-                                        <span className={`font-bold text-lg text-left transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
+                                        <span className={`font-bold text-sm sm:text-lg text-left transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
                                      </button>
                                    );
                                  })}
                               </div>
 
                               {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
-                                <div className="pt-8 animate-in fade-in duration-500">
+                                <div className="pt-2 sm:pt-8 pb-3 animate-in fade-in duration-500 sticky bottom-0 bg-slate-900/95 backdrop-blur-sm">
                                    <button 
                                      onClick={handleNextQuizQuestion}
                                      disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
-                                     className="px-16 py-5 bg-green-600 text-white rounded-[24px] font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 transition-all active:scale-95"
+                                     className="w-full sm:w-auto px-6 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 transition-all active:scale-95"
                                    >
                                      {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
                                    </button>
