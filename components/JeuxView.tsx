@@ -440,7 +440,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-8 overflow-y-auto overscroll-contain custom-scrollbar">
+              <div className={`flex-1 min-h-0 bg-slate-900 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-8 overscroll-contain custom-scrollbar ${playingGame.type === 'Quiz' && quizStep === 'play' ? 'overflow-hidden' : 'overflow-y-auto'}`} >
                  {/* --- JEUX TERNARY CHAIN --- */}
                  {playingGame.type === 'Pari' ? (
                    <div className="relative z-10 w-full max-w-4xl h-full flex flex-col animate-in fade-in duration-500 text-left">
@@ -584,7 +584,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        )}
                     </div>
                  ) : playingGame.type === 'Quiz' && playingGame.questions ? (
-                    <div className="relative z-10 w-full max-w-3xl min-h-full flex flex-col justify-start sm:justify-center py-3 sm:py-0 animate-in fade-in duration-700 text-center">
+                    <div className="relative z-10 w-full max-w-3xl h-full min-h-0 flex flex-col justify-start sm:justify-center py-2 sm:py-0 animate-in fade-in duration-700 text-center">
                       {quizStep === 'intro' && (
                         <div className="space-y-8 animate-in zoom-in duration-500">
                            <div className="text-7xl">❓</div>
@@ -594,40 +594,40 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                         </div>
                       )}
                       {quizStep === 'play' && (
-                        <div className="space-y-5 sm:space-y-8 min-h-full flex flex-col justify-start sm:justify-center py-2 sm:py-0">
-                           <div className="w-full flex items-center gap-4">
-                              <div className="flex-1 h-3 bg-white/10 rounded-full overflow-hidden">
+                        <div className="w-full flex-1 min-h-0 flex flex-col text-center">
+                           <div className="w-full flex items-center gap-3 sm:gap-4 px-1 pb-3 sm:pb-5 shrink-0">
+                              <div className="flex-1 h-2.5 sm:h-3 bg-white/10 rounded-full overflow-hidden">
                                  <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${((currentQuestionIdx + 1) / playingGame.questions!.length) * 100}%` }} />
                               </div>
-                              <span className="text-white font-black text-xs uppercase tracking-widest">{currentQuestionIdx + 1} / {playingGame.questions!.length}</span>
+                              <span className="text-white font-black text-[10px] sm:text-xs uppercase tracking-widest whitespace-nowrap">{currentQuestionIdx + 1} / {playingGame.questions!.length}</span>
                            </div>
-                           
-                           <div className="space-y-5 sm:space-y-8 flex-1 flex flex-col justify-start sm:justify-center">
-                              <h3 className="text-xl sm:text-3xl font-black text-white leading-tight">{playingGame.questions![currentQuestionIdx].question}</h3>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-1 pb-5" style={{ WebkitOverflowScrolling: 'touch' }}>
+                              <h3 className="text-[clamp(1.45rem,7vw,2.25rem)] font-black text-white leading-[1.12] mb-5 sm:mb-8 px-1">{playingGame.questions![currentQuestionIdx].question}</h3>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pb-2">
                                  {playingGame.questions![currentQuestionIdx].options.map((opt, oIdx) => {
                                    const isSelected = (userSelections[currentQuestionIdx] || []).includes(oIdx);
                                    return (
-                                     <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group p-4 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
-                                        <div className={`w-10 h-10 flex items-center justify-center text-xs font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
-                                        <span className={`font-bold text-sm sm:text-lg text-left transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
+                                     <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group min-h-[76px] sm:min-h-[92px] p-3.5 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
+                                        <div className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 flex items-center justify-center text-sm font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-105' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
+                                        <span className={`font-bold text-base sm:text-lg text-left leading-snug transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
                                      </button>
                                    );
                                  })}
                               </div>
+                           </div>
 
+                           <div className="shrink-0 border-t border-white/10 bg-slate-900 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-1">
+                              <button
+                                onClick={handleNextQuizQuestion}
+                                disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
+                                className="w-full px-5 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.12em] sm:tracking-[0.2em] text-xs sm:text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+                              >
+                                {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
+                              </button>
                               {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
-                                <div className="pt-2 sm:pt-8 pb-3 animate-in fade-in duration-500 sticky bottom-0 bg-slate-900/95 backdrop-blur-sm">
-                                   <button 
-                                     onClick={handleNextQuizQuestion}
-                                     disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
-                                     className="w-full sm:w-auto px-6 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 transition-all active:scale-95"
-                                   >
-                                     {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
-                                   </button>
-                                   <p className="mt-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Choix multiples possible</p>
-                                </div>
+                                <p className="mt-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">Choix multiples possibles</p>
                               )}
                            </div>
                         </div>
