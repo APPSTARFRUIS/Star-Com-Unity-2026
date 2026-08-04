@@ -27,9 +27,9 @@ interface EngagementViewProps {
 type Tab = 'general' | 'month' | 'contributors' | 'animations';
 
 const typeLabels: Record<EngagementType, string> = {
-  countdown: 'Compte à rebours', raffle: 'Tirage au sort', contest: 'Jeu concours', advent: "Calendrier de l'Avent", mission: 'Mission ponctuelle', season: 'Saison'
+  countdown: 'Compte à rebours', raffle: 'Tirage au sort', contest: 'Jeu concours', advent: "Calendrier de l'Avent", mission: 'Mission ponctuelle', season: 'Saison', predictions: 'Pronostics'
 };
-const typeIcons: Record<EngagementType, string> = { countdown: '⏳', raffle: '🎟️', contest: '🏁', advent: '🎄', mission: '🎯', season: '🏆' };
+const typeIcons: Record<EngagementType, string> = { countdown: '⏳', raffle: '🎟️', contest: '🏁', advent: '🎄', mission: '🎯', season: '🏆', predictions: '⚽' };
 const adventIcons: Record<string, string> = { gift: '🎁', quiz: '❓', video: '🎥', document: '📄', mission: '🎯', coupon: '🎫', instant: '🎲', game: '🧩', mystery: '📸', fact: '💡', jackpot: '🎉' };
 
 const EngagementView: React.FC<EngagementViewProps> = ({

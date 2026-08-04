@@ -47,7 +47,8 @@ const typeMeta: Record<EngagementType, { label: string; icon: string; descriptio
   contest: { label: 'Jeu concours', icon: '🏁', description: 'Poser une question et récompenser les bonnes réponses.' },
   advent: { label: "Calendrier de l’Avent", icon: '🎄', description: 'Préparer 24 expériences différentes à ouvrir jour après jour.' },
   mission: { label: 'Mission ponctuelle', icon: '🎯', description: 'Créer une animation limitée dans le temps avec plusieurs objectifs.' },
-  season: { label: 'Saison', icon: '🏆', description: 'Regrouper plusieurs modules autour d’un temps fort et d’un classement.' }
+  season: { label: 'Saison', icon: '🏆', description: 'Regrouper plusieurs modules autour d’un temps fort et d’un classement.' },
+  predictions: { label: 'Pronostics', icon: '⚽', description: 'Créer une compétition temporaire avec rencontres, pronostics, résultats et classement.' }
 };
 
 const adventTypeMeta: Record<AdventContentType, { label: string; icon: string; help: string }> = {
