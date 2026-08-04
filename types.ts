@@ -372,7 +372,7 @@ export interface PointsTransaction {
   type: 'earn' | 'spend';
 }
 
-export type EngagementType = 'countdown' | 'raffle' | 'contest' | 'advent' | 'mission' | 'season';
+export type EngagementType = 'countdown' | 'raffle' | 'contest' | 'advent' | 'mission' | 'season' | 'predictions';
 
 export interface EngagementAnimation {
   id: string;
