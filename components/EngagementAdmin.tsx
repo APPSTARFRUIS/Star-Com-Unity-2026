@@ -241,7 +241,19 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
           {[['Animations actives', activeAnimationCount], ['Participations', totalParticipants], ['Animations terminées', closedCount]].map(([label, value]) => <div key={String(label)} className="bg-white border border-slate-100 rounded-2xl p-5"><p className="text-xs uppercase font-black text-slate-400">{label}</p><p className="text-3xl font-black mt-2">{value}</p></div>)}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(Object.entries(typeMeta) as [EngagementType, typeof typeMeta[EngagementType]][]).map(([type, meta]) => <button key={type} onClick={() => setMode(type)} className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"><div className="text-3xl">{meta.icon}</div><h3 className="font-black text-xl mt-4">{meta.label}</h3><p className="text-sm text-slate-500 mt-2">{meta.description}</p></button>)}
+          {(Object.entries(typeMeta) as [EngagementType, typeof typeMeta[EngagementType]][])
+            .filter(([type]) => type !== 'predictions')
+            .map(([type, meta]) => (
+              <button
+                key={type}
+                onClick={() => setMode(type)}
+                className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"
+              >
+                <div className="text-3xl">{meta.icon}</div>
+                <h3 className="font-black text-xl mt-4">{meta.label}</h3>
+                <p className="text-sm text-slate-500 mt-2">{meta.description}</p>
+              </button>
+            ))}
           <button onClick={() => setMode('predictions')} className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"><div className="text-3xl">⚽</div><h3 className="font-black text-xl mt-4">Pronostics</h3><p className="text-sm text-slate-500 mt-2">Créer une compétition, ajouter les rencontres, saisir les résultats et calculer les points.</p></button>
         </div>
         <div className="space-y-3">
