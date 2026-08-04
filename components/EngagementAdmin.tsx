@@ -181,7 +181,7 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
 
   const currentAdventDay = adventDays.find(day => day.day === activeAdventDay)!;
 
-  const CommonFields = () => (
+  const renderCommonFields = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div className="lg:col-span-2 space-y-2">
         <label className="text-xs font-black uppercase tracking-widest text-slate-400">Titre</label>
@@ -232,7 +232,7 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
     <form onSubmit={submit} className="space-y-8 animate-in fade-in duration-300 pb-12">
       <div className="flex items-start gap-4"><button type="button" onClick={() => { resetForms(); setMode('list'); }} className="w-12 h-12 rounded-2xl bg-slate-100">←</button><div><div className="text-2xl">{typeMeta[mode].icon}</div><h2 className="text-3xl font-black">Créer : {typeMeta[mode].label}</h2><p className="text-slate-500">{typeMeta[mode].description}</p></div></div>
       <div className="bg-white border border-slate-100 rounded-3xl p-6 md:p-8 space-y-8">
-        <CommonFields />
+        {renderCommonFields()}
 
         {mode === 'countdown' && <div className="grid md:grid-cols-2 gap-5 border-t pt-8"><input type="datetime-local" required value={countdown.targetDate} onChange={e => setCountdown({ ...countdown, targetDate: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input placeholder="Texte du bouton" value={countdown.buttonLabel} onChange={e => setCountdown({ ...countdown, buttonLabel: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input placeholder="Lien du bouton" value={countdown.buttonUrl} onChange={e => setCountdown({ ...countdown, buttonUrl: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input type="color" value={countdown.color} onChange={e => setCountdown({ ...countdown, color: e.target.value })} className="h-14 w-full" /></div>}
         {mode === 'raffle' && <div className="grid md:grid-cols-2 gap-5 border-t pt-8"><input type="number" min="1" value={raffle.winnerCount} onChange={e => setRaffle({ ...raffle, winnerCount: Number(e.target.value) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Nombre de gagnants" /><select value={raffle.participationMode} onChange={e => setRaffle({ ...raffle, participationMode: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4"><option value="free">Participation gratuite</option><option value="points">Participation en points</option></select>{raffle.participationMode === 'points' && <input type="number" min="0" value={raffle.pointsCost} onChange={e => setRaffle({ ...raffle, pointsCost: Number(e.target.value) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Coût du ticket" />}<textarea value={raffle.lots} onChange={e => setRaffle({ ...raffle, lots: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Lots" /></div>}

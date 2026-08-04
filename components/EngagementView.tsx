@@ -16,6 +16,7 @@ interface EngagementViewProps {
   animations: EngagementAnimation[];
   onJoinAnimation: (animation: EngagementAnimation) => Promise<void>;
   onOpenAdventDay: (animation: EngagementAnimation, dayNumber: number, outcome?: AdventOutcome) => Promise<void>;
+  section?: 'rankings' | 'highlights';
 }
 
 type Tab = 'general' | 'month' | 'contributors' | 'animations';
@@ -27,9 +28,9 @@ const typeIcons: Record<EngagementType, string> = { countdown: '⏳', raffle: '�
 const adventIcons: Record<string, string> = { gift: '🎁', quiz: '❓', video: '🎥', document: '📄', mission: '🎯', coupon: '🎫', instant: '🎲', game: '🧩', mystery: '📸', fact: '💡', jackpot: '🎉' };
 
 const EngagementView: React.FC<EngagementViewProps> = ({
-  users, currentUser, transactions, posts, ideas, polls, animations, onJoinAnimation, onOpenAdventDay
+  users, currentUser, transactions, posts, ideas, polls, animations, onJoinAnimation, onOpenAdventDay, section = 'rankings'
 }) => {
-  const [tab, setTab] = useState<Tab>('general');
+  const [tab, setTab] = useState<Exclude<Tab, 'animations'>>('general');
   const [openedAdvent, setOpenedAdvent] = useState<EngagementAnimation | null>(null);
   const [selectedDay, setSelectedDay] = useState<any | null>(null);
   const [answer, setAnswer] = useState('');
@@ -42,6 +43,8 @@ const EngagementView: React.FC<EngagementViewProps> = ({
     transactions.forEach(t => { if (new Date(t.date) >= monthStart) { const sign = t.type === 'spend' ? -1 : 1; scores.set(t.userId, (scores.get(t.userId) || 0) + sign * Math.abs(t.amount)); } });
     return users.map(u => ({ ...u, points: scores.get(u.id) || 0 })).sort((a, b) => b.points - a.points);
   }, [users, transactions]);
+  const visibleAnimations = useMemo(() => animations.filter(animation => animation.status === 'active'), [animations]);
+
   const contributors = useMemo(() => users.map(user => {
     const userPosts = posts.filter(p => p.userId === user.id).length;
     const postComments = posts.reduce((sum, p) => sum + (p.comments || []).filter(c => c.userId === user.id).length, 0);
@@ -90,12 +93,18 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   };
 
   return <div className="max-w-6xl mx-auto pb-16">
-    <div className="mb-8"><p className="text-xs font-black uppercase tracking-[0.2em] text-green-700">Engagement</p><h1 className="text-3xl md:text-4xl font-black text-slate-900">Classements & temps forts</h1><p className="text-slate-500 mt-2">Podiums, contributions et animations ponctuelles. La création se pilote depuis l’administration.</p></div>
-    <div className="flex gap-2 overflow-x-auto pb-2 mb-6">{[['general','Classement général'],['month','Ce mois'],['contributors','Top contributeurs'],['animations','Animations']].map(([id,label]) => <button key={id} onClick={() => setTab(id as Tab)} className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-black ${tab === id ? 'bg-[#14532d] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>)}</div>
-    {tab === 'general' && renderRanking(generalRanking)}
-    {tab === 'month' && renderRanking(monthRanking)}
-    {tab === 'contributors' && <div className="space-y-3"><div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-4 text-sm">Score automatique : publication 5 pts, idée 4 pts, commentaire 2 pts, réponse à un sondage 2 pts.</div>{contributors.map((entry, index) => <div key={entry.user.id} className={`bg-white border rounded-2xl p-4 flex items-center gap-4 ${entry.user.id === currentUser.id ? 'border-green-500' : 'border-slate-100'}`}><div className="w-9 text-center font-black text-slate-400">#{index + 1}</div><img src={entry.user.avatar} alt="" className="w-11 h-11 rounded-full" /><div className="flex-1 min-w-0"><p className="font-black truncate">{entry.user.name}</p><p className="text-xs text-slate-500">{entry.userPosts} publications · {entry.comments} commentaires · {entry.userIdeas} idées · {entry.pollAnswers} sondages</p></div><div className="font-black text-xl text-blue-700">{entry.score}</div></div>)}</div>}
-    {tab === 'animations' && <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{animations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucune animation active pour le moment.</div>}{animations.map(animation => {
+    <div className="mb-8">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-green-700">Engagement</p>
+      <h1 className="text-3xl md:text-4xl font-black text-slate-900">{section === 'rankings' ? 'Classements' : 'Temps forts'}</h1>
+      <p className="text-slate-500 mt-2">{section === 'rankings' ? 'Podiums, progression mensuelle et contributions.' : 'Calendriers, tirages au sort, concours, missions et saisons en cours.'}</p>
+    </div>
+    {section === 'rankings' && <>
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6">{[['general','Classement général'],['month','Ce mois'],['contributors','Top contributeurs']].map(([id,label]) => <button key={id} onClick={() => setTab(id as Exclude<Tab, 'animations'>)} className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-black ${tab === id ? 'bg-[#14532d] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>)}</div>
+      {tab === 'general' && renderRanking(generalRanking)}
+      {tab === 'month' && renderRanking(monthRanking)}
+      {tab === 'contributors' && <div className="space-y-3"><div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-4 text-sm">Score automatique : publication 5 pts, idée 4 pts, commentaire 2 pts, réponse à un sondage 2 pts.</div>{contributors.map((entry, index) => <div key={entry.user.id} className={`bg-white border rounded-2xl p-4 flex items-center gap-4 ${entry.user.id === currentUser.id ? 'border-green-500' : 'border-slate-100'}`}><div className="w-9 text-center font-black text-slate-400">#{index + 1}</div><img src={entry.user.avatar} alt="" className="w-11 h-11 rounded-full" /><div className="flex-1 min-w-0"><p className="font-black truncate">{entry.user.name}</p><p className="text-xs text-slate-500">{entry.userPosts} publications · {entry.comments} commentaires · {entry.userIdeas} idées · {entry.pollAnswers} sondages</p></div><div className="font-black text-xl text-blue-700">{entry.score}</div></div>)}</div>}
+    </>}
+    {section === 'highlights' && <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucun temps fort actif pour le moment.</div>}{visibleAnimations.map(animation => {
       const joined = (animation.participants || []).includes(currentUser.id); const winners = users.filter(u => (animation.winnerIds || []).includes(u.id));
       const adventDays = animation.type === 'advent' ? (animation.config?.days || []) : [];
       const openedCount = adventDays.filter((day: any) => (day.openedBy || []).includes(currentUser.id)).length;

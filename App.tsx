@@ -532,6 +532,16 @@ const App: React.FC = () => {
     const monthlyBirthdays = users.filter(u => u.birthday?.startsWith((today.getMonth() + 1).toString().padStart(2, '0')));
     const welcomeTitle = (appConfig.welcomeTitle || INITIAL_CONFIG.welcomeTitle).replace('{name}', currentUser?.name ? currentUser.name.split(' ')[0] : '');
     const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
+    const activeHighlights = engagementAnimations.filter(animation => {
+      if (animation.status !== 'active') return false;
+      const starts = !animation.startDate || new Date(animation.startDate).getTime() <= Date.now();
+      const ends = !animation.endDate || new Date(animation.endDate).getTime() >= Date.now();
+      return starts && ends;
+    });
+    const highlightPriority: Record<string, number> = { advent: 0, raffle: 1, contest: 2, mission: 3, countdown: 4, season: 5 };
+    const featuredHighlight = [...activeHighlights].sort((a, b) => (highlightPriority[a.type] ?? 99) - (highlightPriority[b.type] ?? 99))[0];
+    const highlightLabels: Record<string, string> = { advent: "Calendrier de l’Avent", raffle: 'Tirage au sort', contest: 'Jeu concours', mission: 'Mission ponctuelle', countdown: 'Compte à rebours', season: 'Saison' };
+    const highlightIcons: Record<string, string> = { advent: '🎄', raffle: '🎟️', contest: '🏁', mission: '🎯', countdown: '⏳', season: '🏆' };
 
     return (
       <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
@@ -581,6 +591,30 @@ const App: React.FC = () => {
                 ))}
               </div>
             </section>
+
+            {featuredHighlight && (
+              <section className="rounded-[32px] overflow-hidden border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-green-50 shadow-sm">
+                {featuredHighlight.imageUrl && <img src={featuredHighlight.imageUrl} alt="" className="w-full h-44 object-cover" />}
+                <div className="p-6 md:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-600">En ce moment</p>
+                      <div className="flex items-center gap-3 mt-3">
+                        <span className="text-3xl">{highlightIcons[featuredHighlight.type] || '✨'}</span>
+                        <div>
+                          <p className="text-xs font-black text-green-700 uppercase">{highlightLabels[featuredHighlight.type] || 'Temps fort'}</p>
+                          <h2 className="text-2xl font-black text-slate-900">{featuredHighlight.title}</h2>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {featuredHighlight.description && <p className="text-slate-600 mt-4 line-clamp-2">{featuredHighlight.description}</p>}
+                  <button onClick={() => setView('tempsforts')} className="mt-6 w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 text-white font-black hover:bg-purple-700 transition-colors">
+                    {featuredHighlight.type === 'advent' ? 'Ouvrir le calendrier' : featuredHighlight.type === 'raffle' ? 'Participer' : 'Découvrir'}
+                  </button>
+                </div>
+              </section>
+            )}
 
             <section className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm">
               <div className="flex items-center justify-between mb-8">
@@ -969,6 +1003,7 @@ const App: React.FC = () => {
           />
         );
 
+      case 'tempsforts':
       case 'engagement':
         return <EngagementView
           users={users}
@@ -978,6 +1013,7 @@ const App: React.FC = () => {
           ideas={ideas}
           polls={polls}
           animations={engagementAnimations}
+          section={view === 'tempsforts' ? 'highlights' : 'rankings'}
           onJoinAnimation={async (animation) => {
             if ((animation.participants || []).includes(currentUser.id)) return;
             const cost = animation.type === 'raffle' ? (animation.pointsCost || 0) : 0;
