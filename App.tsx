@@ -532,14 +532,29 @@ const App: React.FC = () => {
     const monthlyBirthdays = users.filter(u => u.birthday?.startsWith((today.getMonth() + 1).toString().padStart(2, '0')));
     const welcomeTitle = (appConfig.welcomeTitle || INITIAL_CONFIG.welcomeTitle).replace('{name}', currentUser?.name ? currentUser.name.split(' ')[0] : '');
     const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
-    const activeHighlights = engagementAnimations.filter(animation => {
+    const now = Date.now();
+    const publishedHighlights = engagementAnimations.filter(animation => {
       if (animation.status !== 'active') return false;
-      const starts = !animation.startDate || new Date(animation.startDate).getTime() <= Date.now();
-      const ends = !animation.endDate || new Date(animation.endDate).getTime() >= Date.now();
-      return starts && ends;
+      const endTime = animation.endDate ? new Date(animation.endDate).getTime() : Number.POSITIVE_INFINITY;
+      return Number.isNaN(endTime) || endTime >= now;
     });
     const highlightPriority: Record<string, number> = { advent: 0, raffle: 1, contest: 2, mission: 3, countdown: 4, season: 5 };
-    const featuredHighlight = [...activeHighlights].sort((a, b) => (highlightPriority[a.type] ?? 99) - (highlightPriority[b.type] ?? 99))[0];
+    const currentlyActiveHighlights = publishedHighlights.filter(animation => {
+      if (!animation.startDate) return true;
+      const startTime = new Date(animation.startDate).getTime();
+      return Number.isNaN(startTime) || startTime <= now;
+    });
+    const upcomingHighlights = publishedHighlights
+      .filter(animation => {
+        if (!animation.startDate) return false;
+        const startTime = new Date(animation.startDate).getTime();
+        return !Number.isNaN(startTime) && startTime > now;
+      })
+      .sort((a, b) => new Date(a.startDate || 0).getTime() - new Date(b.startDate || 0).getTime());
+    const featuredHighlight = [...currentlyActiveHighlights]
+      .sort((a, b) => (highlightPriority[a.type] ?? 99) - (highlightPriority[b.type] ?? 99))[0]
+      || upcomingHighlights[0];
+    const featuredIsUpcoming = !!featuredHighlight?.startDate && new Date(featuredHighlight.startDate).getTime() > now;
     const highlightLabels: Record<string, string> = { advent: "Calendrier de l’Avent", raffle: 'Tirage au sort', contest: 'Jeu concours', mission: 'Mission ponctuelle', countdown: 'Compte à rebours', season: 'Saison' };
     const highlightIcons: Record<string, string> = { advent: '🎄', raffle: '🎟️', contest: '🏁', mission: '🎯', countdown: '⏳', season: '🏆' };
 
@@ -598,7 +613,7 @@ const App: React.FC = () => {
                 <div className="p-6 md:p-8">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-600">En ce moment</p>
+                      <p className="text-xs font-black uppercase tracking-[0.2em] text-purple-600">{featuredIsUpcoming ? 'Prochainement' : 'En ce moment'}</p>
                       <div className="flex items-center gap-3 mt-3">
                         <span className="text-3xl">{highlightIcons[featuredHighlight.type] || '✨'}</span>
                         <div>
@@ -609,8 +624,13 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   {featuredHighlight.description && <p className="text-slate-600 mt-4 line-clamp-2">{featuredHighlight.description}</p>}
+                  {featuredIsUpcoming && featuredHighlight.startDate && (
+                    <p className="mt-3 text-sm font-bold text-purple-700">
+                      Disponible le {new Date(featuredHighlight.startDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                    </p>
+                  )}
                   <button onClick={() => setView('tempsforts')} className="mt-6 w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 text-white font-black hover:bg-purple-700 transition-colors">
-                    {featuredHighlight.type === 'advent' ? 'Ouvrir le calendrier' : featuredHighlight.type === 'raffle' ? 'Participer' : 'Découvrir'}
+                    {featuredIsUpcoming ? 'Voir les temps forts' : featuredHighlight.type === 'advent' ? 'Ouvrir le calendrier' : featuredHighlight.type === 'raffle' ? 'Participer' : 'Découvrir'}
                   </button>
                 </div>
               </section>
