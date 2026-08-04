@@ -5,7 +5,7 @@ import { CATEGORIES, DEPARTMENTS, INITIAL_CONFIG } from './constants';
 import {
   User, Post, UserRole, Comment, CompanyEvent, Message, Attachment, Idea, IdeaStatus,
   DocumentFile, Poll, PollResponse, MoodEntry, MoodValue, Celebration, Newsletter, AppConfig,
-  WellnessContent, WellnessChallenge, CompanyGame, GamePrediction, Reward, PointsTransaction
+  WellnessContent, WellnessChallenge, CompanyGame, GamePrediction, Reward, PointsTransaction, EngagementAnimation
 } from './types';
 import Sidebar, { ViewType } from './components/Sidebar';
 import PostCard from './components/PostCard';
@@ -25,6 +25,7 @@ import JeuxView from './components/JeuxView';
 import BoutiqueView from './components/BoutiqueView';
 import Settings from './components/Settings';
 import EventCreatorModal from './components/EventCreatorModal';
+import EngagementView from './components/EngagementView';
 
 interface Toast {
   id: string;
@@ -58,6 +59,7 @@ const App: React.FC = () => {
   const [predictions, setPredictions] = useState<GamePrediction[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
+  const [engagementAnimations, setEngagementAnimations] = useState<EngagementAnimation[]>([]);
 
   const [view, setView] = useState<ViewType>('accueil');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -139,7 +141,8 @@ const App: React.FC = () => {
         { data: gamesData },
         { data: predictionsData },
         { data: pollsData },
-        { data: celebrationsData }
+        { data: celebrationsData },
+        { data: engagementData }
       ] = await Promise.all([
         supabase.from('app_config').select('*').maybeSingle(),
         supabase.from('posts').select('*').order('created_at', { ascending: false }),
@@ -158,7 +161,8 @@ const App: React.FC = () => {
         supabase.from('games').select('*').order('created_at', { ascending: false }),
         supabase.from('game_predictions').select('*').order('submitted_at', { ascending: false }),
         supabase.from('polls').select('*').order('created_at', { ascending: false }),
-        supabase.from('celebrations').select('*').order('date', { ascending: false })
+        supabase.from('celebrations').select('*').order('date', { ascending: false }),
+        supabase.from('engagement_animations').select('*').order('created_at', { ascending: false })
       ]);
 
       // ✅ FIX: on repart d’INITIAL_CONFIG pour ne jamais “perdre” des clés de config
@@ -271,6 +275,19 @@ const App: React.FC = () => {
         createdBy: c.created_by,
         likes: Array.isArray(c.likes) ? c.likes : []
       })));
+      if (engagementData) setEngagementAnimations(engagementData.map((a: any) => ({
+        ...a,
+        startDate: a.start_date,
+        endDate: a.end_date,
+        imageUrl: a.image_url,
+        pointsCost: a.points_cost || 0,
+        rewardLabel: a.reward_label,
+        rewardPoints: a.reward_points || 0,
+        createdBy: a.created_by,
+        participants: a.participants || [],
+        winnerIds: a.winner_ids || [],
+        createdAt: a.created_at
+      })));
     } catch (err) {
       console.error("Erreur chargement données:", err);
     }
@@ -309,6 +326,7 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchAllData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => fetchAllData())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
           if (currentUser && currentUser.notification_settings?.posts) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
@@ -914,6 +932,57 @@ const App: React.FC = () => {
             }}
           />
         );
+
+      case 'engagement':
+        return <EngagementView
+          users={users}
+          currentUser={currentUser}
+          transactions={transactions}
+          posts={posts}
+          ideas={ideas}
+          polls={polls}
+          animations={engagementAnimations}
+          onCreateAnimation={async (animation) => {
+            const { error } = await supabase.from('engagement_animations').insert({
+              type: animation.type, title: animation.title, description: animation.description,
+              start_date: animation.startDate || null, end_date: animation.endDate || null,
+              image_url: animation.imageUrl || null, points_cost: animation.pointsCost || 0,
+              reward_label: animation.rewardLabel || null, reward_points: animation.rewardPoints || 0,
+              status: animation.status, created_by: animation.createdBy, config: animation.config || {},
+              participants: [], winner_ids: []
+            });
+            if (error) addToast(`Erreur : ${error.message}`, 'error');
+            else { addToast('Animation publiée.'); fetchAllData(); }
+          }}
+          onDeleteAnimation={async (id) => {
+            const { error } = await supabase.from('engagement_animations').delete().eq('id', id);
+            if (error) addToast(`Erreur : ${error.message}`, 'error');
+            else { addToast('Animation supprimée.'); fetchAllData(); }
+          }}
+          onJoinAnimation={async (animation) => {
+            if ((animation.participants || []).includes(currentUser.id)) return;
+            const cost = animation.type === 'raffle' ? (animation.pointsCost || 0) : 0;
+            if (cost > currentUser.points) { addToast('Vous n’avez pas assez de points.', 'error'); return; }
+            const nextParticipants = [...(animation.participants || []), currentUser.id];
+            const { error } = await supabase.from('engagement_animations').update({ participants: nextParticipants }).eq('id', animation.id);
+            if (error) { addToast(`Erreur : ${error.message}`, 'error'); return; }
+            if (cost > 0) {
+              const newPoints = currentUser.points - cost;
+              await supabase.from('profiles').update({ points: newPoints }).eq('id', currentUser.id);
+              await supabase.from('transactions').insert({ user_id: currentUser.id, amount: cost, reason: `Ticket : ${animation.title}`, type: 'spend' });
+              await fetchUserProfile(currentUser.id);
+            }
+            addToast('Participation enregistrée.'); fetchAllData();
+          }}
+          onDrawWinner={async (animation) => {
+            const participants = animation.participants || [];
+            if (!participants.length) { addToast('Aucun participant.', 'error'); return; }
+            const winnerId = participants[Math.floor(Math.random() * participants.length)];
+            const { error } = await supabase.from('engagement_animations').update({ winner_ids: [winnerId], status: 'closed' }).eq('id', animation.id);
+            if (error) addToast(`Erreur : ${error.message}`, 'error');
+            else { addToast('Gagnant tiré au sort.'); fetchAllData(); }
+          }}
+        />;
 
       case 'boutique':
         return (

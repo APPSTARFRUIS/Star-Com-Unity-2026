@@ -371,3 +371,24 @@ export interface PointsTransaction {
   date: string;
   type: 'earn' | 'spend';
 }
+
+export type EngagementType = 'countdown' | 'raffle' | 'contest' | 'advent' | 'mission';
+
+export interface EngagementAnimation {
+  id: string;
+  type: EngagementType;
+  title: string;
+  description: string;
+  startDate?: string;
+  endDate?: string;
+  imageUrl?: string;
+  pointsCost: number;
+  rewardLabel?: string;
+  rewardPoints: number;
+  status: 'active' | 'closed' | 'draft';
+  createdBy: string;
+  config: Record<string, any>;
+  participants: string[];
+  winnerIds: string[];
+  createdAt: string;
+}
