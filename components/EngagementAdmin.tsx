@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { EngagementAnimation, EngagementType, User } from '../types';
+import { CompanyGame, EngagementAnimation, EngagementType, GamePrediction, User } from '../types';
 import { uploadMediaToStorage } from '../storageUtils';
+import PronosticsAdmin from './PronosticsAdmin';
 
 interface EngagementAdminProps {
   animations: EngagementAnimation[];
@@ -9,9 +10,15 @@ interface EngagementAdminProps {
   onCreateAnimation: (animation: Omit<EngagementAnimation, 'id' | 'createdAt' | 'participants' | 'winnerIds'>) => Promise<void>;
   onDeleteAnimation: (id: string) => Promise<void>;
   onDrawWinner: (animation: EngagementAnimation) => Promise<void>;
+  games: CompanyGame[];
+  predictions: GamePrediction[];
+  onAddGame: (game: Omit<CompanyGame, 'id' | 'createdAt'>) => void | Promise<void>;
+  onDeleteGame: (id: string) => void | Promise<void>;
+  onToggleGameStatus: (id: string) => void | Promise<void>;
+  onUpdateSportResult: (gameId: string, fixtureId: string, homeScore: number, awayScore: number) => void | Promise<void>;
 }
 
-type EditorMode = 'list' | EngagementType;
+type EditorMode = 'list' | 'predictions' | EngagementType;
 type AdventContentType = 'gift' | 'quiz' | 'video' | 'document' | 'mission' | 'coupon' | 'instant' | 'game' | 'mystery' | 'fact' | 'jackpot';
 
 type AdventDay = {
@@ -80,7 +87,8 @@ const createEmptyDay = (day: number): AdventDay => ({
 const emptyAdventDays = (): AdventDay[] => Array.from({ length: 24 }, (_, index) => createEmptyDay(index + 1));
 
 const EngagementAdmin: React.FC<EngagementAdminProps> = ({
-  animations, users, currentUser, onCreateAnimation, onDeleteAnimation, onDrawWinner
+  animations, users, currentUser, onCreateAnimation, onDeleteAnimation, onDrawWinner,
+  games, predictions, onAddGame, onDeleteGame, onToggleGameStatus, onUpdateSportResult
 }) => {
   const [mode, setMode] = useState<EditorMode>('list');
   const [isSaving, setIsSaving] = useState(false);
@@ -209,6 +217,19 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
     </div>
   );
 
+  if (mode === 'predictions') {
+    return <PronosticsAdmin
+      games={games}
+      predictions={predictions}
+      currentUser={currentUser}
+      onAddGame={onAddGame}
+      onDeleteGame={onDeleteGame}
+      onToggleGameStatus={onToggleGameStatus}
+      onUpdateSportResult={onUpdateSportResult}
+      onBack={() => setMode('list')}
+    />;
+  }
+
   if (mode === 'list') {
     return (
       <div className="space-y-8 animate-in fade-in duration-300">
@@ -220,6 +241,7 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {(Object.entries(typeMeta) as [EngagementType, typeof typeMeta[EngagementType]][]).map(([type, meta]) => <button key={type} onClick={() => setMode(type)} className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"><div className="text-3xl">{meta.icon}</div><h3 className="font-black text-xl mt-4">{meta.label}</h3><p className="text-sm text-slate-500 mt-2">{meta.description}</p></button>)}
+          <button onClick={() => setMode('predictions')} className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"><div className="text-3xl">⚽</div><h3 className="font-black text-xl mt-4">Pronostics</h3><p className="text-sm text-slate-500 mt-2">Créer une compétition, ajouter les rencontres, saisir les résultats et calculer les points.</p></button>
         </div>
         <div className="space-y-3">
           {animations.map(animation => <div key={animation.id} className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-4"><div className="text-2xl">{typeMeta[animation.type]?.icon || '✨'}</div><div className="flex-1"><p className="font-black">{animation.title}</p><p className="text-xs text-slate-500">{typeMeta[animation.type]?.label} · {(animation.participants || []).length} participant(s)</p></div>{animation.type === 'raffle' && animation.status === 'active' && <button onClick={() => onDrawWinner(animation)} className="px-3 py-2 rounded-xl bg-purple-600 text-white font-bold text-sm">Tirer</button>}<button onClick={() => onDeleteAnimation(animation.id)} className="px-3 py-2 rounded-xl bg-red-50 text-red-600 font-bold text-sm">Supprimer</button></div>)}

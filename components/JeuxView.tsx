@@ -9,6 +9,7 @@ interface JeuxViewProps {
   predictions: GamePrediction[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string) => void;
+  mode?: 'games' | 'predictions';
 }
 
 interface MemoryCard {
@@ -27,7 +28,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, onAddPrediction, onEarnPoints }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, onAddPrediction, onEarnPoints, mode = 'games' }) => {
   const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
 
@@ -154,8 +155,13 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   };
 
   const filteredGames = useMemo(() => {
-    return games.filter(g => (g.status === 'Actif' || g.status === 'Terminé') && (activeCategory === 'Tous' || g.category === activeCategory));
-  }, [games, activeCategory]);
+    return games.filter(g => {
+      const visibleStatus = g.status === 'Actif' || g.status === 'Terminé';
+      const rightModule = mode === 'predictions' ? g.type === 'Pari' : g.type !== 'Pari';
+      const rightCategory = mode === 'predictions' || activeCategory === 'Tous' || g.category === activeCategory;
+      return visibleStatus && rightModule && rightCategory;
+    });
+  }, [games, activeCategory, mode]);
 
   const handleStartGame = (game: CompanyGame) => {
     setPlayingGame(game);
@@ -422,15 +428,15 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z" /></svg>
           </div>
           <div>
-            <h1 className="text-4xl font-black text-slate-800 tracking-tight">Jeux</h1>
-            <p className="text-slate-500 font-medium mt-1">Divertissez-vous et gagnez des points !</p>
+            <h1 className="text-4xl font-black text-slate-800 tracking-tight">{mode === 'predictions' ? 'Pronostics' : 'Jeux'}</h1>
+            <p className="text-slate-500 font-medium mt-1">{mode === 'predictions' ? 'Pronostiquez les grands rendez-vous et grimpez au classement.' : 'Divertissez-vous et gagnez des points !'}</p>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {['Tous', 'Histoire', 'Produits', 'Valeurs', 'Processus', 'Pari Sportif'].map(cat => (
+        {mode === 'games' && <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {['Tous', 'Histoire', 'Produits', 'Valeurs', 'Processus'].map(cat => (
             <button key={cat} onClick={() => setActiveCategory(cat as any)} className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all border shrink-0 ${activeCategory === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{cat}</button>
           ))}
-        </div>
+        </div>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

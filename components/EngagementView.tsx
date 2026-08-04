@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { EngagementAnimation, EngagementType, Idea, PointsTransaction, Poll, Post, User } from '../types';
+import { CompanyGame, EngagementAnimation, EngagementType, GamePrediction, Idea, PointsTransaction, Poll, Post, User } from '../types';
+import JeuxView from './JeuxView';
 
 interface AdventOutcome {
   answer?: string;
@@ -17,6 +18,10 @@ interface EngagementViewProps {
   onJoinAnimation: (animation: EngagementAnimation) => Promise<void>;
   onOpenAdventDay: (animation: EngagementAnimation, dayNumber: number, outcome?: AdventOutcome) => Promise<void>;
   section?: 'rankings' | 'highlights';
+  games: CompanyGame[];
+  predictions: GamePrediction[];
+  onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
+  onEarnPoints: (userId: string, amount: number, reason: string) => void;
 }
 
 type Tab = 'general' | 'month' | 'contributors' | 'animations';
@@ -28,7 +33,8 @@ const typeIcons: Record<EngagementType, string> = { countdown: '⏳', raffle: '�
 const adventIcons: Record<string, string> = { gift: '🎁', quiz: '❓', video: '🎥', document: '📄', mission: '🎯', coupon: '🎫', instant: '🎲', game: '🧩', mystery: '📸', fact: '💡', jackpot: '🎉' };
 
 const EngagementView: React.FC<EngagementViewProps> = ({
-  users, currentUser, transactions, posts, ideas, polls, animations, onJoinAnimation, onOpenAdventDay, section = 'rankings'
+  users, currentUser, transactions, posts, ideas, polls, animations, onJoinAnimation, onOpenAdventDay, section = 'rankings',
+  games, predictions, onAddPrediction, onEarnPoints
 }) => {
   const [tab, setTab] = useState<Exclude<Tab, 'animations'>>('general');
   const [openedAdvent, setOpenedAdvent] = useState<EngagementAnimation | null>(null);
@@ -104,12 +110,14 @@ const EngagementView: React.FC<EngagementViewProps> = ({
       {tab === 'month' && renderRanking(monthRanking)}
       {tab === 'contributors' && <div className="space-y-3"><div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-4 text-sm">Score automatique : publication 5 pts, idée 4 pts, commentaire 2 pts, réponse à un sondage 2 pts.</div>{contributors.map((entry, index) => <div key={entry.user.id} className={`bg-white border rounded-2xl p-4 flex items-center gap-4 ${entry.user.id === currentUser.id ? 'border-green-500' : 'border-slate-100'}`}><div className="w-9 text-center font-black text-slate-400">#{index + 1}</div><img src={entry.user.avatar} alt="" className="w-11 h-11 rounded-full" /><div className="flex-1 min-w-0"><p className="font-black truncate">{entry.user.name}</p><p className="text-xs text-slate-500">{entry.userPosts} publications · {entry.comments} commentaires · {entry.userIdeas} idées · {entry.pollAnswers} sondages</p></div><div className="font-black text-xl text-blue-700">{entry.score}</div></div>)}</div>}
     </>}
-    {section === 'highlights' && <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucun temps fort actif pour le moment.</div>}{visibleAnimations.map(animation => {
+    {section === 'highlights' && <>
+      <div className="mb-10"><JeuxView games={games} currentUser={currentUser} users={users} predictions={predictions} onAddPrediction={onAddPrediction} onEarnPoints={onEarnPoints} mode="predictions" /></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucun temps fort actif pour le moment.</div>}{visibleAnimations.map(animation => {
       const joined = (animation.participants || []).includes(currentUser.id); const winners = users.filter(u => (animation.winnerIds || []).includes(u.id));
       const adventDays = animation.type === 'advent' ? (animation.config?.days || []) : [];
       const openedCount = adventDays.filter((day: any) => (day.openedBy || []).includes(currentUser.id)).length;
       return <article key={animation.id} className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">{animation.imageUrl && <img src={animation.imageUrl} alt="" className="w-full h-44 object-cover" />}<div className="p-6"><div className="flex justify-between gap-3"><span className="text-2xl">{typeIcons[animation.type] || '✨'}</span><span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-black">{typeLabels[animation.type] || animation.type}</span></div><h3 className="text-xl font-black text-slate-900 mt-3">{animation.title}</h3><p className="text-slate-500 mt-2">{animation.description}</p>{animation.endDate && <div className="mt-4 text-3xl font-black text-[#14532d]">{countdown(animation.endDate)}</div>}{animation.type === 'advent' && <div className="mt-5"><div className="flex justify-between text-sm font-black"><span>{openedCount} / 24 cases ouvertes</span><span>{Math.round((openedCount / 24) * 100)}%</span></div><div className="h-3 bg-slate-100 rounded-full mt-2 overflow-hidden"><div className="h-full bg-green-500 rounded-full" style={{ width: `${(openedCount / 24) * 100}%` }} /></div><button onClick={() => setOpenedAdvent(animation)} className="mt-4 w-full px-4 py-3 bg-purple-600 text-white rounded-xl font-black">Ouvrir le calendrier</button></div>}{animation.rewardLabel && <p className="mt-3 text-sm font-bold text-amber-700">À gagner : {animation.rewardLabel}</p>}{winners.length > 0 && <p className="mt-3 font-black text-purple-700">Gagnant{winners.length > 1 ? 's' : ''} : {winners.map(w => w.name).join(', ')}</p>}<div className="mt-5 flex flex-wrap gap-2">{animation.type !== 'advent' && !joined && animation.status === 'active' && animation.type !== 'countdown' && <button onClick={() => onJoinAnimation(animation)} className="px-4 py-2.5 bg-[#14532d] text-white rounded-xl font-black">{animation.type === 'raffle' ? `Prendre un ticket${animation.pointsCost ? ` · ${animation.pointsCost} pts` : ''}` : 'Participer'}</button>}{animation.type !== 'advent' && joined && <span className="px-4 py-2.5 bg-green-50 text-green-700 rounded-xl font-black">Participation enregistrée</span>}</div></div></article>;
-    })}</div>}
+    })}</div></>}
 
     {openedAdvent && <div className="fixed inset-0 z-[300] bg-slate-950/70 backdrop-blur-sm overflow-y-auto p-3 md:p-8"><div className="max-w-5xl mx-auto bg-white rounded-3xl overflow-hidden min-h-[80vh]"><div className="p-5 md:p-7 bg-gradient-to-r from-purple-700 to-pink-600 text-white flex justify-between items-start"><div><p className="text-sm font-black uppercase tracking-widest">Calendrier de l’Avent</p><h2 className="text-2xl md:text-4xl font-black mt-1">{openedAdvent.title}</h2><p className="text-white/80 mt-2">{openedAdvent.description}</p></div><button onClick={() => { setOpenedAdvent(null); setSelectedDay(null); }} className="w-10 h-10 rounded-full bg-white/15 text-2xl">×</button></div><div className="p-5 md:p-8"><div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">{(openedAdvent.config?.days || []).map((day: any) => {
       const available = day.day <= getAvailableDay(openedAdvent); const opened = (day.openedBy || []).includes(currentUser.id);

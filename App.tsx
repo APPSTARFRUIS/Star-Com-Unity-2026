@@ -1033,7 +1033,23 @@ const App: React.FC = () => {
           ideas={ideas}
           polls={polls}
           animations={engagementAnimations}
+          games={games}
+          predictions={predictions}
           section={view === 'tempsforts' ? 'highlights' : 'rankings'}
+          onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
+            const existing = predictions.find(p => p.userId === currentUser.id && p.gameId === gameId && p.eventId === eventId);
+            const payload = JSON.stringify({ eventId, homeScore, awayScore, awarded: false, pointsAwarded: 0 });
+            if (existing?.id) await supabase.from('game_predictions').update({ choice: payload, submitted_at: new Date().toISOString() }).eq('id', existing.id);
+            else await supabase.from('game_predictions').insert({ user_id: currentUser.id, game_id: gameId, choice: payload });
+            addToast('Pronostic enregistré !');
+            fetchAllData();
+          }}
+          onEarnPoints={async (uid, amount, reason) => {
+            const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
+            await supabase.from('profiles').update({ points: (data?.points || 0) + amount }).eq('id', uid);
+            await supabase.from('transactions').insert({ user_id: uid, amount, reason, type: 'earn' });
+            fetchUserProfile(uid); fetchAllData();
+          }}
           onJoinAnimation={async (animation) => {
             if ((animation.participants || []).includes(currentUser.id)) return;
             const cost = animation.type === 'raffle' ? (animation.pointsCost || 0) : 0;

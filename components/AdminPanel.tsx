@@ -88,7 +88,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   newsletters, onCreateNewsletter, onDeleteNewsletter,
   wellnessContents, onAddWellnessContent, onDeleteWellnessContent,
   wellnessChallenges, onAddWellnessChallenge, onDeleteWellnessChallenge, onToggleWellnessChallenge,
-  games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult,
+  games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult, predictions,
   rewards, onAddReward, onDeleteReward,
   appConfig, onUpdateConfig, currentUser,
   transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner
@@ -784,7 +784,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <button onClick={() => setShowGameModal(true)} className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg">Nouveau Jeu</button>
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {games.map(g => (
+              {games.filter(g => g.type !== 'Pari').map(g => (
                 <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200 grid grid-cols-[1fr_auto] items-center justify-between group shadow-sm transition-all hover:shadow-md">
                    <div className="flex items-center gap-4 overflow-hidden">
                       <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
@@ -828,7 +828,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <option value="Memory">Memory</option>
                               <option value="Chronologie">Chronologie</option>
                               <option value="Objets Cachés">Objets Cachés</option>
-                              <option value="Pari">Pronostics</option>
                            </select>
                         </div>
                         <div className="space-y-2">
@@ -838,7 +837,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <option value="Histoire">Histoire</option>
                               <option value="Valeurs">Valeurs</option>
                               <option value="Processus">Processus</option>
-                              <option value="Pari Sportif">Pari Sportif</option>
                            </select>
                         </div>
                       </div>
@@ -1504,6 +1502,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           onCreateAnimation={onCreateEngagementAnimation}
           onDeleteAnimation={onDeleteEngagementAnimation}
           onDrawWinner={onDrawEngagementWinner}
+          games={games}
+          predictions={predictions}
+          onAddGame={onAddGame}
+          onDeleteGame={onDeleteGame}
+          onToggleGameStatus={onToggleGameStatus}
+          onUpdateSportResult={onUpdateSportResult}
         />
       )}
 
