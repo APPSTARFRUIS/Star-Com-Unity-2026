@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture } from '../types';
+import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation } from '../types';
 import { DEPARTMENTS } from '../constants';
 import { uploadMediaToStorage } from '../storageUtils';
+import EngagementAdmin from './EngagementAdmin';
 
 interface AdminPanelProps {
   users: User[];
@@ -39,6 +40,10 @@ interface AdminPanelProps {
   appConfig: AppConfig;
   onUpdateConfig: (config: AppConfig) => void;
   transactions: PointsTransaction[];
+  engagementAnimations: EngagementAnimation[];
+  onCreateEngagementAnimation: (animation: Omit<EngagementAnimation, 'id' | 'createdAt' | 'participants' | 'winnerIds'>) => Promise<void>;
+  onDeleteEngagementAnimation: (id: string) => Promise<void>;
+  onDrawEngagementWinner: (animation: EngagementAnimation) => Promise<void>;
 }
 
 const TRIVIAL_CATEGORIES = [
@@ -71,6 +76,7 @@ const ADMIN_TABS = [
   { id: 'moderation', label: 'Modération', icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' },
   { id: 'wellness', label: 'Bien-être', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
   { id: 'ideas', label: 'Boîte à Idées', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' },
+  { id: 'engagement', label: 'Animations', icon: 'M12 8v4l3 3M4.93 4.93A10 10 0 1112 22a10 10 0 01-7.07-17.07z' },
   { id: 'appearance', label: 'Apparence', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.856a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
 ];
 
@@ -85,7 +91,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult,
   rewards, onAddReward, onDeleteReward,
   appConfig, onUpdateConfig, currentUser,
-  transactions
+  transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner
 }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
@@ -1486,6 +1492,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               ))}
            </div>
         </div>
+      )}
+
+
+      {/* --- ANIMATIONS & ENGAGEMENT --- */}
+      {activeTab === 'engagement' && (
+        <EngagementAdmin
+          animations={engagementAnimations}
+          users={users}
+          currentUser={currentUser}
+          onCreateAnimation={onCreateEngagementAnimation}
+          onDeleteAnimation={onDeleteEngagementAnimation}
+          onDrawWinner={onDrawEngagementWinner}
+        />
       )}
 
       {/* --- APPARENCE --- */}

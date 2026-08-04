@@ -776,6 +776,42 @@ const App: React.FC = () => {
               setAppConfig(cfg);
               addToast("Configuration mise à jour.");
             }}
+            engagementAnimations={engagementAnimations}
+            onCreateEngagementAnimation={async (animation) => {
+              const { error } = await supabase.from('engagement_animations').insert({
+                type: animation.type,
+                title: animation.title,
+                description: animation.description,
+                start_date: animation.startDate || null,
+                end_date: animation.endDate || null,
+                image_url: animation.imageUrl || null,
+                points_cost: animation.pointsCost || 0,
+                reward_label: animation.rewardLabel || null,
+                reward_points: animation.rewardPoints || 0,
+                status: animation.status,
+                created_by: animation.createdBy,
+                config: animation.config || {},
+                participants: [],
+                winner_ids: []
+              });
+              if (error) addToast(`Erreur : ${error.message}`, 'error');
+              else { addToast('Animation publiée.'); fetchAllData(); }
+            }}
+            onDeleteEngagementAnimation={async (id) => {
+              const { error } = await supabase.from('engagement_animations').delete().eq('id', id);
+              if (error) addToast(`Erreur : ${error.message}`, 'error');
+              else { addToast('Animation supprimée.'); fetchAllData(); }
+            }}
+            onDrawEngagementWinner={async (animation) => {
+              const participants = animation.participants || [];
+              if (!participants.length) { addToast('Aucun participant.', 'error'); return; }
+              const winnerCount = Math.max(1, Number(animation.config?.winnerCount || 1));
+              const shuffled = [...participants].sort(() => Math.random() - 0.5);
+              const winnerIds = shuffled.slice(0, Math.min(winnerCount, shuffled.length));
+              const { error } = await supabase.from('engagement_animations').update({ winner_ids: winnerIds, status: 'closed' }).eq('id', animation.id);
+              if (error) addToast(`Erreur : ${error.message}`, 'error');
+              else { addToast(`${winnerIds.length} gagnant(s) tiré(s) au sort.`); fetchAllData(); }
+            }}
             transactions={transactions}
           />
         );
@@ -942,23 +978,6 @@ const App: React.FC = () => {
           ideas={ideas}
           polls={polls}
           animations={engagementAnimations}
-          onCreateAnimation={async (animation) => {
-            const { error } = await supabase.from('engagement_animations').insert({
-              type: animation.type, title: animation.title, description: animation.description,
-              start_date: animation.startDate || null, end_date: animation.endDate || null,
-              image_url: animation.imageUrl || null, points_cost: animation.pointsCost || 0,
-              reward_label: animation.rewardLabel || null, reward_points: animation.rewardPoints || 0,
-              status: animation.status, created_by: animation.createdBy, config: animation.config || {},
-              participants: [], winner_ids: []
-            });
-            if (error) addToast(`Erreur : ${error.message}`, 'error');
-            else { addToast('Animation publiée.'); fetchAllData(); }
-          }}
-          onDeleteAnimation={async (id) => {
-            const { error } = await supabase.from('engagement_animations').delete().eq('id', id);
-            if (error) addToast(`Erreur : ${error.message}`, 'error');
-            else { addToast('Animation supprimée.'); fetchAllData(); }
-          }}
           onJoinAnimation={async (animation) => {
             if ((animation.participants || []).includes(currentUser.id)) return;
             const cost = animation.type === 'raffle' ? (animation.pointsCost || 0) : 0;
@@ -973,14 +992,6 @@ const App: React.FC = () => {
               await fetchUserProfile(currentUser.id);
             }
             addToast('Participation enregistrée.'); fetchAllData();
-          }}
-          onDrawWinner={async (animation) => {
-            const participants = animation.participants || [];
-            if (!participants.length) { addToast('Aucun participant.', 'error'); return; }
-            const winnerId = participants[Math.floor(Math.random() * participants.length)];
-            const { error } = await supabase.from('engagement_animations').update({ winner_ids: [winnerId], status: 'closed' }).eq('id', animation.id);
-            if (error) addToast(`Erreur : ${error.message}`, 'error');
-            else { addToast('Gagnant tiré au sort.'); fetchAllData(); }
           }}
         />;
 

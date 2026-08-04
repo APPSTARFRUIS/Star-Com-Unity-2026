@@ -1,6 +1,6 @@
 create table if not exists public.engagement_animations (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('countdown','raffle','contest','advent','mission')),
+  type text not null,
   title text not null,
   description text not null default '',
   start_date timestamptz,
@@ -16,6 +16,14 @@ create table if not exists public.engagement_animations (
   winner_ids uuid[] not null default '{}',
   created_at timestamptz not null default now()
 );
+
+-- Permet d'exécuter cette migration même si l'ancienne version du module existe déjà.
+alter table public.engagement_animations
+  drop constraint if exists engagement_animations_type_check;
+
+alter table public.engagement_animations
+  add constraint engagement_animations_type_check
+  check (type in ('countdown','raffle','contest','advent','mission','season'));
 
 alter table public.engagement_animations enable row level security;
 
