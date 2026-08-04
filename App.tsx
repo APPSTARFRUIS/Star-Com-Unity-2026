@@ -119,14 +119,37 @@ const App: React.FC = () => {
     setIsLoading(false);
   };
 
+  const fetchProfilesWithRetry = async (attempts = 3): Promise<User[] | null> => {
+    if (!supabase) return null;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data) return data as User[];
+
+      console.warn(`Chargement des profils échoué (tentative ${attempt}/${attempts})`, error);
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      }
+    }
+
+    return null;
+  };
+
   const fetchAllData = async () => {
     if (!supabase || (!session && !currentUser)) return;
 
     try {
+      // Les profils sont chargés séparément avec retry. Une requête annexe lente ou
+      // temporairement en erreur ne doit jamais vider/masquer la liste utilisateurs.
+      const profilesPromise = fetchProfilesWithRetry();
+
       const [
         { data: config },
         { data: postsData },
-        { data: profiles },
         { data: eventsData },
         { data: ideasData },
         { data: docsData },
@@ -146,7 +169,6 @@ const App: React.FC = () => {
       ] = await Promise.all([
         supabase.from('app_config').select('*').maybeSingle(),
         supabase.from('posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('*').order('name', { ascending: true }),
         supabase.from('events').select('*').order('date', { ascending: true }),
         supabase.from('ideas').select('*').order('created_at', { ascending: false }),
         supabase.from('documents').select('*').order('uploaded_at', { ascending: false }),
@@ -164,6 +186,8 @@ const App: React.FC = () => {
         supabase.from('celebrations').select('*').order('date', { ascending: false }),
         supabase.from('engagement_animations').select('*').order('created_at', { ascending: false })
       ]);
+
+      const profiles = await profilesPromise;
 
       // ✅ FIX: on repart d’INITIAL_CONFIG pour ne jamais “perdre” des clés de config
       if (config) {
@@ -199,7 +223,11 @@ const App: React.FC = () => {
         })));
       }
 
-      if (profiles) setUsers(profiles as any);
+      if (profiles !== null) {
+        setUsers(profiles);
+      } else {
+        console.error('Impossible de rafraîchir les profils après plusieurs tentatives : conservation de la liste déjà affichée.');
+      }
       if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
       if (ideasData) setIdeas(ideasData.map((i: any) => ({
         ...i,
