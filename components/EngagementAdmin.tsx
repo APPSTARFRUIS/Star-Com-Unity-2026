@@ -12,35 +12,72 @@ interface EngagementAdminProps {
 }
 
 type EditorMode = 'list' | EngagementType;
+type AdventContentType = 'gift' | 'quiz' | 'video' | 'document' | 'mission' | 'coupon' | 'instant' | 'game' | 'mystery' | 'fact' | 'jackpot';
 
 type AdventDay = {
   day: number;
+  type: AdventContentType;
   title: string;
   description: string;
   rewardLabel: string;
   rewardPoints: number;
   linkUrl: string;
+  buttonLabel: string;
   imageUrl: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  couponCode: string;
+  winProbability: number;
+  openedBy: string[];
+  correctBy: string[];
+  winnerIds: string[];
 };
 
 const typeMeta: Record<EngagementType, { label: string; icon: string; description: string }> = {
   countdown: { label: 'Compte à rebours', icon: '⏳', description: 'Mettre en avant une échéance ou un temps fort.' },
   raffle: { label: 'Tirage au sort', icon: '🎟️', description: 'Collecter des participations puis tirer un ou plusieurs gagnants.' },
   contest: { label: 'Jeu concours', icon: '🏁', description: 'Poser une question et récompenser les bonnes réponses.' },
-  advent: { label: "Calendrier de l’Avent", icon: '🎄', description: 'Préparer 24 cases indépendantes à ouvrir jour après jour.' },
+  advent: { label: "Calendrier de l’Avent", icon: '🎄', description: 'Préparer 24 expériences différentes à ouvrir jour après jour.' },
   mission: { label: 'Mission ponctuelle', icon: '🎯', description: 'Créer une animation limitée dans le temps avec plusieurs objectifs.' },
   season: { label: 'Saison', icon: '🏆', description: 'Regrouper plusieurs modules autour d’un temps fort et d’un classement.' }
 };
 
-const emptyAdventDays = (): AdventDay[] => Array.from({ length: 24 }, (_, index) => ({
-  day: index + 1,
+const adventTypeMeta: Record<AdventContentType, { label: string; icon: string; help: string }> = {
+  gift: { label: 'Cadeau / surprise', icon: '🎁', help: 'Annonce d’un lot, d’un avantage ou d’une surprise.' },
+  quiz: { label: 'Mini quiz', icon: '❓', help: 'Une question avec plusieurs réponses et des points à gagner.' },
+  video: { label: 'Vidéo', icon: '🎥', help: 'Une vidéo hébergée ailleurs ou un lien vers un contenu vidéo.' },
+  document: { label: 'Document', icon: '📄', help: 'Un document, une brochure ou un PDF à consulter.' },
+  mission: { label: 'Mission', icon: '🎯', help: 'Une action ponctuelle à réaliser dans la journée.' },
+  coupon: { label: 'Coupon', icon: '🎫', help: 'Un bon, un code ou un avantage à utiliser.' },
+  instant: { label: 'Instant gagnant', icon: '🎲', help: 'Une chance immédiate de gagner lors de l’ouverture.' },
+  game: { label: 'Jeu', icon: '🧩', help: 'Un lien vers un jeu Star Com’Unity ou une activité externe.' },
+  mystery: { label: 'Photo mystère', icon: '📸', help: 'Une image à identifier avec réponse libre.' },
+  fact: { label: 'Le saviez-vous ?', icon: '💡', help: 'Une anecdote ou une information sur l’entreprise.' },
+  jackpot: { label: 'Jackpot final', icon: '🎉', help: 'Réservé idéalement au 24 décembre ou aux participants les plus assidus.' }
+};
+
+const createEmptyDay = (day: number): AdventDay => ({
+  day,
+  type: day === 24 ? 'jackpot' : 'gift',
   title: '',
   description: '',
   rewardLabel: '',
   rewardPoints: 0,
   linkUrl: '',
-  imageUrl: ''
-}));
+  buttonLabel: '',
+  imageUrl: '',
+  question: '',
+  options: ['', '', '', ''],
+  correctAnswer: '',
+  couponCode: '',
+  winProbability: 20,
+  openedBy: [],
+  correctBy: [],
+  winnerIds: []
+});
+
+const emptyAdventDays = (): AdventDay[] => Array.from({ length: 24 }, (_, index) => createEmptyDay(index + 1));
 
 const EngagementAdmin: React.FC<EngagementAdminProps> = ({
   animations, users, currentUser, onCreateAnimation, onDeleteAnimation, onDrawWinner
@@ -100,7 +137,7 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
     if (type === 'countdown') return countdown;
     if (type === 'raffle') return { ...raffle, pointsCost: raffle.participationMode === 'points' ? raffle.pointsCost : 0 };
     if (type === 'contest') return { ...contest, options: contest.answerType === 'choice' ? contest.options.filter(Boolean) : [] };
-    if (type === 'advent') return { days: adventDays };
+    if (type === 'advent') return { days: adventDays, completionJackpot: true };
     if (type === 'mission') return { objectives: missionObjectives.filter(item => item.trim()).map((label, index) => ({ id: `objective-${index + 1}`, label, completedBy: [] })) };
     return season;
   };
@@ -113,10 +150,10 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
     if (mode === 'raffle' && !common.endDate) { alert('La date de fin du tirage est obligatoire.'); return; }
     if (mode === 'contest' && !contest.question.trim()) { alert('La question du concours est obligatoire.'); return; }
     if (mode === 'mission' && !missionObjectives.some(item => item.trim())) { alert('Ajoutez au moins un objectif.'); return; }
+    if (mode === 'advent' && !common.startDate) { alert('Indiquez la date de début du calendrier.'); return; }
 
     setIsSaving(true);
     try {
-      const config = buildConfig(mode);
       await onCreateAnimation({
         type: mode,
         title: common.title.trim(),
@@ -129,7 +166,7 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
         rewardPoints: common.rewardPoints || 0,
         status: 'active',
         createdBy: currentUser.id,
-        config
+        config: buildConfig(mode)
       });
       resetForms();
       setMode('list');
@@ -176,105 +213,52 @@ const EngagementAdmin: React.FC<EngagementAdminProps> = ({
     return (
       <div className="space-y-8 animate-in fade-in duration-300">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
-          <div><p className="text-xs font-black uppercase tracking-[0.25em] text-purple-600">Pilotage</p><h2 className="text-3xl font-black text-slate-900">Animations & engagement</h2><p className="text-slate-500 mt-2">Chaque animation possède désormais son propre éditeur.</p></div>
+          <div><p className="text-xs font-black uppercase tracking-[0.25em] text-purple-600">Pilotage</p><h2 className="text-3xl font-black text-slate-900">Animations & engagement</h2><p className="text-slate-500 mt-2">Créez les temps forts depuis l’administration, sans imposer un rythme quotidien.</p></div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[['Actives', activeAnimationCount, 'bg-green-50 text-green-700'], ['Participations', totalParticipants, 'bg-blue-50 text-blue-700'], ['Terminées', closedCount, 'bg-slate-100 text-slate-700']].map(([label, value, classes]) => (
-            <div key={String(label)} className={`rounded-3xl p-6 ${classes}`}><p className="text-xs uppercase font-black tracking-widest opacity-70">{label}</p><p className="text-4xl font-black mt-2">{value}</p></div>
-          ))}
+          {[['Animations actives', activeAnimationCount], ['Participations', totalParticipants], ['Animations terminées', closedCount]].map(([label, value]) => <div key={String(label)} className="bg-white border border-slate-100 rounded-2xl p-5"><p className="text-xs uppercase font-black text-slate-400">{label}</p><p className="text-3xl font-black mt-2">{value}</p></div>)}
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(Object.keys(typeMeta) as EngagementType[]).map(type => (
-            <button key={type} onClick={() => setMode(type)} className="text-left bg-white border border-slate-200 rounded-3xl p-6 hover:border-purple-300 hover:shadow-lg transition-all">
-              <div className="text-3xl">{typeMeta[type].icon}</div>
-              <h3 className="font-black text-lg mt-4">Nouveau {typeMeta[type].label.toLowerCase()}</h3>
-              <p className="text-sm text-slate-500 mt-2">{typeMeta[type].description}</p>
-            </button>
-          ))}
+          {(Object.entries(typeMeta) as [EngagementType, typeof typeMeta[EngagementType]][]).map(([type, meta]) => <button key={type} onClick={() => setMode(type)} className="bg-white border border-slate-100 rounded-3xl p-6 text-left hover:border-purple-300 hover:shadow-lg transition-all"><div className="text-3xl">{meta.icon}</div><h3 className="font-black text-xl mt-4">{meta.label}</h3><p className="text-sm text-slate-500 mt-2">{meta.description}</p></button>)}
         </div>
-
-        <div className="space-y-4">
-          <h3 className="text-xl font-black text-slate-900">Animations existantes</h3>
-          {animations.length === 0 && <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center text-slate-400">Aucune animation créée.</div>}
-          {animations.map(animation => {
-            const winners = users.filter(user => (animation.winnerIds || []).includes(user.id));
-            return (
-              <div key={animation.id} className="bg-white border border-slate-200 rounded-3xl p-5 flex flex-col lg:flex-row lg:items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-2xl">{typeMeta[animation.type]?.icon || '✨'}</div>
-                <div className="flex-1 min-w-0"><div className="flex flex-wrap gap-2 items-center"><h4 className="font-black text-lg truncate">{animation.title}</h4><span className="text-[10px] font-black uppercase px-2 py-1 bg-slate-100 rounded-full">{typeMeta[animation.type]?.label || animation.type}</span><span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${animation.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{animation.status}</span></div><p className="text-sm text-slate-500 mt-1">{(animation.participants || []).length} participation(s){winners.length ? ` · Gagnant : ${winners.map(w => w.name).join(', ')}` : ''}</p></div>
-                <div className="flex flex-wrap gap-2">
-                  {animation.type === 'raffle' && animation.status === 'active' && (animation.participants || []).length > 0 && <button onClick={() => onDrawWinner(animation)} className="px-4 py-2.5 bg-purple-600 text-white rounded-xl font-black">Tirer le gagnant</button>}
-                  <button onClick={() => { if (confirm('Supprimer cette animation ?')) onDeleteAnimation(animation.id); }} className="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl font-black">Supprimer</button>
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-3">
+          {animations.map(animation => <div key={animation.id} className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-4"><div className="text-2xl">{typeMeta[animation.type]?.icon || '✨'}</div><div className="flex-1"><p className="font-black">{animation.title}</p><p className="text-xs text-slate-500">{typeMeta[animation.type]?.label} · {(animation.participants || []).length} participant(s)</p></div>{animation.type === 'raffle' && animation.status === 'active' && <button onClick={() => onDrawWinner(animation)} className="px-3 py-2 rounded-xl bg-purple-600 text-white font-bold text-sm">Tirer</button>}<button onClick={() => onDeleteAnimation(animation.id)} className="px-3 py-2 rounded-xl bg-red-50 text-red-600 font-bold text-sm">Supprimer</button></div>)}
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex gap-4"><button type="button" onClick={() => { resetForms(); setMode('list'); }} className="w-11 h-11 rounded-2xl bg-slate-100 text-slate-600 font-black">←</button><div><p className="text-3xl">{typeMeta[mode].icon}</p><h2 className="text-3xl font-black text-slate-900">Créer : {typeMeta[mode].label}</h2><p className="text-slate-500 mt-1">{typeMeta[mode].description}</p></div></div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-[32px] p-6 md:p-8 space-y-8">
+    <form onSubmit={submit} className="space-y-8 animate-in fade-in duration-300 pb-12">
+      <div className="flex items-start gap-4"><button type="button" onClick={() => { resetForms(); setMode('list'); }} className="w-12 h-12 rounded-2xl bg-slate-100">←</button><div><div className="text-2xl">{typeMeta[mode].icon}</div><h2 className="text-3xl font-black">Créer : {typeMeta[mode].label}</h2><p className="text-slate-500">{typeMeta[mode].description}</p></div></div>
+      <div className="bg-white border border-slate-100 rounded-3xl p-6 md:p-8 space-y-8">
         <CommonFields />
 
-        {mode === 'countdown' && <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-8">
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Date cible</label><input required type="datetime-local" value={countdown.targetDate} onChange={e => setCountdown({ ...countdown, targetDate: e.target.value })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" /></div>
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Couleur</label><input type="color" value={countdown.color} onChange={e => setCountdown({ ...countdown, color: e.target.value })} className="w-full h-14 bg-slate-50 border rounded-2xl px-3" /></div>
-          <input value={countdown.buttonLabel} onChange={e => setCountdown({ ...countdown, buttonLabel: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Texte du bouton (facultatif)" />
-          <input value={countdown.buttonUrl} onChange={e => setCountdown({ ...countdown, buttonUrl: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Lien du bouton" />
-          <label className="md:col-span-2 flex items-center gap-3 font-bold"><input type="checkbox" checked={countdown.showOnHome} onChange={e => setCountdown({ ...countdown, showOnHome: e.target.checked })} /> Afficher sur l’accueil</label>
-        </div>}
+        {mode === 'countdown' && <div className="grid md:grid-cols-2 gap-5 border-t pt-8"><input type="datetime-local" required value={countdown.targetDate} onChange={e => setCountdown({ ...countdown, targetDate: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input placeholder="Texte du bouton" value={countdown.buttonLabel} onChange={e => setCountdown({ ...countdown, buttonLabel: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input placeholder="Lien du bouton" value={countdown.buttonUrl} onChange={e => setCountdown({ ...countdown, buttonUrl: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" /><input type="color" value={countdown.color} onChange={e => setCountdown({ ...countdown, color: e.target.value })} className="h-14 w-full" /></div>}
+        {mode === 'raffle' && <div className="grid md:grid-cols-2 gap-5 border-t pt-8"><input type="number" min="1" value={raffle.winnerCount} onChange={e => setRaffle({ ...raffle, winnerCount: Number(e.target.value) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Nombre de gagnants" /><select value={raffle.participationMode} onChange={e => setRaffle({ ...raffle, participationMode: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4"><option value="free">Participation gratuite</option><option value="points">Participation en points</option></select>{raffle.participationMode === 'points' && <input type="number" min="0" value={raffle.pointsCost} onChange={e => setRaffle({ ...raffle, pointsCost: Number(e.target.value) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Coût du ticket" />}<textarea value={raffle.lots} onChange={e => setRaffle({ ...raffle, lots: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Lots" /></div>}
+        {mode === 'contest' && <div className="space-y-5 border-t pt-8"><input value={contest.question} onChange={e => setContest({ ...contest, question: e.target.value })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Question" /><select value={contest.answerType} onChange={e => setContest({ ...contest, answerType: e.target.value })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4"><option value="text">Réponse libre</option><option value="number">Nombre</option><option value="choice">Choix multiple</option></select></div>}
+        {mode === 'mission' && <div className="space-y-3 border-t pt-8">{missionObjectives.map((objective, index) => <input key={index} value={objective} onChange={e => setMissionObjectives(prev => prev.map((item, i) => i === index ? e.target.value : item))} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" placeholder={`Objectif ${index + 1}`} />)}<button type="button" onClick={() => setMissionObjectives(prev => [...prev, ''])} className="px-4 py-2 bg-purple-50 text-purple-700 rounded-xl font-black">+ Ajouter un objectif</button></div>}
+        {mode === 'season' && <div className="grid md:grid-cols-2 gap-5 border-t pt-8"><input type="color" value={season.color} onChange={e => setSeason({ ...season, color: e.target.value })} className="h-14 w-full" /><label className="flex items-center gap-3"><input type="checkbox" checked={season.archiveAutomatically} onChange={e => setSeason({ ...season, archiveAutomatically: e.target.checked })} /> Archiver automatiquement</label></div>}
 
-        {mode === 'raffle' && <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-8">
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Nombre de gagnants</label><input type="number" min="1" value={raffle.winnerCount} onChange={e => setRaffle({ ...raffle, winnerCount: Number(e.target.value) })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" /></div>
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Participation</label><select value={raffle.participationMode} onChange={e => setRaffle({ ...raffle, participationMode: e.target.value })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4"><option value="free">Gratuite</option><option value="points">Payante en points</option></select></div>
-          {raffle.participationMode === 'points' && <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Coût d’un ticket</label><input type="number" min="0" value={raffle.pointsCost} onChange={e => setRaffle({ ...raffle, pointsCost: Number(e.target.value) })} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" /></div>}
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Lot(s)</label><input value={raffle.lots} onChange={e => { setRaffle({ ...raffle, lots: e.target.value }); setCommon({ ...common, rewardLabel: e.target.value }); }} className="w-full bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Panier gourmand, places…" /></div>
-          <div className="md:col-span-2 space-y-2"><label className="text-xs font-black uppercase text-slate-400">Conditions</label><textarea value={raffle.conditions} onChange={e => setRaffle({ ...raffle, conditions: e.target.value })} className="w-full h-24 bg-slate-50 border rounded-2xl px-5 py-4" /></div>
-        </div>}
+        {mode === 'advent' && <div className="border-t pt-8 space-y-7">
+          <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 text-sm text-purple-900"><strong>Chaque case peut être différente.</strong> Choisissez le jour, puis son type : cadeau, quiz, vidéo, document, mission, coupon, instant gagnant, jeu, photo mystère, anecdote ou jackpot.</div>
+          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2">{adventDays.map(day => <button type="button" key={day.day} onClick={() => setActiveAdventDay(day.day)} className={`aspect-square rounded-xl font-black relative ${activeAdventDay === day.day ? 'bg-purple-600 text-white' : day.title ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}><span>{day.day}</span>{day.title && <span className="absolute bottom-1 right-1 text-[10px]">{adventTypeMeta[day.type].icon}</span>}</button>)}</div>
+          <div className="bg-slate-50 rounded-3xl p-5 md:p-6 space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h3 className="font-black text-xl">Case du {activeAdventDay} décembre</h3><p className="text-sm text-slate-500">{adventTypeMeta[currentAdventDay.type].help}</p></div><select value={currentAdventDay.type} onChange={e => updateAdventDay({ type: e.target.value as AdventContentType })} className="bg-white border rounded-2xl px-4 py-3 font-bold">{(Object.entries(adventTypeMeta) as [AdventContentType, typeof adventTypeMeta[AdventContentType]][]).map(([type, meta]) => <option key={type} value={type}>{meta.icon} {meta.label}</option>)}</select></div>
+            <div className="grid md:grid-cols-2 gap-4"><input value={currentAdventDay.title} onChange={e => updateAdventDay({ title: e.target.value })} className="bg-white border rounded-2xl px-4 py-4" placeholder="Titre de la surprise" /><input value={currentAdventDay.rewardLabel} onChange={e => updateAdventDay({ rewardLabel: e.target.value })} className="bg-white border rounded-2xl px-4 py-4" placeholder="Lot / récompense" /></div>
+            <textarea value={currentAdventDay.description} onChange={e => updateAdventDay({ description: e.target.value })} className="w-full h-28 bg-white border rounded-2xl px-4 py-4" placeholder="Contenu de la case" />
+            <div className="grid md:grid-cols-2 gap-4"><input value={currentAdventDay.linkUrl} onChange={e => updateAdventDay({ linkUrl: e.target.value })} className="bg-white border rounded-2xl px-4 py-4" placeholder="Lien facultatif" /><input value={currentAdventDay.buttonLabel} onChange={e => updateAdventDay({ buttonLabel: e.target.value })} className="bg-white border rounded-2xl px-4 py-4" placeholder="Texte du bouton" /><input type="number" min="0" value={currentAdventDay.rewardPoints} onChange={e => updateAdventDay({ rewardPoints: Number(e.target.value) })} className="bg-white border rounded-2xl px-4 py-4" placeholder="Points" /></div>
 
-        {mode === 'contest' && <div className="space-y-5 border-t pt-8">
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Question</label><textarea value={contest.question} onChange={e => setContest({ ...contest, question: e.target.value })} className="w-full h-24 bg-slate-50 border rounded-2xl px-5 py-4" /></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5"><select value={contest.answerType} onChange={e => setContest({ ...contest, answerType: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4"><option value="text">Réponse libre</option><option value="number">Nombre</option><option value="choice">Choix multiple</option></select><input value={contest.correctAnswer} onChange={e => setContest({ ...contest, correctAnswer: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Bonne réponse" /></div>
-          {contest.answerType === 'choice' && <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{contest.options.map((option, index) => <input key={index} value={option} onChange={e => setContest({ ...contest, options: contest.options.map((item, i) => i === index ? e.target.value : item) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder={`Choix ${index + 1}`} />)}</div>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5"><input value={common.rewardLabel} onChange={e => setCommon({ ...common, rewardLabel: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Lot / récompense" /><input type="number" min="0" value={contest.participationPoints} onChange={e => { setContest({ ...contest, participationPoints: Number(e.target.value) }); setCommon({ ...common, rewardPoints: Number(e.target.value) }); }} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Points attribués" /></div>
-        </div>}
+            {(currentAdventDay.type === 'quiz' || currentAdventDay.type === 'mystery') && <div className="border-t pt-5 space-y-4"><input value={currentAdventDay.question} onChange={e => updateAdventDay({ question: e.target.value })} className="w-full bg-white border rounded-2xl px-4 py-4" placeholder={currentAdventDay.type === 'quiz' ? 'Question du quiz' : 'Que faut-il deviner ?'} />{currentAdventDay.type === 'quiz' && <div className="grid md:grid-cols-2 gap-3">{currentAdventDay.options.map((option, index) => <input key={index} value={option} onChange={e => updateAdventDay({ options: currentAdventDay.options.map((item, i) => i === index ? e.target.value : item) })} className="bg-white border rounded-2xl px-4 py-3" placeholder={`Réponse ${index + 1}`} />)}</div>}<input value={currentAdventDay.correctAnswer} onChange={e => updateAdventDay({ correctAnswer: e.target.value })} className="w-full bg-white border rounded-2xl px-4 py-4" placeholder="Bonne réponse exacte" /></div>}
+            {currentAdventDay.type === 'coupon' && <input value={currentAdventDay.couponCode} onChange={e => updateAdventDay({ couponCode: e.target.value })} className="w-full bg-white border rounded-2xl px-4 py-4" placeholder="Code ou texte du coupon" />}
+            {currentAdventDay.type === 'instant' && <div className="space-y-2"><label className="text-sm font-bold">Probabilité de gain : {currentAdventDay.winProbability}%</label><input type="range" min="1" max="100" value={currentAdventDay.winProbability} onChange={e => updateAdventDay({ winProbability: Number(e.target.value) })} className="w-full" /></div>}
 
-        {mode === 'advent' && <div className="border-t pt-8 space-y-6">
-          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2">{adventDays.map(day => <button type="button" key={day.day} onClick={() => setActiveAdventDay(day.day)} className={`aspect-square rounded-xl font-black ${activeAdventDay === day.day ? 'bg-purple-600 text-white' : day.title ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{day.day}</button>)}</div>
-          <div className="bg-slate-50 rounded-3xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2 font-black">Case du {activeAdventDay} décembre</div>
-            <input value={currentAdventDay.title} onChange={e => updateAdventDay({ title: e.target.value })} className="bg-white border rounded-2xl px-5 py-4" placeholder="Titre de la surprise" />
-            <input value={currentAdventDay.rewardLabel} onChange={e => updateAdventDay({ rewardLabel: e.target.value })} className="bg-white border rounded-2xl px-5 py-4" placeholder="Lot / récompense" />
-            <textarea value={currentAdventDay.description} onChange={e => updateAdventDay({ description: e.target.value })} className="md:col-span-2 h-24 bg-white border rounded-2xl px-5 py-4" placeholder="Contenu de la case" />
-            <input value={currentAdventDay.linkUrl} onChange={e => updateAdventDay({ linkUrl: e.target.value })} className="bg-white border rounded-2xl px-5 py-4" placeholder="Lien facultatif" />
-            <input type="number" min="0" value={currentAdventDay.rewardPoints} onChange={e => updateAdventDay({ rewardPoints: Number(e.target.value) })} className="bg-white border rounded-2xl px-5 py-4" placeholder="Points" />
             <input ref={adventImageRef} type="file" accept="image/*" className="hidden" onChange={e => { uploadAdventImage(e.target.files?.[0]); e.target.value = ''; }} />
-            <button type="button" onClick={() => adventImageRef.current?.click()} className="md:col-span-2 h-28 border-2 border-dashed rounded-2xl overflow-hidden">{currentAdventDay.imageUrl ? <img src={currentAdventDay.imageUrl} className="w-full h-full object-cover" alt="" /> : 'Ajouter une image à cette case'}</button>
+            <button type="button" onClick={() => adventImageRef.current?.click()} className="w-full h-36 border-2 border-dashed rounded-2xl overflow-hidden bg-white">{currentAdventDay.imageUrl ? <img src={currentAdventDay.imageUrl} className="w-full h-full object-cover" alt="" /> : 'Ajouter une image à cette case'}</button>
           </div>
         </div>}
-
-        {mode === 'mission' && <div className="border-t pt-8 space-y-4">
-          <div className="flex justify-between items-center"><h3 className="font-black">Objectifs de la mission</h3><button type="button" onClick={() => setMissionObjectives([...missionObjectives, ''])} className="px-4 py-2 bg-purple-50 text-purple-700 rounded-xl font-black">+ Objectif</button></div>
-          {missionObjectives.map((objective, index) => <div key={index} className="flex gap-2"><input value={objective} onChange={e => setMissionObjectives(missionObjectives.map((item, i) => i === index ? e.target.value : item))} className="flex-1 bg-slate-50 border rounded-2xl px-5 py-4" placeholder={`Objectif ${index + 1}`} /><button type="button" onClick={() => setMissionObjectives(missionObjectives.filter((_, i) => i !== index))} className="px-4 text-red-500 font-black">✕</button></div>)}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5"><input value={common.rewardLabel} onChange={e => setCommon({ ...common, rewardLabel: e.target.value })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Récompense" /><input type="number" min="0" value={common.rewardPoints} onChange={e => setCommon({ ...common, rewardPoints: Number(e.target.value) })} className="bg-slate-50 border rounded-2xl px-5 py-4" placeholder="Points" /></div>
-        </div>}
-
-        {mode === 'season' && <div className="border-t pt-8 space-y-5">
-          <div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Modules inclus</label><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{['jeux','sondages','newsletter','pronostics','boutique','social','idees','bienetre'].map(module => <label key={module} className={`p-4 rounded-2xl border font-bold cursor-pointer ${season.modules.includes(module) ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-slate-200'}`}><input type="checkbox" className="hidden" checked={season.modules.includes(module)} onChange={() => setSeason({ ...season, modules: season.modules.includes(module) ? season.modules.filter(item => item !== module) : [...season.modules, module] })} />{module}</label>)}</div></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5"><div className="space-y-2"><label className="text-xs font-black uppercase text-slate-400">Couleur</label><input type="color" value={season.color} onChange={e => setSeason({ ...season, color: e.target.value })} className="w-full h-14 border rounded-2xl" /></div><label className="flex items-center gap-3 font-bold"><input type="checkbox" checked={season.archiveAutomatically} onChange={e => setSeason({ ...season, archiveAutomatically: e.target.checked })} /> Archiver automatiquement à la fin</label></div>
-        </div>}
       </div>
-
-      <div className="flex flex-col sm:flex-row justify-end gap-3"><button type="button" onClick={() => { resetForms(); setMode('list'); }} className="px-6 py-4 rounded-2xl bg-slate-100 font-black">Annuler</button><button disabled={isSaving} className="px-8 py-4 rounded-2xl bg-purple-600 text-white font-black disabled:opacity-50">{isSaving ? 'Publication…' : 'Publier'}</button></div>
+      <div className="flex justify-end gap-3"><button type="button" onClick={() => { resetForms(); setMode('list'); }} className="px-6 py-4 rounded-2xl bg-slate-100 font-black">Annuler</button><button disabled={isSaving} className="px-8 py-4 rounded-2xl bg-purple-600 text-white font-black disabled:opacity-50">{isSaving ? 'Publication…' : 'Publier'}</button></div>
     </form>
   );
 };

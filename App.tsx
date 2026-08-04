@@ -993,6 +993,46 @@ const App: React.FC = () => {
             }
             addToast('Participation enregistrée.'); fetchAllData();
           }}
+          onOpenAdventDay={async (animation, dayNumber, outcome = {}) => {
+            const days = Array.isArray(animation.config?.days) ? animation.config.days : [];
+            const day = days.find((item: any) => Number(item.day) === Number(dayNumber));
+            if (!day) { addToast('Case introuvable.', 'error'); return; }
+            if ((day.openedBy || []).includes(currentUser.id)) { addToast('Cette case a déjà été ouverte.', 'info'); return; }
+
+            let isCorrect = true;
+            if (day.type === 'quiz' || day.type === 'mystery') {
+              const expected = String(day.correctAnswer || '').trim().toLocaleLowerCase('fr-FR');
+              const received = String(outcome.answer || '').trim().toLocaleLowerCase('fr-FR');
+              isCorrect = Boolean(expected) && expected === received;
+            }
+
+            const isInstantWinner = day.type === 'instant' ? Boolean(outcome.instantWin) : false;
+            const openedBy = [...(day.openedBy || []), currentUser.id];
+            const correctBy = isCorrect ? [...(day.correctBy || []), currentUser.id] : (day.correctBy || []);
+            const winnerIds = isInstantWinner ? [...(day.winnerIds || []), currentUser.id] : (day.winnerIds || []);
+            const updatedDays = days.map((item: any) => Number(item.day) === Number(dayNumber) ? { ...item, openedBy, correctBy, winnerIds } : item);
+            const nextParticipants = (animation.participants || []).includes(currentUser.id) ? (animation.participants || []) : [...(animation.participants || []), currentUser.id];
+            const nextConfig = { ...(animation.config || {}), days: updatedDays };
+            const { error } = await supabase.from('engagement_animations').update({ config: nextConfig, participants: nextParticipants }).eq('id', animation.id);
+            if (error) { addToast(`Erreur : ${error.message}`, 'error'); return; }
+
+            let earned = 0;
+            if (day.type === 'quiz' || day.type === 'mystery') earned = isCorrect ? Number(day.rewardPoints || 0) : 0;
+            else if (day.type === 'instant') earned = isInstantWinner ? Number(day.rewardPoints || 0) : 0;
+            else earned = Number(day.rewardPoints || 0);
+
+            if (earned > 0) {
+              const { data: profile } = await supabase.from('profiles').select('points').eq('id', currentUser.id).single();
+              await supabase.from('profiles').update({ points: (profile?.points || 0) + earned }).eq('id', currentUser.id);
+              await supabase.from('transactions').insert({ user_id: currentUser.id, amount: earned, reason: `Calendrier de l’Avent · jour ${dayNumber} : ${animation.title}`, type: 'earn' });
+              await fetchUserProfile(currentUser.id);
+            }
+
+            if ((day.type === 'quiz' || day.type === 'mystery') && !isCorrect) addToast('Réponse enregistrée, mais ce n’est pas la bonne réponse.', 'info');
+            else if (day.type === 'instant' && !isInstantWinner) addToast('Pas gagné cette fois, mais la case est validée.', 'info');
+            else addToast(earned > 0 ? `Case ouverte : +${earned} points !` : 'Case ouverte !');
+            fetchAllData();
+          }}
         />;
 
       case 'boutique':
