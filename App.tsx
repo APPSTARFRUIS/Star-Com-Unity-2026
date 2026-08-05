@@ -295,14 +295,22 @@ const App: React.FC = () => {
         createdAt: p.created_at,
         targetDepartments: p.target_departments
       })));
-      if (celebrationsData) setCelebrations(celebrationsData.map((c: any) => ({
-        ...c,
-        userIds: c.user_ids || [],
-        userName: c.user_name || 'Collaborateur',
-        userAvatar: c.user_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
-        createdBy: c.created_by,
-        likes: Array.isArray(c.likes) ? c.likes : []
-      })));
+      if (celebrationsData) setCelebrations(celebrationsData.map((c: any) => {
+        const rawType = String(c.type || '').trim().toLowerCase();
+        const normalizedType = ['birthday', 'anniversaire'].includes(rawType)
+          ? 'anniversary'
+          : rawType;
+
+        return {
+          ...c,
+          type: normalizedType,
+          userIds: c.user_ids || [],
+          userName: c.user_name || 'Collaborateur',
+          userAvatar: c.user_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.id}`,
+          createdBy: c.created_by,
+          likes: Array.isArray(c.likes) ? c.likes : []
+        };
+      }));
       if (engagementData) setEngagementAnimations(engagementData.map((a: any) => ({
         ...a,
         startDate: a.start_date,
