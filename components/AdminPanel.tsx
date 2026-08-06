@@ -149,13 +149,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
+    const avatarWasChanged =
+      !editingUser || userForm.avatar !== editingUser.avatar;
+
     if (
+      avatarWasChanged &&
       typeof userForm.avatar === 'string' &&
       userForm.avatar.startsWith('data:') &&
       userForm.avatar.length > 200_000
     ) {
       setUserFormError(
-        'La photo est trop volumineuse. Utilisez une image plus légère ou une URL d’image.'
+        'La nouvelle photo est trop volumineuse. Utilisez une image plus légère ou une URL d’image.'
       );
       return;
     }

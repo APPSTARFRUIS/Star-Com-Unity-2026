@@ -147,14 +147,20 @@ export default async function handler(request, response) {
       return response.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' });
     }
 
-    const rawAvatar = String(incomingUser.avatar || '');
-    const safeAvatar = rawAvatar.startsWith('data:') ? '' : rawAvatar.slice(0, 2048);
+    const rawAvatar =
+      typeof incomingUser.avatar === 'string'
+        ? incomingUser.avatar
+        : null;
 
-    const profilePayload = {
+    const safeAvatar =
+      rawAvatar && !rawAvatar.startsWith('data:')
+        ? rawAvatar.slice(0, 2048)
+        : null;
+
+    const baseProfilePayload = {
       email,
       name: String(incomingUser.name || '').trim().slice(0, 160),
       role: incomingUser.role || 'USER',
-      avatar: safeAvatar,
       department: String(incomingUser.department || '').slice(0, 160),
       company: String(incomingUser.company || 'Star Fruits').slice(0, 160),
       birthday: incomingUser.birthday || null,
@@ -181,8 +187,8 @@ export default async function handler(request, response) {
           password,
           email_confirm: true,
           user_metadata: {
-            name: profilePayload.name,
-            avatar: profilePayload.avatar
+            name: baseProfilePayload.name,
+            avatar: safeAvatar || ''
           }
         });
 
@@ -197,8 +203,8 @@ export default async function handler(request, response) {
         {
           user_metadata: {
             profile_id: profileId,
-            name: profilePayload.name,
-            avatar: profilePayload.avatar
+            name: baseProfilePayload.name,
+            avatar: safeAvatar || ''
           }
         }
       );
@@ -207,7 +213,11 @@ export default async function handler(request, response) {
 
       const { error: profileError } = await adminClient
         .from('profiles')
-        .insert({ id: profileId, ...profilePayload });
+        .insert({
+          id: profileId,
+          ...baseProfilePayload,
+          avatar: safeAvatar || ''
+        });
 
       if (profileError) {
         await adminClient.auth.admin.deleteUser(created.user.id);
@@ -255,8 +265,8 @@ export default async function handler(request, response) {
             email_confirm: true,
             user_metadata: {
               profile_id: requestedProfileId,
-              name: profilePayload.name,
-              avatar: profilePayload.avatar
+              name: baseProfilePayload.name,
+              avatar: safeAvatar || previousProfile.avatar || ''
             }
           });
 
@@ -270,8 +280,8 @@ export default async function handler(request, response) {
           user_metadata: {
             ...(authUser.user_metadata || {}),
             profile_id: requestedProfileId,
-            name: profilePayload.name,
-            avatar: profilePayload.avatar
+            name: baseProfilePayload.name,
+            avatar: safeAvatar || ''
           }
         };
 
@@ -285,7 +295,10 @@ export default async function handler(request, response) {
 
       const { error: profileUpdateError } = await adminClient
         .from('profiles')
-        .update(profilePayload)
+        .update({
+          ...baseProfilePayload,
+          avatar: safeAvatar || previousProfile.avatar || ''
+        })
         .eq('id', requestedProfileId);
 
       if (profileUpdateError) throw profileUpdateError;
