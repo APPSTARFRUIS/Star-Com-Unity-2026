@@ -359,42 +359,6 @@ const App: React.FC = () => {
       createdAt: item.created_at
     }));
 
-  const createNotification = useCallback(async (
-    kind: NotificationKind,
-    title: string,
-    message: string,
-    linkView?: ViewType,
-    entityId?: string,
-    targetUserId?: string
-  ) => {
-    if (!supabase) return;
-
-    const userId = targetUserId || currentUserRef.current?.id;
-    if (!userId) return;
-
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: userId,
-        kind,
-        title,
-        message,
-        link_view: linkView || null,
-        entity_id: entityId || null,
-        is_read: false
-      })
-      .select('*')
-      .single();
-
-    if (!error && data && userId === currentUserRef.current?.id) {
-      const mapped = mapNotifications([data])[0];
-      setNotifications(previous => [
-        mapped,
-        ...previous.filter(item => item.id !== mapped.id)
-      ].slice(0, 100));
-    }
-  }, []);
-
   const fetchCoreData = useCallback(async (force = false) => {
     if (!supabase || (!session && !currentUserRef.current)) return;
 
@@ -922,7 +886,6 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
           if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
             addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
-            void createNotification('post', 'Nouveau post', `${payload.new.user_name} a publié sur le mur social.`, 'social', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -933,7 +896,6 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
             addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
-            void createNotification('event', 'Nouvel événement', payload.new.title, 'evenements', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -943,7 +905,6 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
           if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
-            void createNotification('message', 'Nouveau message', 'Vous avez reçu un nouveau message.', 'messages', payload.new.id, currentUser.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -969,21 +930,18 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
           if (currentUser && currentUser.notification_settings?.posts) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
-            void createNotification('newsletter', 'Nouvelle newsletter', payload.new.title, 'newsletter', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
             addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
-            void createNotification('poll', 'Nouveau sondage', payload.new.title, 'sondages', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
-            void createNotification('celebration', 'Nouvelle célébration', payload.new.title, 'celebrations', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -997,7 +955,7 @@ const App: React.FC = () => {
         }
       };
     }
-  }, [session, currentUser?.id, scheduleRealtimeRefresh, fetchCoreData, createNotification]);
+  }, [session, currentUser?.id, scheduleRealtimeRefresh, fetchCoreData]);
 
   useEffect(() => {
     if (!session && !currentUser) return;
