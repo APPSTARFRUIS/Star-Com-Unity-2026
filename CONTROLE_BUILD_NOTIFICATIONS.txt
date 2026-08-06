@@ -1,0 +1,4 @@
+Correctif build notifications
+- AppNotification importé depuis ./types
+- NotificationKind importé depuis ./types
+- Définitions présentes dans types.ts

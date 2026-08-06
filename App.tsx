@@ -1,11 +1,39 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { CATEGORIES, DEPARTMENTS, INITIAL_CONFIG } from './constants';
 import {
-  User, Post, UserRole, Comment, CompanyEvent, Message, Attachment, Idea, IdeaStatus,
-  DocumentFile, Poll, PollResponse, MoodEntry, MoodValue, Celebration, Newsletter, AppConfig,
-  WellnessContent, WellnessChallenge, CompanyGame, GamePrediction, Reward, PointsTransaction, EngagementAnimation, AdventOpening
+  supabase,
+  isSupabaseConfigured } from './supabaseClient';
+import { CATEGORIES,
+  DEPARTMENTS,
+  INITIAL_CONFIG } from './constants';
+import {
+  User,
+  Post,
+  UserRole,
+  Comment,
+  CompanyEvent,
+  Message,
+  Attachment,
+  Idea,
+  IdeaStatus,
+  DocumentFile,
+  Poll,
+  PollResponse,
+  MoodEntry,
+  MoodValue,
+  Celebration,
+  Newsletter,
+  AppConfig,
+  WellnessContent,
+  WellnessChallenge,
+  CompanyGame,
+  GamePrediction,
+  Reward,
+  PointsTransaction,
+  EngagementAnimation,
+  AdventOpening,
+  AppNotification,
+  NotificationKind
 } from './types';
 import Sidebar, { ViewType } from './components/Sidebar';
 import PostCard from './components/PostCard';
