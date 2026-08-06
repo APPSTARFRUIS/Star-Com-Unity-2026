@@ -474,7 +474,7 @@ const App: React.FC = () => {
             break;
           }
 
-          case 'classements': {
+          case 'engagement': {
             const [profiles, transactionsResult, postsResult, commentsResult, ideasResult, pollsResult] = await Promise.all([
               fetchProfilesWithRetry(),
               supabase.from('transactions').select('*').order('date', { ascending: false }).limit(400),
