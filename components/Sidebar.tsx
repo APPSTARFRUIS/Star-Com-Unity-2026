@@ -4,7 +4,7 @@ import { UserRole, AppConfig } from '../types';
 export type ViewType =
   | 'accueil' | 'evenements' | 'equipe' | 'messages' | 'idees'
   | 'documents' | 'sondages' | 'humeur' | 'celebrations' | 'bienetre'
-  | 'social' | 'newsletter' | 'jeux' | 'engagement' | 'tempsforts' | 'boutique' | 'parametres' | 'admin';
+  | 'social' | 'newsletter' | 'notifications' | 'jeux' | 'engagement' | 'tempsforts' | 'boutique' | 'parametres' | 'admin';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -14,6 +14,7 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   appConfig: AppConfig;
+  unreadNotifications?: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -23,7 +24,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   isOpen,
   onClose,
-  appConfig
+  appConfig,
+  unreadNotifications = 0
 }) => {
 
   const menuItems: Array<{
@@ -52,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'bienetre', label: 'Bien-être', icon: <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /> },
     { id: 'social', label: 'Social', icon: <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /> },
     { id: 'newsletter', label: 'Newsletter', icon: <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
+    { id: 'notifications', label: 'Notifications', icon: <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
     { id: 'jeux', label: 'Jeux', icon: <path d="M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z" /> },
     { id: 'engagement', label: 'Classements', icon: <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zm0 2H4a2 2 0 002 4h1m10-4h3a2 2 0 01-2 4h-1" /> },
     { id: 'tempsforts', label: 'Temps forts', icon: <path d="M12 2l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 7.8h6.1L12 2z" /> },
@@ -112,7 +115,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 {item.icon}
               </svg>
-              {item.label}
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.id === 'notifications' && unreadNotifications > 0 && (
+                <span className={`min-w-5 h-5 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${
+                  currentView === item.id ? 'bg-white text-green-800' : 'bg-red-500 text-white'
+                }`}>
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
             </button>
           ))}
 

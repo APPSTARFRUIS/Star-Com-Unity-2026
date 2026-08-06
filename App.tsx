@@ -24,6 +24,7 @@ import BienEtreView from './components/BienEtreView';
 import JeuxView from './components/JeuxView';
 import BoutiqueView from './components/BoutiqueView';
 import Settings from './components/Settings';
+import NotificationCenter from './components/NotificationCenter';
 import EventCreatorModal from './components/EventCreatorModal';
 import EngagementView from './components/EngagementView';
 
@@ -61,6 +62,7 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
   const [engagementAnimations, setEngagementAnimations] = useState<EngagementAnimation[]>([]);
   const [adventOpenings, setAdventOpenings] = useState<AdventOpening[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [view, setView] = useState<ViewType>('accueil');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -315,13 +317,63 @@ const App: React.FC = () => {
       openedAt: opening.opened_at
     }));
 
+
+  const mapNotifications = (rows: any[] | null | undefined): AppNotification[] =>
+    (rows || []).map((item: any) => ({
+      id: item.id,
+      userId: item.user_id,
+      kind: item.kind || 'system',
+      title: item.title,
+      message: item.message,
+      linkView: item.link_view || undefined,
+      entityId: item.entity_id || undefined,
+      isRead: Boolean(item.is_read),
+      createdAt: item.created_at
+    }));
+
+  const createNotification = useCallback(async (
+    kind: NotificationKind,
+    title: string,
+    message: string,
+    linkView?: ViewType,
+    entityId?: string,
+    targetUserId?: string
+  ) => {
+    if (!supabase) return;
+
+    const userId = targetUserId || currentUserRef.current?.id;
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        kind,
+        title,
+        message,
+        link_view: linkView || null,
+        entity_id: entityId || null,
+        is_read: false
+      })
+      .select('*')
+      .single();
+
+    if (!error && data && userId === currentUserRef.current?.id) {
+      const mapped = mapNotifications([data])[0];
+      setNotifications(previous => [
+        mapped,
+        ...previous.filter(item => item.id !== mapped.id)
+      ].slice(0, 100));
+    }
+  }, []);
+
   const fetchCoreData = useCallback(async (force = false) => {
     if (!supabase || (!session && !currentUserRef.current)) return;
 
     const now = Date.now();
     if (!force && loadedViewsRef.current.has('accueil') && now - lastFullFetchAtRef.current < 60_000) return;
 
-    const [profiles, configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult] =
+    const [profiles, configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult, notificationsResult] =
       await Promise.all([
         fetchProfilesWithRetry(),
         supabase.from('app_config').select('*').maybeSingle(),
@@ -329,7 +381,8 @@ const App: React.FC = () => {
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(120),
         supabase.from('events').select('*').order('date', { ascending: true }).limit(30),
         supabase.from('celebrations').select('*').order('date', { ascending: false }).limit(60),
-        supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(30)
+        supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('notifications').select('*').eq('user_id', currentUserRef.current!.id).order('created_at', { ascending: false }).limit(100)
       ]);
 
     if (profiles) {
@@ -358,6 +411,7 @@ const App: React.FC = () => {
     if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
     if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
     if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
+    if (notificationsResult.data) setNotifications(mapNotifications(notificationsResult.data));
 
     loadedViewsRef.current.add('accueil');
     lastFullFetchAtRef.current = Date.now();
@@ -500,6 +554,17 @@ const App: React.FC = () => {
             ]);
             if (contentsResult.data) setWellnessContents(contentsResult.data.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
             if (challengesResult.data) setWellnessChallenges(challengesResult.data.map((c: any) => ({ ...c, isActive: c.is_active })));
+            break;
+          }
+
+          case 'notifications': {
+            const { data, error } = await supabase
+              .from('notifications')
+              .select('*')
+              .eq('user_id', currentUserRef.current!.id)
+              .order('created_at', { ascending: false })
+              .limit(100);
+            if (!error && data) setNotifications(mapNotifications(data));
             break;
           }
 
@@ -829,6 +894,7 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
           if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
             addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
+            void createNotification('post', 'Nouveau post', `${payload.new.user_name} a publié sur le mur social.`, 'social', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -839,6 +905,7 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
             addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
+            void createNotification('event', 'Nouvel événement', payload.new.title, 'evenements', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -848,6 +915,7 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
           if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
+            void createNotification('message', 'Nouveau message', 'Vous avez reçu un nouveau message.', 'messages', payload.new.id, currentUser.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -856,21 +924,38 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefresh())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefresh())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser?.id}`
+        }, (payload: any) => {
+          const item = mapNotifications([payload.new])[0];
+          if (item) {
+            setNotifications(previous => [
+              item,
+              ...previous.filter(existing => existing.id !== item.id)
+            ].slice(0, 100));
+          }
+        })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
           if (currentUser && currentUser.notification_settings?.posts) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
+            void createNotification('newsletter', 'Nouvelle newsletter', payload.new.title, 'newsletter', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
             addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
+            void createNotification('poll', 'Nouveau sondage', payload.new.title, 'sondages', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
+            void createNotification('celebration', 'Nouvelle célébration', payload.new.title, 'celebrations', payload.new.id);
           }
           scheduleRealtimeRefresh();
         })
@@ -884,7 +969,7 @@ const App: React.FC = () => {
         }
       };
     }
-  }, [session, currentUser?.id, scheduleRealtimeRefresh, fetchCoreData]);
+  }, [session, currentUser?.id, scheduleRealtimeRefresh, fetchCoreData, createNotification]);
 
   useEffect(() => {
     if (!session && !currentUser) return;
@@ -1406,6 +1491,28 @@ const App: React.FC = () => {
               else { addToast(`${winnerIds.length} gagnant(s) tiré(s) au sort.`); void fetchViewData(currentViewRef.current, true); }
             }}
             transactions={transactions}
+          />
+        );
+
+      case 'notifications':
+        return (
+          <NotificationCenter
+            notifications={notifications}
+            onMarkRead={async (id) => {
+              const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id).eq('user_id', currentUser.id);
+              if (!error) setNotifications(previous => previous.map(item => item.id === id ? { ...item, isRead: true } : item));
+            }}
+            onMarkAllRead={async () => {
+              const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUser.id).eq('is_read', false);
+              if (!error) setNotifications(previous => previous.map(item => ({ ...item, isRead: true })));
+            }}
+            onDelete={async (id) => {
+              const { error } = await supabase.from('notifications').delete().eq('id', id).eq('user_id', currentUser.id);
+              if (!error) setNotifications(previous => previous.filter(item => item.id !== id));
+            }}
+            onOpen={(notification) => {
+              if (notification.linkView) setView(notification.linkView as ViewType);
+            }}
           />
         );
 
@@ -1941,6 +2048,7 @@ const App: React.FC = () => {
             isOpen={isMobileMenuOpen}
             onClose={() => setIsMobileMenuOpen(false)}
             appConfig={appConfig}
+            unreadNotifications={notifications.filter(item => !item.isRead).length}
           />
 
           <main className="flex-1 md:ml-64 p-4 md:p-8 w-full max-w-full overflow-x-hidden">

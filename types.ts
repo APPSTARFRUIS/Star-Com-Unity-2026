@@ -32,6 +32,32 @@ export interface User {
   notification_settings?: NotificationSettings;
 }
 
+
+export type NotificationKind =
+  | 'message'
+  | 'post'
+  | 'event'
+  | 'poll'
+  | 'newsletter'
+  | 'celebration'
+  | 'game'
+  | 'highlight'
+  | 'points'
+  | 'document'
+  | 'system';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  linkView?: string;
+  entityId?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export interface AppConfig {
   appName: string;
   appSlogan: string;
