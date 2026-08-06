@@ -46,6 +46,21 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
       .sort((a, b) => a.birthDay - b.birthDay);
   }, [users, currentMonth, currentDay]);
 
+  const normalizeCelebrationType = (type?: string) => (type || '').trim().toLowerCase();
+
+  const isBirthdayCelebration = (type?: string) =>
+    ['anniversary', 'birthday', 'anniversaire'].includes(normalizeCelebrationType(type));
+
+  const anniversaryCelebrations = useMemo(
+    () => celebrations.filter(c => isBirthdayCelebration(c.type)),
+    [celebrations]
+  );
+
+  const feedCelebrations = useMemo(
+    () => celebrations.filter(c => !isBirthdayCelebration(c.type)),
+    [celebrations]
+  );
+
   // Gérer le pré-remplissage si on vient du dashboard ou d'un bouton direct
   const openWishModal = (user: User) => {
     setNewType('anniversary');
@@ -66,7 +81,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
     e.preventDefault();
     const user = users.find(u => u.id === selectedUserId);
     onAddCelebration({
-      type: newType,
+      type: newType === 'anniversary' ? 'anniversary' : newType,
       title: newTitle,
       description: newDesc,
       date: newDate,
@@ -134,15 +149,52 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                   Lui souhaiter ✨
                 </button>
               </div>
-            )) : (
+            )) : anniversaryCelebrations.length === 0 ? (
               <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl py-12 text-center">
                 <p className="text-slate-400 italic text-sm">Aucun anniversaire ce mois-ci.</p>
               </div>
-            )}
+            ) : null}
           </div>
+
+          {anniversaryCelebrations.length > 0 && (
+            <div className="space-y-4 pt-2">
+              <h3 className="text-xs font-black uppercase tracking-[0.18em] text-pink-500">
+                Messages d’anniversaire
+              </h3>
+              {anniversaryCelebrations.map(c => (
+                <div key={c.id} className="bg-white rounded-3xl border border-pink-100 shadow-sm overflow-hidden group">
+                  <div className="p-5">
+                    <div className="flex items-start gap-3">
+                      {c.userAvatar ? (
+                        <img src={c.userAvatar} className="w-11 h-11 rounded-2xl object-cover" alt="" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center text-xl">🎂</div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-black text-slate-800 leading-tight">{c.title}</h4>
+                        <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">
+                          {new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                      </div>
+                      {canManage && (
+                        <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 p-1" title="Supprimer">×</button>
+                      )}
+                    </div>
+                    <p className="mt-4 text-sm text-slate-600 italic bg-pink-50/50 p-3 rounded-2xl">“{c.description}”</p>
+                    <button
+                      onClick={() => onLikeCelebration(c.id)}
+                      className={`mt-3 text-xs font-bold ${c.likes.includes(currentUser.id) ? 'text-green-600' : 'text-slate-400 hover:text-green-500'}`}
+                    >
+                      ♥ {c.likes.length > 0 ? `${c.likes.length} félicitations` : 'Féliciter'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Colonne Fil des réussites & Anniversaires manuels */}
+        {/* Colonne Fil des réussites et bienvenues */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
              <div className="p-2 bg-yellow-50 text-yellow-500 rounded-xl">
@@ -152,7 +204,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </h2>
 
           <div className="space-y-6">
-            {celebrations.length > 0 ? celebrations.map(c => (
+            {feedCelebrations.length > 0 ? feedCelebrations.map(c => (
               <div key={c.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden group animate-in slide-in-from-bottom-4 duration-500">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">

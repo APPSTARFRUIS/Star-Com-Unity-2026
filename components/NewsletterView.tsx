@@ -86,6 +86,32 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     return '';
   };
 
+  const getHtml2Pdf = async (): Promise<any> => {
+    const existing = (window as any).html2pdf;
+    if (existing) return existing;
+
+    await new Promise<void>((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-html2pdf-loader="true"]') as HTMLScriptElement | null;
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(), { once: true });
+        existingScript.addEventListener('error', () => reject(new Error('Impossible de charger le générateur PDF.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.async = true;
+      script.dataset.html2pdfLoader = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Impossible de charger le générateur PDF.'));
+      document.head.appendChild(script);
+    });
+
+    const loaded = (window as any).html2pdf;
+    if (!loaded) throw new Error('Le générateur PDF n’est pas disponible.');
+    return loaded;
+  };
+
   // --- LOGIQUE PDF ---
   const handleDownloadPDF = async () => {
     if (!readingNewsletter || isExporting) return;
@@ -481,8 +507,8 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
     };
 
     try {
-      // @ts-ignore
-      await html2pdf().set(opt).from(container).save();
+      const html2pdfInstance = await getHtml2Pdf();
+      await html2pdfInstance().set(opt).from(container).save();
     } catch (e) {
       console.error("Échec génération PDF:", e);
       alert("Une erreur est survenue lors de la création du PDF. Veuillez recharger la page et réessayer.");

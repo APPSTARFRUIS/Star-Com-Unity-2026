@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, DocumentFile, UserRole } from '../types';
 import { uploadMediaToStorage } from '../storageUtils';
 
@@ -16,6 +16,271 @@ interface DocumentsViewProps {
   onDelete: (id: string) => void;
 }
 
+
+interface PdfJsViewerProps {
+  source: string;
+  fileName: string;
+  onDownload: () => void;
+}
+
+const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<any>(null);
+  const pdfDocumentRef = useRef<any>(null);
+  const [pdfJs, setPdfJs] = useState<any>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [scale, setScale] = useState(1.15);
+  const [rotation, setRotation] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [rendering, setRendering] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPdfJs = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const moduleUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+        const library: any = await import(/* @vite-ignore */ moduleUrl);
+
+        library.GlobalWorkerOptions.workerSrc = workerUrl;
+        if (!cancelled) setPdfJs(library);
+      } catch (loadError) {
+        console.error('Chargement PDF.js impossible :', loadError);
+        if (!cancelled) {
+          setError('Le lecteur PDF intégré n’a pas pu être chargé. Vérifiez la connexion internet.');
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPdfJs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pdfJs || !source) return;
+
+    let cancelled = false;
+    const loadingTask = pdfJs.getDocument({
+      url: source,
+      cMapPacked: true,
+      enableXfa: true,
+    });
+
+    setLoading(true);
+    setError('');
+    setPageNumber(1);
+    setPageCount(0);
+
+    loadingTask.promise
+      .then((pdf: any) => {
+        if (cancelled) {
+          pdf.destroy();
+          return;
+        }
+
+        pdfDocumentRef.current = pdf;
+        setPageCount(pdf.numPages);
+        setLoading(false);
+      })
+      .catch((pdfError: any) => {
+        console.error('Ouverture PDF impossible :', pdfError);
+        if (!cancelled) {
+          setError('Ce PDF ne peut pas être affiché dans le lecteur intégré.');
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel?.();
+      renderTaskRef.current = null;
+      loadingTask.destroy?.();
+      pdfDocumentRef.current?.destroy?.();
+      pdfDocumentRef.current = null;
+    };
+  }, [pdfJs, source]);
+
+  useEffect(() => {
+    const pdf = pdfDocumentRef.current;
+    const canvas = canvasRef.current;
+    if (!pdf || !canvas || !pageCount) return;
+
+    let cancelled = false;
+
+    const renderPage = async () => {
+      setRendering(true);
+      setError('');
+
+      try {
+        renderTaskRef.current?.cancel?.();
+
+        const page = await pdf.getPage(pageNumber);
+        if (cancelled) return;
+
+        const viewport = page.getViewport({ scale, rotation });
+        const context = canvas.getContext('2d', { alpha: false });
+        if (!context) throw new Error('Canvas indisponible.');
+
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(viewport.width * pixelRatio);
+        canvas.height = Math.floor(viewport.height * pixelRatio);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+
+        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, viewport.width, viewport.height);
+
+        const renderTask = page.render({
+          canvasContext: context,
+          viewport,
+        });
+
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+      } catch (renderError: any) {
+        if (renderError?.name !== 'RenderingCancelledException') {
+          console.error('Rendu PDF impossible :', renderError);
+          if (!cancelled) setError('La page du PDF n’a pas pu être affichée.');
+        }
+      } finally {
+        if (!cancelled) setRendering(false);
+      }
+    };
+
+    renderPage();
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel?.();
+    };
+  }, [pageNumber, pageCount, scale, rotation]);
+
+  const changePage = (nextPage: number) => {
+    setPageNumber(Math.min(Math.max(nextPage, 1), pageCount || 1));
+  };
+
+  const changeScale = (nextScale: number) => {
+    setScale(Math.min(Math.max(nextScale, 0.6), 2.5));
+  };
+
+  return (
+    <div className="w-full h-full min-h-0 flex flex-col bg-slate-200 rounded-xl overflow-hidden">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-slate-900 text-white">
+        <div className="min-w-0">
+          <p className="text-xs text-slate-400">Lecteur PDF intégré</p>
+          <p className="text-sm font-semibold truncate max-w-[280px]">{fileName}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => changePage(pageNumber - 1)}
+            disabled={pageNumber <= 1 || loading}
+            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            title="Page précédente"
+          >
+            ←
+          </button>
+
+          <div className="px-3 py-2 rounded-lg bg-white/10 text-sm whitespace-nowrap">
+            Page {pageNumber} / {pageCount || '—'}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => changePage(pageNumber + 1)}
+            disabled={pageNumber >= pageCount || loading}
+            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            title="Page suivante"
+          >
+            →
+          </button>
+
+          <button
+            type="button"
+            onClick={() => changeScale(scale - 0.15)}
+            disabled={loading}
+            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            title="Dézoomer"
+          >
+            −
+          </button>
+
+          <span className="text-xs min-w-[46px] text-center">{Math.round(scale * 100)} %</span>
+
+          <button
+            type="button"
+            onClick={() => changeScale(scale + 0.15)}
+            disabled={loading}
+            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            title="Zoomer"
+          >
+            +
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRotation((current) => (current + 90) % 360)}
+            disabled={loading}
+            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            title="Faire pivoter"
+          >
+            ↻
+          </button>
+
+          <button
+            type="button"
+            onClick={onDownload}
+            className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-semibold"
+          >
+            Télécharger
+          </button>
+        </div>
+      </div>
+
+      <div className="relative flex-1 min-h-0 overflow-auto p-4 md:p-6">
+        {(loading || rendering) && (
+          <div className="sticky top-3 z-10 mx-auto mb-3 w-fit px-4 py-2 rounded-full bg-slate-900/85 text-white text-sm shadow-lg flex items-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            {loading ? 'Ouverture du PDF…' : 'Affichage de la page…'}
+          </div>
+        )}
+
+        {error ? (
+          <div className="h-full min-h-[300px] flex items-center justify-center">
+            <div className="max-w-md text-center bg-white rounded-2xl p-8 shadow-sm">
+              <div className="text-5xl mb-4">⚠️</div>
+              <p className="font-semibold text-slate-800">{error}</p>
+              <button
+                type="button"
+                onClick={onDownload}
+                className="mt-5 px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
+              >
+                Télécharger le PDF
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="min-w-full flex justify-center">
+            <canvas ref={canvasRef} className="block bg-white shadow-xl" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const DocumentsView: React.FC<DocumentsViewProps> = ({
   currentUser,
   documents,
@@ -27,6 +292,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<DocumentFile | null>(null);
+  const [previewObjectUrl, setPreviewObjectUrl] = useState('');
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadCategory, setUploadCategory] = useState(categories[0] || 'Général');
 
@@ -63,14 +331,69 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
-  const handleViewDocument = (doc: DocumentFile) => {
-    setPreviewDocument(doc);
+  const releasePreviewUrl = () => {
+    if (previewObjectUrl) {
+      URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl('');
+    }
   };
 
-  const handleOpenDocument = (doc: DocumentFile) => {
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    };
+  }, [previewObjectUrl]);
+
+  const loadDocumentBlob = async (doc: DocumentFile): Promise<string> => {
     const url = getDocumentUrl(doc);
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (!url) throw new Error('URL du document introuvable.');
+
+    if (url.startsWith('data:')) return url;
+
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Impossible de charger le document (${response.status}).`);
+
+    const blob = await response.blob();
+    const expectedType = doc.type || (isPdf(doc) ? 'application/pdf' : blob.type);
+    const normalizedBlob = blob.type ? blob : new Blob([blob], { type: expectedType });
+    return URL.createObjectURL(normalizedBlob);
+  };
+
+  const handleViewDocument = async (doc: DocumentFile) => {
+    releasePreviewUrl();
+    setPreviewDocument(doc);
+    setPreviewError('');
+    setIsPreviewLoading(true);
+
+    try {
+      const objectUrl = await loadDocumentBlob(doc);
+      setPreviewObjectUrl(objectUrl);
+    } catch (error: any) {
+      console.error('Erreur aperçu document:', error);
+      setPreviewError(error?.message || 'Impossible de prévisualiser ce document.');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleOpenDocument = async (doc: DocumentFile) => {
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+
+    try {
+      const url = previewDocument?.id === doc.id && previewObjectUrl
+        ? previewObjectUrl
+        : await loadDocumentBlob(doc);
+
+      if (popup) popup.location.href = url;
+      else window.location.href = url;
+
+      if (url.startsWith('blob:') && url !== previewObjectUrl) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (error: any) {
+      if (popup) popup.close();
+      alert(error?.message || 'Impossible d’ouvrir le document.');
+    }
   };
 
   const handleDownloadDocument = (doc: DocumentFile) => {
@@ -112,7 +435,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     return '📁';
   };
 
-  const previewUrl = previewDocument ? getDocumentUrl(previewDocument) : '';
+  const previewUrl = previewObjectUrl || (previewDocument && getDocumentUrl(previewDocument).startsWith('data:')
+    ? getDocumentUrl(previewDocument)
+    : '');
 
   return (
     <div className="p-6 space-y-6">
@@ -258,47 +583,45 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 >
                   Télécharger
                 </button>
-                <button type="button" onClick={() => setPreviewDocument(null)} className="text-slate-500 hover:text-red-600 text-2xl">×</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    releasePreviewUrl();
+                    setPreviewDocument(null);
+                    setPreviewError('');
+                  }}
+                  className="text-slate-500 hover:text-red-600 text-2xl"
+                >
+                  ×
+                </button>
               </div>
             </div>
 
-            <div className="w-full flex-1 bg-slate-100 overflow-auto flex items-center justify-center p-4">
-              {isPdf(previewDocument) ? (
-                previewUrl.startsWith('data:') ? (
-                  <object
-                    data={`${previewUrl}#toolbar=1&navpanes=0&scrollbar=1`}
-                    type="application/pdf"
-                    className="w-full h-full bg-white rounded-xl"
+            <div className="w-full flex-1 bg-slate-100 overflow-hidden flex items-center justify-center p-4">
+              {isPreviewLoading ? (
+                <div className="text-center space-y-4 text-slate-600">
+                  <div className="w-12 h-12 border-4 border-green-200 border-t-green-700 rounded-full animate-spin mx-auto" />
+                  <p className="font-semibold">Chargement de l’aperçu…</p>
+                </div>
+              ) : previewError ? (
+                <div className="text-center space-y-4 text-slate-600">
+                  <div className="text-5xl">⚠️</div>
+                  <p className="font-semibold">{previewError}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadDocument(previewDocument)}
+                    className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
                   >
-                    <div className="text-center space-y-4 text-slate-600">
-                      <div className="text-5xl">📄</div>
-                      <p className="font-semibold">L’aperçu PDF n’est pas disponible dans cette fenêtre.</p>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDocument(previewDocument)}
-                        className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
-                      >
-                        Ouvrir le PDF
-                      </button>
-                    </div>
-                  </object>
-                ) : (
-                  <div className="text-center space-y-4 text-slate-600">
-                    <div className="text-5xl">📄</div>
-                    <p className="font-semibold">Aperçu direct limité selon le navigateur et Supabase.</p>
-                    <p className="text-sm text-slate-500 max-w-xl">
-                      Utilisez “Ouvrir dans un onglet” ou “Télécharger”. Cela évite de charger le fichier lourdement dans l’application.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDocument(previewDocument)}
-                      className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
-                    >
-                      Ouvrir le PDF
-                    </button>
-                  </div>
-                )
-              ) : isImage(previewDocument) ? (
+                    Télécharger le fichier
+                  </button>
+                </div>
+              ) : isPdf(previewDocument) && previewUrl ? (
+                <PdfJsViewer
+                  source={previewUrl}
+                  fileName={previewDocument.name}
+                  onDownload={() => handleDownloadDocument(previewDocument)}
+                />
+              ) : isImage(previewDocument) && previewUrl ? (
                 <img src={previewUrl} alt={previewDocument.name} className="max-w-full max-h-full mx-auto object-contain rounded-xl" />
               ) : (
                 <div className="text-center space-y-4 text-slate-600">
@@ -306,10 +629,10 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                   <p className="font-semibold">Aperçu non disponible pour ce type de fichier.</p>
                   <button
                     type="button"
-                    onClick={() => handleOpenDocument(previewDocument)}
+                    onClick={() => handleDownloadDocument(previewDocument)}
                     className="px-5 py-3 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold"
                   >
-                    Ouvrir le fichier
+                    Télécharger le fichier
                   </button>
                 </div>
               )}

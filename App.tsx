@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { CATEGORIES, DEPARTMENTS, INITIAL_CONFIG } from './constants';
 import {
@@ -67,6 +67,16 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [wishingBirthdayForId, setWishingBirthdayForId] = useState<string | undefined>(undefined);
 
+  // Protection contre les rafraîchissements simultanés et les rafales Realtime.
+  const dataFetchInFlightRef = useRef<Promise<void> | null>(null);
+  const lastFullFetchAtRef = useRef(0);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const currentUserRef = useRef<User | null>(null);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   const addToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     const id = Math.random().toString(36).substr(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
@@ -74,6 +84,16 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    try {
+      const cachedProfiles = localStorage.getItem('star_community_profiles_cache');
+      if (cachedProfiles) {
+        const parsedProfiles = JSON.parse(cachedProfiles);
+        if (Array.isArray(parsedProfiles)) setUsers(parsedProfiles);
+      }
+    } catch {
+      localStorage.removeItem('star_community_profiles_cache');
+    }
+
     if (!supabase) {
       setIsLoading(false);
       return;
@@ -139,10 +159,22 @@ const App: React.FC = () => {
     return null;
   };
 
-  const fetchAllData = async () => {
-    if (!supabase || (!session && !currentUser)) return;
+  const fetchAllData = useCallback(async (force = false) => {
+    if (!supabase || (!session && !currentUserRef.current)) return;
 
-    try {
+    const now = Date.now();
+
+    // Évite de relancer exactement le même chargement plusieurs fois en quelques secondes.
+    if (!force && now - lastFullFetchAtRef.current < 15_000) return;
+
+    // Une seule vague de requêtes à la fois.
+    if (dataFetchInFlightRef.current) {
+      await dataFetchInFlightRef.current;
+      return;
+    }
+
+    const request = (async () => {
+      try {
       // Les profils sont chargés séparément avec retry. Une requête annexe lente ou
       // temporairement en erreur ne doit jamais vider/masquer la liste utilisateurs.
       const profilesPromise = fetchProfilesWithRetry();
@@ -168,23 +200,23 @@ const App: React.FC = () => {
         { data: engagementData }
       ] = await Promise.all([
         supabase.from('app_config').select('*').maybeSingle(),
-        supabase.from('posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('events').select('*').order('date', { ascending: true }),
-        supabase.from('ideas').select('*').order('created_at', { ascending: false }),
-        supabase.from('documents').select('*').order('uploaded_at', { ascending: false }),
-        supabase.from('rewards').select('*').order('cost', { ascending: true }),
-        supabase.from('newsletters').select('*').order('published_at', { ascending: false }),
-        supabase.from('comments').select('*'),
-        supabase.from('moods').select('*').order('created_at', { ascending: false }),
-        supabase.from('wellness_contents').select('*').order('created_at', { ascending: false }),
-        supabase.from('wellness_challenges').select('*').order('created_at', { ascending: false }),
-        supabase.from('messages').select('*').order('created_at', { ascending: true }),
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('games').select('*').order('created_at', { ascending: false }),
-        supabase.from('game_predictions').select('*').order('submitted_at', { ascending: false }),
-        supabase.from('polls').select('*').order('created_at', { ascending: false }),
-        supabase.from('celebrations').select('*').order('date', { ascending: false }),
-        supabase.from('engagement_animations').select('*').order('created_at', { ascending: false })
+        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(60),
+        supabase.from('events').select('*').order('date', { ascending: true }).limit(100),
+        supabase.from('ideas').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(100),
+        supabase.from('rewards').select('*').order('cost', { ascending: true }).limit(100),
+        supabase.from('newsletters').select('*').order('published_at', { ascending: false }).limit(30),
+        supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400),
+        supabase.from('moods').select('*').order('created_at', { ascending: false }).limit(120),
+        supabase.from('wellness_contents').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('wellness_challenges').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(250),
+        supabase.from('transactions').select('*').order('date', { ascending: false }).limit(400),
+        supabase.from('games').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('game_predictions').select('*').order('submitted_at', { ascending: false }).limit(500),
+        supabase.from('polls').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('celebrations').select('*').order('date', { ascending: false }).limit(150),
+        supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(100)
       ]);
 
       const profiles = await profilesPromise;
@@ -225,6 +257,11 @@ const App: React.FC = () => {
 
       if (profiles !== null) {
         setUsers(profiles);
+        try {
+          localStorage.setItem('star_community_profiles_cache', JSON.stringify(profiles));
+        } catch {
+          // Le cache local est facultatif.
+        }
       } else {
         console.error('Impossible de rafraîchir les profils après plusieurs tentatives : conservation de la liste déjà affichée.');
       }
@@ -252,7 +289,11 @@ const App: React.FC = () => {
       if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
       if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
       if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
-      if (messagesData) setMessages(messagesData.map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at })));
+      if (messagesData) setMessages(
+        [...messagesData]
+          .reverse()
+          .map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at }))
+      );
       if (transData) setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
       if (gamesData) setGames(gamesData.map((g: any) => ({
         ...g,
@@ -324,68 +365,95 @@ const App: React.FC = () => {
         winnerIds: a.winner_ids || [],
         createdAt: a.created_at
       })));
-    } catch (err) {
-      console.error("Erreur chargement données:", err);
+      lastFullFetchAtRef.current = Date.now();
+      } catch (err) {
+        console.error("Erreur chargement données:", err);
+      }
+    })();
+
+    dataFetchInFlightRef.current = request;
+
+    try {
+      await request;
+    } finally {
+      dataFetchInFlightRef.current = null;
     }
-  };
+  }, [session]);
+
+  const scheduleRealtimeRefresh = useCallback(() => {
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      realtimeRefreshTimerRef.current = null;
+      void fetchAllData(true);
+    }, 1200);
+  }, [fetchAllData]);
 
   useEffect(() => {
     if (session || currentUser) {
-      fetchAllData();
+      void fetchAllData(true);
 
       const dataChannel = supabase.channel('global-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
           if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
             addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => scheduleRealtimeRefresh())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
             addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefresh())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
           if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => fetchAllData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => fetchAllData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefresh())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
           if (currentUser && currentUser.notification_settings?.posts) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
             addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
           }
-          fetchAllData();
+          scheduleRealtimeRefresh();
         })
         .subscribe();
 
-      return () => { supabase.removeChannel(dataChannel); };
+      return () => {
+        supabase.removeChannel(dataChannel);
+        if (realtimeRefreshTimerRef.current) {
+          window.clearTimeout(realtimeRefreshTimerRef.current);
+          realtimeRefreshTimerRef.current = null;
+        }
+      };
     }
-  }, [session, currentUser]);
+  }, [session, currentUser?.id, scheduleRealtimeRefresh]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -492,7 +560,6 @@ const App: React.FC = () => {
       } as User);
 
       addToast("Connexion réussie !");
-      fetchAllData();
     } catch (err) {
       console.error(err);
       setLoginError("Erreur de connexion.");
@@ -520,7 +587,7 @@ const App: React.FC = () => {
       attachments: p.attachments || []
     });
     if (error) addToast("Erreur", "error");
-    else { addToast("Posté !"); fetchAllData(); }
+    else { addToast("Posté !"); void fetchAllData(true); }
   };
 
   const handleAddUser = async (user: User) => {
@@ -540,7 +607,7 @@ const App: React.FC = () => {
       notification_settings: user.notification_settings
     }]);
     if (error) { console.error("Erreur création profil:", error); addToast("Erreur lors de la création de l'utilisateur.", "error"); }
-    else { addToast("Utilisateur ajouté à l'annuaire !"); fetchAllData(); }
+    else { addToast("Utilisateur ajouté à l'annuaire !"); void fetchAllData(true); }
   };
 
   const handleUpdateProfile = async (u: User) => {
@@ -559,7 +626,7 @@ const App: React.FC = () => {
       notification_settings: u.notification_settings
     }).eq('id', u.id);
 
-    if (!error) { addToast("Profil mis à jour."); fetchAllData(); fetchUserProfile(u.id); }
+    if (!error) { addToast("Profil mis à jour."); void fetchAllData(true); fetchUserProfile(u.id); }
     else { console.error("Erreur update profil:", error); addToast("Erreur mise à jour.", "error"); }
   };
 
@@ -775,25 +842,25 @@ const App: React.FC = () => {
                 published_at: new Date().toISOString()
               });
               if (error) { console.error("Erreur insertion newsletter:", error); addToast("Erreur lors de la publication.", "error"); }
-              else { addToast("Newsletter publiée."); fetchAllData(); }
+              else { addToast("Newsletter publiée."); void fetchAllData(true); }
             }}
-            onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); fetchAllData(); }}
-            onUpdateRole={async (uid, r) => { await supabase.from('profiles').update({ role: r }).eq('id', uid); fetchAllData(); }}
+            onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); void fetchAllData(true); }}
+            onUpdateRole={async (uid, r) => { await supabase.from('profiles').update({ role: r }).eq('id', uid); void fetchAllData(true); }}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateProfile}
-            onDeleteUser={async (uid) => { await supabase.from('profiles').delete().eq('id', uid); fetchAllData(); }}
+            onDeleteUser={async (uid) => { await supabase.from('profiles').delete().eq('id', uid); void fetchAllData(true); }}
             posts={posts}
-            onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); fetchAllData(); }}
+            onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchAllData(true); }}
             ideas={ideas}
-            onUpdateIdeaStatus={async (id, s) => { await supabase.from('ideas').update({ status: s }).eq('id', id); addToast("Statut mis à jour."); fetchAllData(); }}
+            onUpdateIdeaStatus={async (id, s) => { await supabase.from('ideas').update({ status: s }).eq('id', id); addToast("Statut mis à jour."); void fetchAllData(true); }}
             moods={moods}
             wellnessContents={wellnessContents}
-            onAddWellnessContent={async (c) => { await supabase.from('wellness_contents').insert({ type: c.type, title: c.title, summary: c.summary, content: c.content, category: c.category, author: c.author, duration: c.duration, media_url: c.mediaUrl }); addToast("Contenu publié."); fetchAllData(); }}
-            onDeleteWellnessContent={async (id) => { await supabase.from('wellness_contents').delete().eq('id', id); fetchAllData(); }}
+            onAddWellnessContent={async (c) => { await supabase.from('wellness_contents').insert({ type: c.type, title: c.title, summary: c.summary, content: c.content, category: c.category, author: c.author, duration: c.duration, media_url: c.mediaUrl }); addToast("Contenu publié."); void fetchAllData(true); }}
+            onDeleteWellnessContent={async (id) => { await supabase.from('wellness_contents').delete().eq('id', id); void fetchAllData(true); }}
             wellnessChallenges={wellnessChallenges}
-            onAddWellnessChallenge={async (c) => { await supabase.from('wellness_challenges').insert({ title: c.title, description: c.description, points: c.points, is_active: false }); addToast("Défi créé."); fetchAllData(); }}
-            onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); fetchAllData(); }}
-            onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); if (c) { await supabase.from('wellness_challenges').update({ is_active: !c.isActive }).eq('id', id); fetchAllData(); } }}
+            onAddWellnessChallenge={async (c) => { await supabase.from('wellness_challenges').insert({ title: c.title, description: c.description, points: c.points, is_active: false }); addToast("Défi créé."); void fetchAllData(true); }}
+            onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); void fetchAllData(true); }}
+            onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); if (c) { await supabase.from('wellness_challenges').update({ is_active: !c.isActive }).eq('id', id); void fetchAllData(true); } }}
             onAddGame={async (g) => {
               await supabase.from('games').insert({
                 title: g.title,
@@ -817,11 +884,11 @@ const App: React.FC = () => {
                 outcome_points: g.outcomePoints ?? 5
               });
               addToast("Jeu ajouté !");
-              fetchAllData();
+              void fetchAllData(true);
             }}
-            onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); fetchAllData(); }}
-            onToggleGameStatus={async (id) => { const g = games.find(x => x.id === id); if (g) { await supabase.from('games').update({ status: g.status === 'Actif' ? 'Inactif' : 'Actif' }).eq('id', id); fetchAllData(); } }}
-            onSetGameResult={async (id, r) => { await supabase.from('games').update({ result: r, is_processed: true }).eq('id', id); fetchAllData(); }}
+            onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); void fetchAllData(true); }}
+            onToggleGameStatus={async (id) => { const g = games.find(x => x.id === id); if (g) { await supabase.from('games').update({ status: g.status === 'Actif' ? 'Inactif' : 'Actif' }).eq('id', id); void fetchAllData(true); } }}
+            onSetGameResult={async (id, r) => { await supabase.from('games').update({ result: r, is_processed: true }).eq('id', id); void fetchAllData(true); }}
             onUpdateSportResult={async (gameId, fixtureId, homeScore, awayScore) => {
               const game = games.find(g => g.id === gameId);
               if (!game) return;
@@ -846,12 +913,12 @@ const App: React.FC = () => {
                 }
               }
               addToast('Résultat validé et points calculés.');
-              fetchAllData();
+              void fetchAllData(true);
             }}
             predictions={predictions}
             rewards={rewards}
-            onAddReward={async (r) => { await supabase.from('rewards').insert(r); addToast("Récompense ajoutée !"); fetchAllData(); }}
-            onDeleteReward={async (id) => { await supabase.from('rewards').delete().eq('id', id); fetchAllData(); }}
+            onAddReward={async (r) => { await supabase.from('rewards').insert(r); addToast("Récompense ajoutée !"); void fetchAllData(true); }}
+            onDeleteReward={async (id) => { await supabase.from('rewards').delete().eq('id', id); void fetchAllData(true); }}
             currentUser={currentUser}
             appConfig={appConfig}
             onUpdateConfig={async (cfg) => {
@@ -885,12 +952,12 @@ const App: React.FC = () => {
                 winner_ids: []
               });
               if (error) addToast(`Erreur : ${error.message}`, 'error');
-              else { addToast('Animation publiée.'); fetchAllData(); }
+              else { addToast('Animation publiée.'); void fetchAllData(true); }
             }}
             onDeleteEngagementAnimation={async (id) => {
               const { error } = await supabase.from('engagement_animations').delete().eq('id', id);
               if (error) addToast(`Erreur : ${error.message}`, 'error');
-              else { addToast('Animation supprimée.'); fetchAllData(); }
+              else { addToast('Animation supprimée.'); void fetchAllData(true); }
             }}
             onDrawEngagementWinner={async (animation) => {
               const participants = animation.participants || [];
@@ -900,7 +967,7 @@ const App: React.FC = () => {
               const winnerIds = shuffled.slice(0, Math.min(winnerCount, shuffled.length));
               const { error } = await supabase.from('engagement_animations').update({ winner_ids: winnerIds, status: 'closed' }).eq('id', animation.id);
               if (error) addToast(`Erreur : ${error.message}`, 'error');
-              else { addToast(`${winnerIds.length} gagnant(s) tiré(s) au sort.`); fetchAllData(); }
+              else { addToast(`${winnerIds.length} gagnant(s) tiré(s) au sort.`); void fetchAllData(true); }
             }}
             transactions={transactions}
           />
@@ -916,7 +983,7 @@ const App: React.FC = () => {
             messages={messages}
             onSendMessage={async (rid, text, att) => {
               await supabase.from('messages').insert({ sender_id: currentUser.id, receiver_id: rid, text, attachments: att || [] });
-              fetchAllData();
+              void fetchAllData(true);
             }}
           />
         );
@@ -937,17 +1004,17 @@ const App: React.FC = () => {
                 votes: [currentUser.id]
               });
               if (error) addToast("Erreur", "error");
-              else { addToast("Idée soumise !"); fetchAllData(); }
+              else { addToast("Idée soumise !"); void fetchAllData(true); }
             }}
             onToggleVote={async (id) => {
               const idea = ideas.find(i => i.id === id);
               if (!idea || !supabase) return;
               const nextVotes = idea.votes.includes(currentUser.id) ? idea.votes.filter(v => v !== currentUser.id) : [...idea.votes, currentUser.id];
               await supabase.from('ideas').update({ votes: nextVotes }).eq('id', id);
-              fetchAllData();
+              void fetchAllData(true);
             }}
-            onUpdateStatus={async (id, s) => { if (supabase) await supabase.from('ideas').update({ status: s }).eq('id', id); fetchAllData(); }}
-            onAddComment={async (id, text) => { if (supabase) await supabase.from('comments').insert({ idea_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text }); fetchAllData(); }}
+            onUpdateStatus={async (id, s) => { if (supabase) await supabase.from('ideas').update({ status: s }).eq('id', id); void fetchAllData(true); }}
+            onAddComment={async (id, text) => { if (supabase) await supabase.from('comments').insert({ idea_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text }); void fetchAllData(true); }}
           />
         );
 
@@ -959,9 +1026,9 @@ const App: React.FC = () => {
             categories={appConfig.documentCategories || []}
             onUpload={async (n, t, s, c, d) => {
               if (supabase) await supabase.from('documents').insert({ name: n, type: t, size: s, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d });
-              fetchAllData();
+              void fetchAllData(true);
             }}
-            onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); fetchAllData(); }}
+            onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); void fetchAllData(true); }}
           />
         );
 
@@ -984,7 +1051,7 @@ const App: React.FC = () => {
                   responses: []
                 });
                 if (error) { console.error("Erreur insertion poll:", error.message || error); addToast(`Erreur lors de la création : ${error.message || ''}`, "error"); }
-                else { addToast("Sondage publié !"); fetchAllData(); }
+                else { addToast("Sondage publié !"); void fetchAllData(true); }
               }
             }}
             onVote={async (pollId, response) => {
@@ -994,11 +1061,11 @@ const App: React.FC = () => {
                   const nextResponses = [...poll.responses, response];
                   const { error } = await supabase.from('polls').update({ responses: nextResponses }).eq('id', pollId);
                   if (error) addToast("Erreur lors du vote", "error");
-                  else fetchAllData();
+                  else void fetchAllData(true);
                 }
               }
             }}
-            onDeletePoll={async (id) => { if (supabase) { await supabase.from('polls').delete().eq('id', id); addToast("Sondage supprimé."); fetchAllData(); } }}
+            onDeletePoll={async (id) => { if (supabase) { await supabase.from('polls').delete().eq('id', id); addToast("Sondage supprimé."); void fetchAllData(true); } }}
           />
         );
 
@@ -1012,9 +1079,9 @@ const App: React.FC = () => {
               if (!ev || !supabase) return;
               const next = ev.attendees.includes(currentUser.id) ? ev.attendees.filter(a => a !== currentUser.id) : [...ev.attendees, currentUser.id];
               await supabase.from('events').update({ attendees: next }).eq('id', id);
-              fetchAllData();
+              void fetchAllData(true);
             }}
-            onDeleteEvent={async (id) => { if (supabase) await supabase.from('events').delete().eq('id', id); fetchAllData(); }}
+            onDeleteEvent={async (id) => { if (supabase) await supabase.from('events').delete().eq('id', id); void fetchAllData(true); }}
             onOpenCreateModal={() => setIsEventModalOpen(true)}
           />
         );
@@ -1024,7 +1091,7 @@ const App: React.FC = () => {
           <MoodView
             currentUser={currentUser}
             moods={moods}
-            onAddMood={async (v, c) => { if (supabase) { await supabase.from('moods').insert({ user_id: currentUser.id, value: v, comment: c, department: currentUser.department }); fetchAllData(); } }}
+            onAddMood={async (v, c) => { if (supabase) { await supabase.from('moods').insert({ user_id: currentUser.id, value: v, comment: c, department: currentUser.department }); void fetchAllData(true); } }}
           />
         );
 
@@ -1046,7 +1113,7 @@ const App: React.FC = () => {
                 await supabase.from('game_predictions').insert({ user_id: currentUser.id, game_id: gameId, choice: payload });
               }
               addToast('Pronostic enregistré !');
-              fetchAllData();
+              void fetchAllData(true);
             }}
             onEarnPoints={async (uid, a, r) => {
               const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
@@ -1054,7 +1121,7 @@ const App: React.FC = () => {
               await supabase.from('profiles').update({ points: newPts }).eq('id', uid);
               await supabase.from('transactions').insert({ user_id: uid, amount: a, reason: r, type: 'earn' });
               fetchUserProfile(uid);
-              fetchAllData();
+              void fetchAllData(true);
             }}
           />
         );
@@ -1078,13 +1145,13 @@ const App: React.FC = () => {
             if (existing?.id) await supabase.from('game_predictions').update({ choice: payload, submitted_at: new Date().toISOString() }).eq('id', existing.id);
             else await supabase.from('game_predictions').insert({ user_id: currentUser.id, game_id: gameId, choice: payload });
             addToast('Pronostic enregistré !');
-            fetchAllData();
+            void fetchAllData(true);
           }}
           onEarnPoints={async (uid, amount, reason) => {
             const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
             await supabase.from('profiles').update({ points: (data?.points || 0) + amount }).eq('id', uid);
             await supabase.from('transactions').insert({ user_id: uid, amount, reason, type: 'earn' });
-            fetchUserProfile(uid); fetchAllData();
+            fetchUserProfile(uid); void fetchAllData(true);
           }}
           onJoinAnimation={async (animation) => {
             if ((animation.participants || []).includes(currentUser.id)) return;
@@ -1099,7 +1166,7 @@ const App: React.FC = () => {
               await supabase.from('transactions').insert({ user_id: currentUser.id, amount: cost, reason: `Ticket : ${animation.title}`, type: 'spend' });
               await fetchUserProfile(currentUser.id);
             }
-            addToast('Participation enregistrée.'); fetchAllData();
+            addToast('Participation enregistrée.'); void fetchAllData(true);
           }}
           onOpenAdventDay={async (animation, dayNumber, outcome = {}) => {
             const days = Array.isArray(animation.config?.days) ? animation.config.days : [];
@@ -1139,7 +1206,7 @@ const App: React.FC = () => {
             if ((day.type === 'quiz' || day.type === 'mystery') && !isCorrect) addToast('Réponse enregistrée, mais ce n’est pas la bonne réponse.', 'info');
             else if (day.type === 'instant' && !isInstantWinner) addToast('Pas gagné cette fois, mais la case est validée.', 'info');
             else addToast(earned > 0 ? `Case ouverte : +${earned} points !` : 'Case ouverte !');
-            fetchAllData();
+            void fetchAllData(true);
           }}
         />;
 
@@ -1157,7 +1224,7 @@ const App: React.FC = () => {
                 await supabase.from('rewards').update({ stock: Math.max(0, rew.stock - 1) }).eq('id', rid);
                 addToast("Récompense réclamée !");
                 fetchUserProfile(currentUser.id);
-                fetchAllData();
+                void fetchAllData(true);
               }
             }}
             transactions={transactions}
@@ -1184,7 +1251,7 @@ const App: React.FC = () => {
                   likes: []
                 });
                 if (error) { console.error("Erreur insertion célébration:", error); addToast("Erreur lors de la publication.", "error"); }
-                else { addToast("Célébration publiée !"); fetchAllData(); }
+                else { addToast("Célébration publiée !"); void fetchAllData(true); }
               }
             }}
             onLikeCelebration={async (id) => {
@@ -1192,9 +1259,9 @@ const App: React.FC = () => {
               if (!cel || !supabase) return;
               const next = (cel.likes || []).includes(currentUser.id) ? (cel.likes || []).filter(v => v !== currentUser.id) : [...(cel.likes || []), currentUser.id];
               await supabase.from('celebrations').update({ likes: next }).eq('id', id);
-              fetchAllData();
+              void fetchAllData(true);
             }}
-            onDeleteCelebration={async (id) => { if (supabase) await supabase.from('celebrations').delete().eq('id', id); fetchAllData(); }}
+            onDeleteCelebration={async (id) => { if (supabase) await supabase.from('celebrations').delete().eq('id', id); void fetchAllData(true); }}
             preSelectedUserId={wishingBirthdayForId}
           />
         );
@@ -1213,12 +1280,12 @@ const App: React.FC = () => {
                   post={post}
                   currentUserId={currentUser.id}
                   currentUserRole={currentUser.role}
-                  onDelete={async (id) => { if (supabase) await supabase.from('posts').delete().eq('id', id); fetchAllData(); }}
+                  onDelete={async (id) => { if (supabase) await supabase.from('posts').delete().eq('id', id); void fetchAllData(true); }}
                   onLike={async (id) => {
                     const p = posts.find(x => x.id === id);
-                    if (supabase) { await supabase.from('posts').update({ likes: (p?.likes || 0) + 1 }).eq('id', id); fetchAllData(); }
+                    if (supabase) { await supabase.from('posts').update({ likes: (p?.likes || 0) + 1 }).eq('id', id); void fetchAllData(true); }
                   }}
-                  onAddComment={async (id, text) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text }); fetchAllData(); } }}
+                  onAddComment={async (id, text) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text }); void fetchAllData(true); } }}
                 />
               ))}
             </div>
@@ -1354,7 +1421,7 @@ const App: React.FC = () => {
                   } else {
                     setIsEventModalOpen(false);
                     addToast("Événement créé avec succès !");
-                    fetchAllData();
+                    void fetchAllData(true);
                   }
                 }
               }}
