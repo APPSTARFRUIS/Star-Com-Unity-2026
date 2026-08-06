@@ -42,6 +42,7 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   const [selectedDay, setSelectedDay] = useState<any | null>(null);
   const [answer, setAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openingError, setOpeningError] = useState('');
   const [recentOpenings, setRecentOpenings] = useState<AdventOpening[]>([]);
 
   useEffect(() => {
@@ -104,12 +105,14 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   };
 
   const submitDay = async () => {
-    if (!openedAdvent || !selectedDay) return;
+    if (!openedAdvent || !selectedDay || isSubmitting) return;
 
     const existingOpening = getOpening(openedAdvent.id, selectedDay.day);
     if (existingOpening) return;
 
+    setOpeningError('');
     setIsSubmitting(true);
+
     try {
       const outcome: AdventOutcome = {};
       if (selectedDay.type === 'quiz' || selectedDay.type === 'mystery') {
@@ -117,12 +120,20 @@ const EngagementView: React.FC<EngagementViewProps> = ({
       }
 
       const opening = await onOpenAdventDay(openedAdvent, selectedDay.day, outcome);
+
       if (opening) {
         setRecentOpenings(previous => [
           ...previous.filter(item => !(item.animationId === opening.animationId && item.dayNumber === opening.dayNumber)),
           opening
         ]);
+      } else {
+        setOpeningError(
+          'La case n’a pas pu être ouverte. Vérifiez que la migration Supabase du calendrier a bien été exécutée.'
+        );
       }
+    } catch (error: any) {
+      console.error('Erreur ouverture case :', error);
+      setOpeningError(error?.message || 'Une erreur empêche l’ouverture de la case.');
     } finally {
       setIsSubmitting(false);
     }
@@ -214,7 +225,7 @@ const EngagementView: React.FC<EngagementViewProps> = ({
           <div className="p-6 md:p-8">
             <div className="flex justify-between items-start">
               <div className="text-5xl">{adventIcons[selectedDay.type] || '🎁'}</div>
-              <button onClick={() => { setSelectedDay(null); setAnswer(''); }} className="text-2xl">×</button>
+              <button onClick={() => { setSelectedDay(null); setAnswer(''); setOpeningError(''); }} className="text-2xl">×</button>
             </div>
 
             {opening ? renderOpenedDayContent(selectedDay, opening) : (
@@ -244,7 +255,14 @@ const EngagementView: React.FC<EngagementViewProps> = ({
                   </div>
                 )}
 
+                {openingError && (
+                  <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    {openingError}
+                  </div>
+                )}
+
                 <button
+                  type="button"
                   onClick={submitDay}
                   disabled={isSubmitting || (requiresAnswer && !answer.trim())}
                   className="mt-6 w-full py-4 rounded-xl bg-purple-600 text-white font-black disabled:opacity-50"

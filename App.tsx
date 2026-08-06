@@ -1606,41 +1606,142 @@ const App: React.FC = () => {
             addToast('Participation enregistrée.'); void fetchViewData(currentViewRef.current, true);
           }}
           onOpenAdventDay={async (animation, dayNumber, outcome = {}) => {
-            const { data, error } = await supabase.rpc('open_advent_day', {
-              p_animation_id: animation.id,
-              p_user_id: currentUser.id,
-              p_day_number: Number(dayNumber),
-              p_answer: outcome.answer || null
-            });
+            const day = (animation.config?.days || []).find(
+              (item: any) => Number(item.day) === Number(dayNumber)
+            );
 
-            if (error) {
-              if (error.code === '23505' || error.message?.toLowerCase().includes('déjà')) {
-                addToast('Cette case a déjà été ouverte avec votre compte.', 'info');
-              } else {
-                addToast(`Erreur : ${error.message}`, 'error');
-              }
+            if (!day) {
+              addToast('Cette case est introuvable dans le calendrier.', 'error');
               return null;
             }
 
-            const result = Array.isArray(data) ? data[0] : data;
-            if (!result) {
-              addToast('Impossible d’ouvrir cette case.', 'error');
-              return null;
-            }
-
-            const opening: AdventOpening = {
-              id: result.opening_id,
+            const buildOpening = (result: any): AdventOpening => ({
+              id: result.opening_id || result.id,
               animationId: animation.id,
               userId: currentUser.id,
               dayNumber: Number(dayNumber),
               outcome: result.outcome || {},
-              pointsAwarded: Number(result.points_awarded || 0),
-              openedAt: result.opened_at || new Date().toISOString()
+              pointsAwarded: Number(result.points_awarded ?? result.pointsAwarded ?? 0),
+              openedAt: result.opened_at || result.openedAt || new Date().toISOString()
+            });
+
+            const registerOpeningLocally = async (): Promise<AdventOpening | null> => {
+              const dayType = day.type || 'gift';
+              const receivedAnswer = String(outcome.answer || '').trim();
+              const expectedAnswer = String(day.correctAnswer || '').trim();
+
+              let calculatedOutcome: Record<string, any> = { opened: true };
+              let pointsAwarded = Math.max(Number(day.rewardPoints || 0), 0);
+
+              if (dayType === 'quiz' || dayType === 'mystery') {
+                const isCorrect =
+                  expectedAnswer.length > 0 &&
+                  expectedAnswer.localeCompare(receivedAnswer, undefined, { sensitivity: 'accent' }) === 0;
+
+                calculatedOutcome = { isCorrect, answer: receivedAnswer };
+                if (!isCorrect) pointsAwarded = 0;
+              }
+
+              if (dayType === 'instant') {
+                const probability = Math.min(Math.max(Number(day.winProbability || 0), 0), 100);
+                const instantWin = Math.random() * 100 < probability;
+                calculatedOutcome = { instantWin };
+                if (!instantWin) pointsAwarded = 0;
+              }
+
+              const openingPayload = {
+                animation_id: animation.id,
+                user_id: currentUser.id,
+                day_number: Number(dayNumber),
+                outcome: calculatedOutcome,
+                points_awarded: pointsAwarded
+              };
+
+              const { data: insertedOpening, error: insertError } = await supabase
+                .from('advent_openings')
+                .insert(openingPayload)
+                .select('*')
+                .single();
+
+              if (insertError) {
+                const duplicate =
+                  insertError.code === '23505' ||
+                  insertError.message?.toLowerCase().includes('duplicate') ||
+                  insertError.message?.toLowerCase().includes('unique');
+
+                if (duplicate) {
+                  addToast('Cette case a déjà été ouverte avec votre compte.', 'info');
+                } else {
+                  addToast(`Impossible d’ouvrir la case : ${insertError.message}`, 'error');
+                }
+                return null;
+              }
+
+              if (pointsAwarded > 0) {
+                const newPoints = Number(currentUser.points || 0) + pointsAwarded;
+
+                const [{ error: profileError }, { error: transactionError }] = await Promise.all([
+                  supabase.from('profiles').update({ points: newPoints }).eq('id', currentUser.id),
+                  supabase.from('transactions').insert({
+                    user_id: currentUser.id,
+                    amount: pointsAwarded,
+                    reason: `Calendrier de l’Avent · jour ${dayNumber} : ${animation.title}`,
+                    type: 'earn',
+                    date: new Date().toISOString()
+                  })
+                ]);
+
+                if (profileError) console.error('Mise à jour des points impossible :', profileError);
+                if (transactionError) console.error('Historique des points impossible :', transactionError);
+              }
+
+              return buildOpening(insertedOpening);
             };
+
+            let opening: AdventOpening | null = null;
+
+            try {
+              const { data, error } = await supabase.rpc('open_advent_day', {
+                p_animation_id: animation.id,
+                p_user_id: currentUser.id,
+                p_day_number: Number(dayNumber),
+                p_answer: outcome.answer || null
+              });
+
+              if (!error) {
+                const result = Array.isArray(data) ? data[0] : data;
+                if (result) opening = buildOpening(result);
+              } else {
+                const duplicate =
+                  error.code === '23505' ||
+                  error.message?.toLowerCase().includes('déjà') ||
+                  error.message?.toLowerCase().includes('duplicate');
+
+                if (duplicate) {
+                  addToast('Cette case a déjà été ouverte avec votre compte.', 'info');
+                  return null;
+                }
+
+                // Certaines anciennes bases n'ont pas encore la bonne signature RPC.
+                // Le fallback direct conserve alors l'ouverture unique grâce à la contrainte SQL.
+                console.warn('RPC open_advent_day indisponible, fallback direct :', error);
+                opening = await registerOpeningLocally();
+              }
+            } catch (rpcException) {
+              console.warn('Erreur réseau RPC, fallback direct :', rpcException);
+              opening = await registerOpeningLocally();
+            }
+
+            if (!opening) {
+              addToast('La case n’a pas pu être ouverte. Vérifiez la migration Supabase.', 'error');
+              return null;
+            }
 
             setAdventOpenings(previous => [
               opening,
-              ...previous.filter(item => !(item.animationId === opening.animationId && item.dayNumber === opening.dayNumber))
+              ...previous.filter(item =>
+                !(item.animationId === opening!.animationId && item.dayNumber === opening!.dayNumber)
+              )
             ]);
 
             if (opening.pointsAwarded > 0) {
