@@ -119,6 +119,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const userAvatarRef = useRef<HTMLInputElement>(null);
 
   const handleOpenUserModal = (user?: User) => {
+    setUserFormError('');
+    setIsSavingUser(false);
+
     if (user) {
       setEditingUser(user);
       setUserForm({ ...user, password: '' });
@@ -136,6 +139,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       });
     }
     setShowUserModal(true);
+  };
+
+  const updateUserFormField = (patch: Partial<User>) => {
+    setUserFormError('');
+    setUserForm(previous => ({ ...previous, ...patch }));
   };
 
   const handleSubmitUser = async (e: React.FormEvent) => {
@@ -580,7 +588,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             ref={userAvatarRef} 
                             className="hidden" 
                             accept="image/*" 
-                            onChange={(e) => handleFileUpload(e, (data) => setUserForm({ ...userForm, avatar: data }), 'profiles')} 
+                            onChange={(e) => handleFileUpload(e, (data) => updateUserFormField({ avatar: data  }), 'profiles')} 
                           />
                           <button 
                             type="button" 
@@ -607,7 +615,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              placeholder="Nom de l'employé" 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all" 
                              value={userForm.name || ''} 
-                             onChange={e => setUserForm({ ...userForm, name: e.target.value })} 
+                             onChange={e => updateUserFormField({ name: e.target.value  })} 
                            />
                         </div>
                         <div className="space-y-1">
@@ -618,7 +626,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              placeholder="email@star-fruits.com" 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all" 
                              value={userForm.email || ''} 
-                             onChange={e => setUserForm({ ...userForm, email: e.target.value })} 
+                             onChange={e => updateUserFormField({ email: e.target.value  })} 
                            />
                         </div>
                      </div>
@@ -635,7 +643,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              placeholder={editingUser ? 'Laisser vide pour ne pas le modifier' : 'Minimum 6 caractères'} 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all" 
                              value={userForm.password || ''} 
-                             onChange={e => setUserForm({ ...userForm, password: e.target.value })} 
+                             onChange={e => updateUserFormField({ password: e.target.value  })} 
                            />
                         </div>
                         <div className="space-y-1">
@@ -643,7 +651,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <select 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none" 
                              value={userForm.role || UserRole.USER} 
-                             onChange={e => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                             onChange={e => updateUserFormField({ role: e.target.value as UserRole  })}
                            >
                               {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
                            </select>
@@ -656,7 +664,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <select 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none" 
                              value={userForm.company || ''} 
-                             onChange={e => setUserForm({ ...userForm, company: e.target.value })}
+                             onChange={e => updateUserFormField({ company: e.target.value  })}
                            >
                               {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
                            </select>
@@ -666,7 +674,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <select 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none" 
                              value={userForm.department || ''} 
-                             onChange={e => setUserForm({ ...userForm, department: e.target.value })}
+                             onChange={e => updateUserFormField({ department: e.target.value  })}
                            >
                               {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                            </select>
@@ -680,7 +688,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              type="number" 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-black text-green-600 focus:ring-2 focus:ring-purple-500 outline-none transition-all" 
                              value={userForm.points || 0} 
-                             onChange={e => setUserForm({ ...userForm, points: parseInt(e.target.value) || 0 })} 
+                             onChange={e => updateUserFormField({ points: parseInt(e.target.value) || 0  })} 
                            />
                         </div>
                      </div>
@@ -692,7 +700,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                      )}
 
                      <div className="flex gap-4 pt-6 border-t border-slate-100">
-                        <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-4 font-bold text-slate-500 hover:text-slate-700 transition-all">Annuler</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowUserModal(false);
+                            setUserFormError('');
+                            setIsSavingUser(false);
+                          }}
+                          className="flex-1 py-4 font-bold text-slate-500 hover:text-slate-700 transition-all"
+                        >
+                          Annuler
+                        </button>
                         <button
                           type="submit"
                           disabled={isSavingUser}
