@@ -167,7 +167,7 @@ export default async function handler(request, response) {
       points: Number(incomingUser.points || 0),
       phone: incomingUser.phone ? String(incomingUser.phone).slice(0, 80) : null,
       job_function: incomingUser.job_function ? String(incomingUser.job_function).slice(0, 160) : null,
-      notification_settings: incomingUser.notification_settings || null
+      notification_settings: null
     };
 
     if (action === 'create') {
@@ -188,7 +188,7 @@ export default async function handler(request, response) {
           email_confirm: true,
           user_metadata: {
             name: baseProfilePayload.name,
-            avatar: safeAvatar || ''
+            avatar: ''
           }
         });
 
@@ -204,7 +204,7 @@ export default async function handler(request, response) {
           user_metadata: {
             profile_id: profileId,
             name: baseProfilePayload.name,
-            avatar: safeAvatar || ''
+            avatar: ''
           }
         }
       );
@@ -216,7 +216,7 @@ export default async function handler(request, response) {
         .insert({
           id: profileId,
           ...baseProfilePayload,
-          avatar: safeAvatar || ''
+          avatar: ''
         });
 
       if (profileError) {
@@ -281,7 +281,7 @@ export default async function handler(request, response) {
             ...(authUser.user_metadata || {}),
             profile_id: requestedProfileId,
             name: baseProfilePayload.name,
-            avatar: safeAvatar || ''
+            avatar: ''
           }
         };
 
@@ -297,7 +297,8 @@ export default async function handler(request, response) {
         .from('profiles')
         .update({
           ...baseProfilePayload,
-          avatar: safeAvatar || previousProfile.avatar || ''
+          avatar: previousProfile.avatar || '',
+          notification_settings: previousProfile.notification_settings || null
         })
         .eq('id', requestedProfileId);
 

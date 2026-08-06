@@ -1163,22 +1163,17 @@ const App: React.FC = () => {
   };
 
   const sanitizeUserForAdminApi = (user: User) => ({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    password: user.password || undefined,
+    id: String(user.id || '').slice(0, 160),
+    email: String(user.email || '').trim().toLowerCase().slice(0, 320),
+    name: String(user.name || '').trim().slice(0, 160),
+    password: user.password ? String(user.password).slice(0, 128) : undefined,
     role: user.role,
-    avatar:
-      typeof user.avatar === 'string' && user.avatar.startsWith('data:')
-        ? undefined
-        : user.avatar,
-    department: user.department || '',
-    company: user.company || 'Star Fruits',
-    birthday: user.birthday || null,
+    department: String(user.department || '').slice(0, 160),
+    company: String(user.company || 'Star Fruits').slice(0, 160),
+    birthday: user.birthday ? String(user.birthday).slice(0, 20) : null,
     points: Number(user.points || 0),
-    phone: user.phone || null,
-    job_function: user.job_function || null,
-    notification_settings: user.notification_settings || null
+    phone: user.phone ? String(user.phone).slice(0, 80) : null,
+    job_function: user.job_function ? String(user.job_function).slice(0, 160) : null
   });
 
   const callAdminUsers = async (
@@ -1194,17 +1189,26 @@ const App: React.FC = () => {
       throw new Error('Session administrateur introuvable.');
     }
 
+    const requestPayload =
+      action === 'delete'
+        ? { action, userId: String(payload.userId || '').slice(0, 160) }
+        : { action, user: sanitizeUserForAdminApi(payload.user as User) };
+
+    const requestBody = JSON.stringify(requestPayload);
+
+    // Cette requête doit rester minuscule. Si ce garde-fou se déclenche,
+    // aucune donnée lourde ne part vers Vercel.
+    if (new Blob([requestBody]).size > 50_000) {
+      throw new Error('La fiche utilisateur contient encore une donnée anormalement volumineuse.');
+    }
+
     const response = await fetch('/api/admin-users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`
       },
-      body: JSON.stringify(
-        action === 'delete'
-          ? { action, userId: payload.userId }
-          : { action, user: sanitizeUserForAdminApi(payload.user as User) }
-      )
+      body: requestBody
     });
 
     const data = await response.json().catch(() => ({}));
@@ -1225,7 +1229,7 @@ const App: React.FC = () => {
 
   const handleAddUser = async (user: User) => {
     try {
-      await callAdminUsers('create', { user: sanitizeUserForAdminApi(user) as User });
+      await callAdminUsers('create', { user });
       await refreshUsersAfterAdminAction();
       addToast("Utilisateur créé : connexion et profil synchronisés.");
     } catch (error: any) {
@@ -1237,7 +1241,7 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = async (user: User) => {
     try {
-      await callAdminUsers('update', { user: sanitizeUserForAdminApi(user) as User });
+      await callAdminUsers('update', { user });
       await refreshUsersAfterAdminAction();
 
       if (currentUser?.id === user.id) {
