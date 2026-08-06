@@ -149,6 +149,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
+    if (
+      typeof userForm.avatar === 'string' &&
+      userForm.avatar.startsWith('data:') &&
+      userForm.avatar.length > 200_000
+    ) {
+      setUserFormError(
+        'La photo est trop volumineuse. Utilisez une image plus légère ou une URL d’image.'
+      );
+      return;
+    }
+
     setIsSavingUser(true);
 
     try {

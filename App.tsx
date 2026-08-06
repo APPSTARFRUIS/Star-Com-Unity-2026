@@ -1162,6 +1162,25 @@ const App: React.FC = () => {
     else { addToast("Posté !"); void fetchViewData(currentViewRef.current, true); }
   };
 
+  const sanitizeUserForAdminApi = (user: User) => ({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    password: user.password || undefined,
+    role: user.role,
+    avatar:
+      typeof user.avatar === 'string' && user.avatar.startsWith('data:')
+        ? undefined
+        : user.avatar,
+    department: user.department || '',
+    company: user.company || 'Star Fruits',
+    birthday: user.birthday || null,
+    points: Number(user.points || 0),
+    phone: user.phone || null,
+    job_function: user.job_function || null,
+    notification_settings: user.notification_settings || null
+  });
+
   const callAdminUsers = async (
     action: 'create' | 'update' | 'delete',
     payload: Record<string, any>
@@ -1181,7 +1200,11 @@ const App: React.FC = () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`
       },
-      body: JSON.stringify({ action, ...payload })
+      body: JSON.stringify(
+        action === 'delete'
+          ? { action, userId: payload.userId }
+          : { action, user: sanitizeUserForAdminApi(payload.user as User) }
+      )
     });
 
     const data = await response.json().catch(() => ({}));
@@ -1202,7 +1225,7 @@ const App: React.FC = () => {
 
   const handleAddUser = async (user: User) => {
     try {
-      await callAdminUsers('create', { user });
+      await callAdminUsers('create', { user: sanitizeUserForAdminApi(user) as User });
       await refreshUsersAfterAdminAction();
       addToast("Utilisateur créé : connexion et profil synchronisés.");
     } catch (error: any) {
@@ -1214,7 +1237,7 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = async (user: User) => {
     try {
-      await callAdminUsers('update', { user });
+      await callAdminUsers('update', { user: sanitizeUserForAdminApi(user) as User });
       await refreshUsersAfterAdminAction();
 
       if (currentUser?.id === user.id) {

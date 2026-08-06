@@ -147,17 +147,20 @@ export default async function handler(request, response) {
       return response.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' });
     }
 
+    const rawAvatar = String(incomingUser.avatar || '');
+    const safeAvatar = rawAvatar.startsWith('data:') ? '' : rawAvatar.slice(0, 2048);
+
     const profilePayload = {
       email,
-      name: String(incomingUser.name || '').trim(),
+      name: String(incomingUser.name || '').trim().slice(0, 160),
       role: incomingUser.role || 'USER',
-      avatar: incomingUser.avatar || '',
-      department: incomingUser.department || '',
-      company: incomingUser.company || 'Star Fruits',
+      avatar: safeAvatar,
+      department: String(incomingUser.department || '').slice(0, 160),
+      company: String(incomingUser.company || 'Star Fruits').slice(0, 160),
       birthday: incomingUser.birthday || null,
       points: Number(incomingUser.points || 0),
-      phone: incomingUser.phone || null,
-      job_function: incomingUser.job_function || null,
+      phone: incomingUser.phone ? String(incomingUser.phone).slice(0, 80) : null,
+      job_function: incomingUser.job_function ? String(incomingUser.job_function).slice(0, 160) : null,
       notification_settings: incomingUser.notification_settings || null
     };
 
