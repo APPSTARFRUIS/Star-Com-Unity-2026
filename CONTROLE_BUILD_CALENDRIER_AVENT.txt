@@ -1,0 +1,5 @@
+Correctif calendrier de l'Avent basé sur Star-Com-Unity-2026-optimisation-equipe(1).zip
+AdventOpening importé et défini : OK
+openingsResult déclaré avant utilisation : OK
+Ouverture unique par utilisateur/case : OK
+Migration SQL incluse : supabase/advent_openings_migration.sql
