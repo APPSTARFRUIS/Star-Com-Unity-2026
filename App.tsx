@@ -1168,12 +1168,27 @@ const App: React.FC = () => {
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
 
-    const { data, error } = await supabase.functions.invoke('admin-users', {
-      body: { action, ...payload }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (!accessToken) {
+      throw new Error('Session administrateur introuvable.');
+    }
+
+    const response = await fetch('/api/admin-users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ action, ...payload })
     });
 
-    if (error) throw new Error(error.message || 'Erreur du service utilisateurs.');
-    if (data?.error) throw new Error(data.error);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.error) {
+      throw new Error(data?.error || 'Erreur du service utilisateurs.');
+    }
 
     return data;
   };
