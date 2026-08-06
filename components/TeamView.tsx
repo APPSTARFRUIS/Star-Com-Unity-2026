@@ -13,18 +13,30 @@ interface UserCardProps {
   small?: boolean;
 }
 
-const UserCard: React.FC<UserCardProps> = ({ user, small = false }) => {
+const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false }) => {
   const isLeader = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
-  
+  const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name || user.email)}`;
+  const [avatarSrc, setAvatarSrc] = useState(user.avatar || fallbackAvatar);
+
   return (
     <div className={`bg-white rounded-xl border transition-all flex items-center gap-3 ${
       small ? 'w-56 p-3' : 'p-4 shadow-sm hover:shadow-md'
     } ${isLeader ? 'border-green-200 ring-1 ring-green-100' : 'border-slate-200'}`}>
       <div className="relative shrink-0">
-        <img src={user.avatar} className={`${small ? 'w-9 h-9' : 'w-12 h-12'} rounded-full border border-slate-100 object-cover`} alt="" />
+        <img
+          src={avatarSrc}
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+          onError={() => {
+            if (avatarSrc !== fallbackAvatar) setAvatarSrc(fallbackAvatar);
+          }}
+          className={`${small ? 'w-9 h-9' : 'w-12 h-12'} rounded-full border border-slate-100 object-cover bg-slate-100`}
+          alt={user.name}
+        />
         {isLeader && (
           <div className="absolute -top-1 -right-1 bg-green-600 text-white p-0.5 rounded-full shadow-sm" title="Responsable / Admin">
-            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
           </div>
         )}
       </div>
@@ -35,7 +47,9 @@ const UserCard: React.FC<UserCardProps> = ({ user, small = false }) => {
       </div>
     </div>
   );
-};
+});
+
+UserCard.displayName = 'UserCard';
 
 const TeamView: React.FC<TeamViewProps> = ({ users }) => {
   const [activeSubView, setActiveSubView] = useState<TeamSubView>('list');
@@ -139,9 +153,16 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
               </div>
               <div className="p-5 grid grid-cols-1 gap-3">
                 {usersByDept[dept].length > 0 ? (
-                  usersByDept[dept].sort((a,b) => (a.role === UserRole.ADMIN ? -1 : 1)).map(user => (
+                  [...usersByDept[dept]].sort((a,b) => (a.role === UserRole.ADMIN ? -1 : 1)).map(user => (
                     <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-2xl transition-colors group">
-                      <img src={user.avatar} className="w-10 h-10 rounded-full border border-slate-100" alt="" />
+                      <img
+                        src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name || user.email)}`}
+                        loading="lazy"
+                        decoding="async"
+                        fetchPriority="low"
+                        className="w-10 h-10 rounded-full border border-slate-100 object-cover bg-slate-100"
+                        alt={user.name}
+                      />
                       <div>
                         <p className={`text-sm font-bold group-hover:text-green-700 ${user.role === UserRole.ADMIN ? 'text-slate-900' : 'text-slate-600'}`}>
                           {user.name}
@@ -195,7 +216,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
 
                     <div className="space-y-3">
                        {usersByDept[dept].length > 0 ? (
-                         usersByDept[dept]
+                         [...usersByDept[dept]]
                            .sort((a,b) => (a.role === UserRole.ADMIN || a.role === UserRole.MODERATOR ? -1 : 1))
                            .map(user => (
                              <div key={user.id} className="animate-in fade-in slide-in-from-top-2 duration-700" style={{ animationDelay: `${idx * 100}ms` }}>

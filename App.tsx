@@ -94,7 +94,8 @@ const App: React.FC = () => {
     try {
       const cachedProfiles = localStorage.getItem('star_community_profiles_cache');
       if (cachedProfiles) {
-        const parsedProfiles = JSON.parse(cachedProfiles);
+        const parsedCache = JSON.parse(cachedProfiles);
+        const parsedProfiles = Array.isArray(parsedCache) ? parsedCache : parsedCache?.data;
         if (Array.isArray(parsedProfiles)) setUsers(parsedProfiles);
       }
     } catch {
@@ -146,24 +147,55 @@ const App: React.FC = () => {
     setIsLoading(false);
   };
 
+  const cacheProfiles = (profiles: User[]) => {
+    setUsers(profiles);
+
+    try {
+      localStorage.setItem(
+        'star_community_profiles_cache',
+        JSON.stringify({ data: profiles, cachedAt: Date.now() })
+      );
+    } catch {
+      // Le cache local reste facultatif.
+    }
+  };
+
+  const getCachedProfiles = (): User[] | null => {
+    try {
+      const cached = localStorage.getItem('star_community_profiles_cache');
+      if (!cached) return null;
+
+      const parsed = JSON.parse(cached);
+      const profiles = Array.isArray(parsed) ? parsed : parsed?.data;
+      return Array.isArray(profiles) ? profiles as User[] : null;
+    } catch {
+      localStorage.removeItem('star_community_profiles_cache');
+      return null;
+    }
+  };
+
   const fetchProfilesWithRetry = async (attempts = 3): Promise<User[] | null> => {
-    if (!supabase) return null;
+    if (!supabase) return getCachedProfiles();
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id,email,name,role,avatar,department,birthday,points,notification_settings')
         .order('name', { ascending: true });
 
-      if (!error && data) return data as User[];
+      if (!error && data) {
+        const profiles = data as User[];
+        cacheProfiles(profiles);
+        return profiles;
+      }
 
       console.warn(`Chargement des profils échoué (tentative ${attempt}/${attempts})`, error);
       if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 350 * attempt));
       }
     }
 
-    return null;
+    return getCachedProfiles();
   };
 
 
@@ -291,7 +323,7 @@ const App: React.FC = () => {
     if (profiles) {
       setUsers(profiles);
       try {
-        localStorage.setItem('star_community_profiles_cache', JSON.stringify(profiles));
+        localStorage.setItem('star_community_profiles_cache', JSON.stringify({ data: profiles, cachedAt: Date.now() }));
       } catch {
         // Cache facultatif.
       }
@@ -360,8 +392,13 @@ const App: React.FC = () => {
           }
 
           case 'equipe': {
-            const profiles = await fetchProfilesWithRetry();
-            if (profiles) setUsers(profiles);
+            const cachedProfiles = getCachedProfiles();
+            if (cachedProfiles?.length) {
+              setUsers(cachedProfiles);
+            }
+
+            // Actualisation Supabase en arrière-plan, sans bloquer l'annuaire.
+            void fetchProfilesWithRetry(2);
             break;
           }
 
@@ -630,7 +667,7 @@ const App: React.FC = () => {
       if (profiles !== null) {
         setUsers(profiles);
         try {
-          localStorage.setItem('star_community_profiles_cache', JSON.stringify(profiles));
+          localStorage.setItem('star_community_profiles_cache', JSON.stringify({ data: profiles, cachedAt: Date.now() }));
         } catch {
           // Le cache local est facultatif.
         }

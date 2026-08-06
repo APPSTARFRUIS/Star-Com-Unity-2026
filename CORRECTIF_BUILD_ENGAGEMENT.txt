@@ -1,0 +1,4 @@
+Correctif Vercel TS2678
+App.tsx utilise : case 'engagement'
+App.tsx ne contient pas : case 'classements'
+SHA256 App.tsx : f305b4e4b4f67c604f0bc840b271d676d2f6bc72b6a8138f649e8310e04e1cd7
