@@ -187,8 +187,7 @@ export default async function handler(request, response) {
           password,
           email_confirm: true,
           user_metadata: {
-            name: baseProfilePayload.name,
-            avatar: ''
+            name: baseProfilePayload.name
           }
         });
 
@@ -203,8 +202,7 @@ export default async function handler(request, response) {
         {
           user_metadata: {
             profile_id: profileId,
-            name: baseProfilePayload.name,
-            avatar: ''
+            name: baseProfilePayload.name
           }
         }
       );
@@ -265,8 +263,7 @@ export default async function handler(request, response) {
             email_confirm: true,
             user_metadata: {
               profile_id: requestedProfileId,
-              name: baseProfilePayload.name,
-              avatar: safeAvatar || previousProfile.avatar || ''
+              name: baseProfilePayload.name
             }
           });
 
@@ -278,10 +275,8 @@ export default async function handler(request, response) {
           email,
           email_confirm: true,
           user_metadata: {
-            ...(authUser.user_metadata || {}),
             profile_id: requestedProfileId,
-            name: baseProfilePayload.name,
-            avatar: ''
+            name: baseProfilePayload.name
           }
         };
 
