@@ -166,15 +166,57 @@ const App: React.FC = () => {
 
   const fetchUserProfile = async (userId: string) => {
     if (!supabase) return;
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    if (data) {
+
+    const { data: authData } = await supabase.auth.getUser();
+    const authUser = authData.user;
+    const profileId = authUser?.user_metadata?.profile_id as string | undefined;
+    const authEmail = authUser?.email;
+
+    let profile: any = null;
+
+    const { data: byId } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    profile = byId;
+
+    if (!profile && profileId && profileId !== userId) {
+      const { data: byProfileId } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .maybeSingle();
+      profile = byProfileId;
+    }
+
+    if (!profile && authEmail) {
+      const { data: byEmail } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('email', authEmail)
+        .maybeSingle();
+      profile = byEmail;
+    }
+
+    if (profile) {
+      localStorage.setItem('star_community_user_id', profile.id);
       setCurrentUser({
-        ...data,
-        notification_settings: data.notification_settings || {
-          email: true, desktop: true, mobile: true, posts: true, events: true, messages: true, birthdays: true, polls: true
+        ...profile,
+        notification_settings: profile.notification_settings || {
+          email: true,
+          desktop: true,
+          mobile: true,
+          posts: true,
+          events: true,
+          messages: true,
+          birthdays: true,
+          polls: true
         }
       } as User);
     }
+
     setIsLoading(false);
   };
 
@@ -211,7 +253,7 @@ const App: React.FC = () => {
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,email,name,role,avatar,department,birthday,points,notification_settings')
+        .select('id,email,name,role,avatar,department,company,birthday,points,phone,job_function,notification_settings')
         .order('name', { ascending: true });
 
       if (!error && data) {
@@ -1038,14 +1080,37 @@ const App: React.FC = () => {
         return;
       }
 
-      const { data: profileData, error: profileError } = await supabase
+      const profileId = data.user.user_metadata?.profile_id as string | undefined;
+
+      let profileData: any = null;
+
+      const { data: profileByAuthId } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .maybeSingle();
 
-      if (profileError || !profileData) {
-        console.error(profileError);
+      profileData = profileByAuthId;
+
+      if (!profileData && profileId) {
+        const { data: profileByMetadata } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', profileId)
+          .maybeSingle();
+        profileData = profileByMetadata;
+      }
+
+      if (!profileData) {
+        const { data: profileByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('email', data.user.email || email)
+          .maybeSingle();
+        profileData = profileByEmail;
+      }
+
+      if (!profileData) {
         setLoginError("Profil utilisateur introuvable.");
         return;
       }
@@ -1097,44 +1162,73 @@ const App: React.FC = () => {
     else { addToast("Posté !"); void fetchViewData(currentViewRef.current, true); }
   };
 
-  const handleAddUser = async (user: User) => {
-    if (!supabase) return;
-    const { error } = await supabase.from('profiles').insert([{
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      password: user.password,
-      role: user.role,
-      avatar: user.avatar,
-      department: user.department,
-      company: user.company,
-      points: user.points || 0,
-      phone: user.phone,
-      job_function: user.job_function,
-      notification_settings: user.notification_settings
-    }]);
-    if (error) { console.error("Erreur création profil:", error); addToast("Erreur lors de la création de l'utilisateur.", "error"); }
-    else { addToast("Utilisateur ajouté à l'annuaire !"); void fetchViewData(currentViewRef.current, true); }
+  const callAdminUsers = async (
+    action: 'create' | 'update' | 'delete',
+    payload: Record<string, any>
+  ) => {
+    if (!supabase) throw new Error('Supabase non configuré.');
+
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: { action, ...payload }
+    });
+
+    if (error) throw new Error(error.message || 'Erreur du service utilisateurs.');
+    if (data?.error) throw new Error(data.error);
+
+    return data;
   };
 
-  const handleUpdateProfile = async (u: User) => {
-    if (!supabase) return;
-    const { error } = await supabase.from('profiles').update({
-      name: u.name,
-      email: u.email,
-      password: u.password,
-      role: u.role,
-      department: u.department,
-      company: u.company,
-      avatar: u.avatar,
-      points: u.points,
-      phone: u.phone,
-      job_function: u.job_function,
-      notification_settings: u.notification_settings
-    }).eq('id', u.id);
+  const refreshUsersAfterAdminAction = async () => {
+    loadedViewsRef.current.delete('admin');
+    loadedViewsRef.current.delete('equipe');
+    localStorage.removeItem('star_community_profiles_cache');
+    await fetchViewData('admin', true);
+  };
 
-    if (!error) { addToast("Profil mis à jour."); void fetchViewData(currentViewRef.current, true); fetchUserProfile(u.id); }
-    else { console.error("Erreur update profil:", error); addToast("Erreur mise à jour.", "error"); }
+  const handleAddUser = async (user: User) => {
+    try {
+      await callAdminUsers('create', { user });
+      await refreshUsersAfterAdminAction();
+      addToast("Utilisateur créé : connexion et profil synchronisés.");
+    } catch (error: any) {
+      console.error("Erreur création utilisateur :", error);
+      addToast(error?.message || "Erreur lors de la création de l'utilisateur.", "error");
+      throw error;
+    }
+  };
+
+  const handleUpdateProfile = async (user: User) => {
+    try {
+      await callAdminUsers('update', { user });
+      await refreshUsersAfterAdminAction();
+
+      if (currentUser?.id === user.id) {
+        await fetchUserProfile(user.id);
+      }
+
+      addToast("Utilisateur mis à jour.");
+    } catch (error: any) {
+      console.error("Erreur mise à jour utilisateur :", error);
+      addToast(error?.message || "Erreur lors de la mise à jour.", "error");
+      throw error;
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await callAdminUsers('delete', { userId });
+      await refreshUsersAfterAdminAction();
+      addToast("Utilisateur supprimé.");
+    } catch (error: any) {
+      console.error("Erreur suppression utilisateur :", error);
+      addToast(error?.message || "Erreur lors de la suppression.", "error");
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, role: UserRole) => {
+    const user = users.find(item => item.id === userId);
+    if (!user) return;
+    await handleUpdateProfile({ ...user, role, password: undefined });
   };
 
   const renderDashboard = () => {
@@ -1352,10 +1446,10 @@ const App: React.FC = () => {
               else { addToast("Newsletter publiée."); void fetchViewData(currentViewRef.current, true); }
             }}
             onDeleteNewsletter={async (id) => { await supabase.from('newsletters').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
-            onUpdateRole={async (uid, r) => { await supabase.from('profiles').update({ role: r }).eq('id', uid); void fetchViewData(currentViewRef.current, true); }}
+            onUpdateRole={handleUpdateUserRole}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateProfile}
-            onDeleteUser={async (uid) => { await supabase.from('profiles').delete().eq('id', uid); void fetchViewData(currentViewRef.current, true); }}
+            onDeleteUser={handleDeleteUser}
             posts={posts}
             onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             ideas={ideas}

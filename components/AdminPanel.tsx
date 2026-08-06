@@ -7,10 +7,10 @@ import EngagementAdmin from './EngagementAdmin';
 
 interface AdminPanelProps {
   users: User[];
-  onUpdateRole: (userId: string, newRole: UserRole) => void;
-  onDeleteUser: (userId: string) => void;
-  onAddUser: (user: User) => void;
-  onUpdateUser: (user: User) => void;
+  onUpdateRole: (userId: string, newRole: UserRole) => Promise<void> | void;
+  onDeleteUser: (userId: string) => Promise<void> | void;
+  onAddUser: (user: User) => Promise<void>;
+  onUpdateUser: (user: User) => Promise<void>;
   posts: Post[];
   onDeletePost: (id: string) => void;
   ideas: Idea[];
@@ -57,7 +57,7 @@ const TRIVIAL_CATEGORIES = [
 
 const COMPANIES = [
   'Star Group',
-  'Star fruits',
+  'Star Fruits',
   'Star Export',
   'AC Fruit',
   'Star PMP',
@@ -114,12 +114,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userForm, setUserForm] = useState<Partial<User>>({});
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [userFormError, setUserFormError] = useState('');
   const userAvatarRef = useRef<HTMLInputElement>(null);
 
   const handleOpenUserModal = (user?: User) => {
     if (user) {
       setEditingUser(user);
-      setUserForm({ ...user });
+      setUserForm({ ...user, password: '' });
     } else {
       setEditingUser(null);
       setUserForm({
@@ -136,19 +138,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setShowUserModal(true);
   };
 
-  const handleSubmitUser = (e: React.FormEvent) => {
+  const handleSubmitUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingUser) {
-      onUpdateUser(userForm as User);
-    } else {
-      // Générer un UUID valide pour la base de données
-      const newUser: User = {
-        ...userForm,
-        id: self.crypto.randomUUID()
-      } as User;
-      onAddUser(newUser);
+    if (isSavingUser) return;
+
+    setUserFormError('');
+
+    if (!editingUser && (!userForm.password || userForm.password.length < 6)) {
+      setUserFormError('Le mot de passe initial doit contenir au moins 6 caractères.');
+      return;
     }
-    setShowUserModal(false);
+
+    setIsSavingUser(true);
+
+    try {
+      if (editingUser) {
+        await onUpdateUser({
+          ...editingUser,
+          ...userForm,
+          password: userForm.password?.trim() || undefined
+        } as User);
+      } else {
+        await onAddUser({
+          ...userForm,
+          id: self.crypto.randomUUID()
+        } as User);
+      }
+
+      setShowUserModal(false);
+    } catch (error: any) {
+      setUserFormError(error?.message || 'Impossible d’enregistrer cet utilisateur.');
+    } finally {
+      setIsSavingUser(false);
+    }
   };
 
   // --- JEUX STATE ---
@@ -588,11 +610,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Mot de passe</label>
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                             {editingUser ? 'Nouveau mot de passe (facultatif)' : 'Mot de passe initial'}
+                           </label>
                            <input 
-                             required 
-                             type="text" 
-                             placeholder="Mot de passe" 
+                             required={!editingUser}
+                             type="password" 
+                             autoComplete="new-password"
+                             placeholder={editingUser ? 'Laisser vide pour ne pas le modifier' : 'Minimum 6 caractères'} 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all" 
                              value={userForm.password || ''} 
                              onChange={e => setUserForm({ ...userForm, password: e.target.value })} 
@@ -645,9 +670,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                      </div>
 
+                     {userFormError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                          {userFormError}
+                        </div>
+                     )}
+
                      <div className="flex gap-4 pt-6 border-t border-slate-100">
                         <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-4 font-bold text-slate-500 hover:text-slate-700 transition-all">Annuler</button>
-                        <button type="submit" className="flex-2 px-10 py-4 bg-purple-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-purple-700 transition-all active:scale-95">
+                        <button
+                          type="submit"
+                          disabled={isSavingUser}
+                          className="flex-2 px-10 py-4 bg-purple-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-purple-700 transition-all active:scale-95"
+                        >
                            {editingUser ? "Enregistrer" : "Créer l'utilisateur"}
                         </button>
                      </div>
