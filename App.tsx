@@ -5,7 +5,7 @@ import { CATEGORIES, DEPARTMENTS, INITIAL_CONFIG } from './constants';
 import {
   User, Post, UserRole, Comment, CompanyEvent, Message, Attachment, Idea, IdeaStatus,
   DocumentFile, Poll, PollResponse, MoodEntry, MoodValue, Celebration, Newsletter, AppConfig,
-  WellnessContent, WellnessChallenge, CompanyGame, GamePrediction, Reward, PointsTransaction, EngagementAnimation
+  WellnessContent, WellnessChallenge, CompanyGame, GamePrediction, Reward, PointsTransaction, EngagementAnimation, AdventOpening
 } from './types';
 import Sidebar, { ViewType } from './components/Sidebar';
 import PostCard from './components/PostCard';
@@ -520,7 +520,6 @@ const App: React.FC = () => {
             ]);
             if (rewardsResult.data) setRewards(rewardsResult.data as any);
             if (transactionsResult.data) setTransactions(transactionsResult.data.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
-            if (openingsResult.data) setAdventOpenings(mapAdventOpenings(openingsResult.data));
             break;
           }
 
@@ -560,6 +559,7 @@ const App: React.FC = () => {
             if (gamesResult.data) setGames(mapGames(gamesResult.data));
             if (predictionsResult.data) setPredictions(mapPredictions(predictionsResult.data));
             if (transactionsResult.data) setTransactions(transactionsResult.data.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+            if (openingsResult.data) setAdventOpenings(mapAdventOpenings(openingsResult.data));
             break;
           }
 
