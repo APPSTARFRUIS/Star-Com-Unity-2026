@@ -374,6 +374,20 @@ export interface PointsTransaction {
 
 export type EngagementType = 'countdown' | 'raffle' | 'contest' | 'advent' | 'mission' | 'season' | 'predictions';
 
+export interface AdventOpening {
+  id: string;
+  animationId: string;
+  userId: string;
+  dayNumber: number;
+  outcome: {
+    isCorrect?: boolean;
+    instantWin?: boolean;
+    answer?: string;
+  };
+  pointsAwarded: number;
+  openedAt: string;
+}
+
 export interface EngagementAnimation {
   id: string;
   type: EngagementType;

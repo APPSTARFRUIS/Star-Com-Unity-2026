@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { CompanyGame, EngagementAnimation, EngagementType, GamePrediction, Idea, PointsTransaction, Poll, Post, User } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AdventOpening, CompanyGame, EngagementAnimation, EngagementType, GamePrediction, Idea, PointsTransaction, Poll, Post, User } from '../types';
 import JeuxView from './JeuxView';
 
 interface AdventOutcome {
@@ -15,8 +15,9 @@ interface EngagementViewProps {
   ideas: Idea[];
   polls: Poll[];
   animations: EngagementAnimation[];
+  adventOpenings: AdventOpening[];
   onJoinAnimation: (animation: EngagementAnimation) => Promise<void>;
-  onOpenAdventDay: (animation: EngagementAnimation, dayNumber: number, outcome?: AdventOutcome) => Promise<void>;
+  onOpenAdventDay: (animation: EngagementAnimation, dayNumber: number, outcome?: AdventOutcome) => Promise<AdventOpening | null>;
   section?: 'rankings' | 'highlights';
   games: CompanyGame[];
   predictions: GamePrediction[];
@@ -33,7 +34,7 @@ const typeIcons: Record<EngagementType, string> = { countdown: '⏳', raffle: '�
 const adventIcons: Record<string, string> = { gift: '🎁', quiz: '❓', video: '🎥', document: '📄', mission: '🎯', coupon: '🎫', instant: '🎲', game: '🧩', mystery: '📸', fact: '💡', jackpot: '🎉' };
 
 const EngagementView: React.FC<EngagementViewProps> = ({
-  users, currentUser, transactions, posts, ideas, polls, animations, onJoinAnimation, onOpenAdventDay, section = 'rankings',
+  users, currentUser, transactions, posts, ideas, polls, animations, adventOpenings, onJoinAnimation, onOpenAdventDay, section = 'rankings',
   games, predictions, onAddPrediction, onEarnPoints
 }) => {
   const [tab, setTab] = useState<Exclude<Tab, 'animations'>>('general');
@@ -41,6 +42,22 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   const [selectedDay, setSelectedDay] = useState<any | null>(null);
   const [answer, setAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recentOpenings, setRecentOpenings] = useState<AdventOpening[]>([]);
+
+  useEffect(() => {
+    setRecentOpenings([]);
+  }, [currentUser.id]);
+
+  const allAdventOpenings = useMemo(() => {
+    const merged = new Map<string, AdventOpening>();
+    [...adventOpenings, ...recentOpenings].forEach(opening => {
+      merged.set(`${opening.animationId}:${opening.dayNumber}`, opening);
+    });
+    return [...merged.values()];
+  }, [adventOpenings, recentOpenings]);
+
+  const getOpening = (animationId: string, dayNumber: number) =>
+    allAdventOpenings.find(opening => opening.animationId === animationId && Number(opening.dayNumber) === Number(dayNumber));
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
 
   const generalRanking = useMemo(() => [...users].sort((a, b) => (b.points || 0) - (a.points || 0)), [users]);
@@ -88,15 +105,79 @@ const EngagementView: React.FC<EngagementViewProps> = ({
 
   const submitDay = async () => {
     if (!openedAdvent || !selectedDay) return;
+
+    const existingOpening = getOpening(openedAdvent.id, selectedDay.day);
+    if (existingOpening) return;
+
     setIsSubmitting(true);
     try {
-      let outcome: AdventOutcome = {};
-      if (selectedDay.type === 'quiz' || selectedDay.type === 'mystery') outcome.answer = answer.trim();
-      if (selectedDay.type === 'instant') outcome.instantWin = Math.random() * 100 < Number(selectedDay.winProbability || 0);
-      await onOpenAdventDay(openedAdvent, selectedDay.day, outcome);
-      setSelectedDay({ ...selectedDay, openedBy: [...(selectedDay.openedBy || []), currentUser.id], winnerIds: outcome.instantWin ? [...(selectedDay.winnerIds || []), currentUser.id] : (selectedDay.winnerIds || []) });
-    } finally { setIsSubmitting(false); }
+      const outcome: AdventOutcome = {};
+      if (selectedDay.type === 'quiz' || selectedDay.type === 'mystery') {
+        outcome.answer = answer.trim();
+      }
+
+      const opening = await onOpenAdventDay(openedAdvent, selectedDay.day, outcome);
+      if (opening) {
+        setRecentOpenings(previous => [
+          ...previous.filter(item => !(item.animationId === opening.animationId && item.dayNumber === opening.dayNumber)),
+          opening
+        ]);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const renderOpenedDayContent = (day: any, opening: AdventOpening) => (
+    <div className="space-y-5">
+      {day.imageUrl && <img src={day.imageUrl} className="w-full h-56 object-cover rounded-2xl" alt="" />}
+      <div>
+        <p className="text-xs uppercase tracking-widest font-black text-purple-600">Case du {day.day} décembre</p>
+        <h3 className="text-2xl font-black mt-2">{day.title || 'Surprise du jour'}</h3>
+        {day.description && <p className="text-slate-600 mt-3 whitespace-pre-line">{day.description}</p>}
+      </div>
+
+      {(day.type === 'quiz' || day.type === 'mystery') && (
+        <div className={`p-4 rounded-2xl font-black ${opening.outcome?.isCorrect ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+          {opening.outcome?.isCorrect ? 'Bonne réponse !' : 'Réponse enregistrée.'}
+        </div>
+      )}
+
+      {day.type === 'instant' && (
+        <div className={`p-5 rounded-2xl text-center font-black ${opening.outcome?.instantWin ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+          {opening.outcome?.instantWin ? `Gagné${day.rewardLabel ? ` : ${day.rewardLabel}` : ' !'}` : 'Pas gagné cette fois.'}
+        </div>
+      )}
+
+      {day.type === 'coupon' && day.couponCode && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center">
+          <p className="text-xs uppercase font-black text-amber-700">Votre coupon</p>
+          <p className="text-2xl font-black mt-2">{day.couponCode}</p>
+        </div>
+      )}
+
+      {day.rewardLabel && day.type !== 'instant' && (
+        <p className="font-black text-amber-700">Récompense : {day.rewardLabel}</p>
+      )}
+
+      {opening.pointsAwarded > 0 && (
+        <div className="p-4 rounded-2xl bg-green-50 text-green-800 font-black text-center">
+          +{opening.pointsAwarded} points
+        </div>
+      )}
+
+      {day.linkUrl && (
+        <a href={day.linkUrl} target="_blank" rel="noreferrer" className="inline-flex px-4 py-3 rounded-xl bg-blue-600 text-white font-black">
+          {day.buttonLabel || (day.type === 'video' ? 'Voir la vidéo' : day.type === 'document' ? 'Ouvrir le document' : 'Découvrir le contenu')}
+        </a>
+      )}
+
+      <div className="p-4 rounded-2xl bg-slate-50 text-slate-500 text-sm font-bold">
+        Case ouverte le {new Date(opening.openedAt).toLocaleString('fr-FR')}. Elle ne peut pas être ouverte une seconde fois avec ce compte.
+      </div>
+    </div>
+  );
+
 
   return <div className="max-w-6xl mx-auto pb-16">
     <div className="mb-8">
@@ -115,22 +196,67 @@ const EngagementView: React.FC<EngagementViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucun temps fort actif pour le moment.</div>}{visibleAnimations.map(animation => {
       const joined = (animation.participants || []).includes(currentUser.id); const winners = users.filter(u => (animation.winnerIds || []).includes(u.id));
       const adventDays = animation.type === 'advent' ? (animation.config?.days || []) : [];
-      const openedCount = adventDays.filter((day: any) => (day.openedBy || []).includes(currentUser.id)).length;
+      const openedCount = allAdventOpenings.filter(opening => opening.animationId === animation.id).length;
       return <article key={animation.id} className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">{animation.imageUrl && <img src={animation.imageUrl} alt="" className="w-full h-44 object-cover" />}<div className="p-6"><div className="flex justify-between gap-3"><span className="text-2xl">{typeIcons[animation.type] || '✨'}</span><span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-black">{typeLabels[animation.type] || animation.type}</span></div><h3 className="text-xl font-black text-slate-900 mt-3">{animation.title}</h3><p className="text-slate-500 mt-2">{animation.description}</p>{animation.endDate && <div className="mt-4 text-3xl font-black text-[#14532d]">{countdown(animation.endDate)}</div>}{animation.type === 'advent' && <div className="mt-5"><div className="flex justify-between text-sm font-black"><span>{openedCount} / 24 cases ouvertes</span><span>{Math.round((openedCount / 24) * 100)}%</span></div><div className="h-3 bg-slate-100 rounded-full mt-2 overflow-hidden"><div className="h-full bg-green-500 rounded-full" style={{ width: `${(openedCount / 24) * 100}%` }} /></div><button onClick={() => setOpenedAdvent(animation)} className="mt-4 w-full px-4 py-3 bg-purple-600 text-white rounded-xl font-black">Ouvrir le calendrier</button></div>}{animation.rewardLabel && <p className="mt-3 text-sm font-bold text-amber-700">À gagner : {animation.rewardLabel}</p>}{winners.length > 0 && <p className="mt-3 font-black text-purple-700">Gagnant{winners.length > 1 ? 's' : ''} : {winners.map(w => w.name).join(', ')}</p>}<div className="mt-5 flex flex-wrap gap-2">{animation.type !== 'advent' && !joined && animation.status === 'active' && animation.type !== 'countdown' && <button onClick={() => onJoinAnimation(animation)} className="px-4 py-2.5 bg-[#14532d] text-white rounded-xl font-black">{animation.type === 'raffle' ? `Prendre un ticket${animation.pointsCost ? ` · ${animation.pointsCost} pts` : ''}` : 'Participer'}</button>}{animation.type !== 'advent' && joined && <span className="px-4 py-2.5 bg-green-50 text-green-700 rounded-xl font-black">Participation enregistrée</span>}</div></div></article>;
     })}</div></>}
 
     {openedAdvent && <div className="fixed inset-0 z-[300] bg-slate-950/70 backdrop-blur-sm overflow-y-auto p-3 md:p-8"><div className="max-w-5xl mx-auto bg-white rounded-3xl overflow-hidden min-h-[80vh]"><div className="p-5 md:p-7 bg-gradient-to-r from-purple-700 to-pink-600 text-white flex justify-between items-start"><div><p className="text-sm font-black uppercase tracking-widest">Calendrier de l’Avent</p><h2 className="text-2xl md:text-4xl font-black mt-1">{openedAdvent.title}</h2><p className="text-white/80 mt-2">{openedAdvent.description}</p></div><button onClick={() => { setOpenedAdvent(null); setSelectedDay(null); }} className="w-10 h-10 rounded-full bg-white/15 text-2xl">×</button></div><div className="p-5 md:p-8"><div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">{(openedAdvent.config?.days || []).map((day: any) => {
-      const available = day.day <= getAvailableDay(openedAdvent); const opened = (day.openedBy || []).includes(currentUser.id);
+      const available = day.day <= getAvailableDay(openedAdvent); const opened = Boolean(getOpening(openedAdvent.id, day.day));
       return <button key={day.day} disabled={!available} onClick={() => openDay(openedAdvent, day)} className={`aspect-square rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${opened ? 'bg-green-50 border-green-400 text-green-700' : available ? 'bg-white border-purple-200 hover:border-purple-500 text-purple-800' : 'bg-slate-100 border-slate-100 text-slate-300'}`}><span className="text-xl">{opened ? '✓' : available ? adventIcons[day.type] || '🎁' : '🔒'}</span><span className="font-black mt-1">{day.day}</span></button>;
     })}</div></div></div></div>}
 
-    {selectedDay && openedAdvent && <div className="fixed inset-0 z-[320] bg-slate-950/70 flex items-center justify-center p-4"><div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto"><div className="p-6 md:p-8"><div className="flex justify-between"><div className="text-5xl">{adventIcons[selectedDay.type] || '🎁'}</div><button onClick={() => setSelectedDay(null)} className="text-2xl">×</button></div>{selectedDay.imageUrl && <img src={selectedDay.imageUrl} className="w-full h-56 object-cover rounded-2xl mt-5" alt="" />}<p className="text-xs uppercase tracking-widest font-black text-purple-600 mt-5">Case du {selectedDay.day} décembre</p><h3 className="text-2xl font-black mt-2">{selectedDay.title || 'Surprise du jour'}</h3><p className="text-slate-600 mt-3 whitespace-pre-line">{selectedDay.description}</p>
-      {(selectedDay.type === 'quiz' || selectedDay.type === 'mystery') && !(selectedDay.openedBy || []).includes(currentUser.id) && <div className="mt-5 space-y-3"><p className="font-black">{selectedDay.question}</p>{selectedDay.type === 'quiz' ? (selectedDay.options || []).filter(Boolean).map((option: string) => <label key={option} className={`block border rounded-xl p-3 cursor-pointer ${answer === option ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}><input type="radio" className="mr-3" checked={answer === option} onChange={() => setAnswer(option)} />{option}</label>) : <input value={answer} onChange={e => setAnswer(e.target.value)} className="w-full border rounded-xl px-4 py-3" placeholder="Votre réponse" />}</div>}
-      {selectedDay.type === 'coupon' && selectedDay.couponCode && <div className="mt-5 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center"><p className="text-xs uppercase font-black text-amber-700">Votre coupon</p><p className="text-2xl font-black mt-2">{selectedDay.couponCode}</p></div>}
-      {(selectedDay.openedBy || []).includes(currentUser.id) && <div className="mt-5 p-4 rounded-2xl bg-green-50 text-green-800 font-black">Cette case a déjà été ouverte.</div>}
-      {selectedDay.rewardLabel && <p className="mt-4 font-black text-amber-700">Récompense : {selectedDay.rewardLabel}</p>}{selectedDay.linkUrl && <a href={selectedDay.linkUrl} target="_blank" rel="noreferrer" className="mt-5 inline-flex px-4 py-3 rounded-xl bg-blue-600 text-white font-black">{selectedDay.buttonLabel || 'Découvrir le contenu'}</a>}
-      {!(selectedDay.openedBy || []).includes(currentUser.id) && <button onClick={submitDay} disabled={isSubmitting || ((selectedDay.type === 'quiz' || selectedDay.type === 'mystery') && !answer.trim())} className="mt-6 w-full py-4 rounded-xl bg-purple-600 text-white font-black disabled:opacity-50">{isSubmitting ? 'Validation…' : selectedDay.type === 'instant' ? 'Tenter ma chance' : 'Ouvrir la case'}</button>}
-    </div></div></div>}
+    {selectedDay && openedAdvent && (() => {
+      const opening = getOpening(openedAdvent.id, selectedDay.day);
+      const requiresAnswer = selectedDay.type === 'quiz' || selectedDay.type === 'mystery';
+
+      return <div className="fixed inset-0 z-[320] bg-slate-950/70 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6 md:p-8">
+            <div className="flex justify-between items-start">
+              <div className="text-5xl">{adventIcons[selectedDay.type] || '🎁'}</div>
+              <button onClick={() => { setSelectedDay(null); setAnswer(''); }} className="text-2xl">×</button>
+            </div>
+
+            {opening ? renderOpenedDayContent(selectedDay, opening) : (
+              <div className="mt-5">
+                {requiresAnswer ? (
+                  <>
+                    {selectedDay.imageUrl && <img src={selectedDay.imageUrl} className="w-full h-56 object-cover rounded-2xl" alt="" />}
+                    <p className="text-xs uppercase tracking-widest font-black text-purple-600 mt-5">Case du {selectedDay.day} décembre</p>
+                    <h3 className="text-2xl font-black mt-2">{selectedDay.title || 'Surprise du jour'}</h3>
+                    <div className="mt-5 space-y-3">
+                      <p className="font-black">{selectedDay.question}</p>
+                      {selectedDay.type === 'quiz' ? (selectedDay.options || []).filter(Boolean).map((option: string) => (
+                        <label key={option} className={`block border rounded-xl p-3 cursor-pointer ${answer === option ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}>
+                          <input type="radio" className="mr-3" checked={answer === option} onChange={() => setAnswer(option)} />{option}
+                        </label>
+                      )) : (
+                        <input value={answer} onChange={event => setAnswer(event.target.value)} className="w-full border rounded-xl px-4 py-3" placeholder="Votre réponse" />
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-3xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 p-8 text-center">
+                    <div className="text-6xl">🎁</div>
+                    <p className="text-xs uppercase tracking-widest font-black text-purple-600 mt-5">Case du {selectedDay.day} décembre</p>
+                    <h3 className="text-2xl font-black mt-2">Une surprise vous attend</h3>
+                    <p className="text-slate-500 mt-3">Le contenu sera révélé après l’ouverture de la case.</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={submitDay}
+                  disabled={isSubmitting || (requiresAnswer && !answer.trim())}
+                  className="mt-6 w-full py-4 rounded-xl bg-purple-600 text-white font-black disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Ouverture…' : selectedDay.type === 'instant' ? 'Tenter ma chance' : 'Ouvrir la case'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>;
+    })()}
   </div>;
 };
 
