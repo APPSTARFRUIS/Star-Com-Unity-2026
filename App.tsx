@@ -1120,15 +1120,20 @@ const App: React.FC = () => {
               company: 'Star Fruits',
               points: 0,
               notification_settings: {
-                email: true,
-                desktop: true,
-                mobile: true,
-                posts: true,
-                events: true,
-                messages: true,
-                birthdays: true,
-                polls: true
-              }
+          inApp: true,
+          email: true,
+          desktop: true,
+          mobile: true,
+          posts: true,
+          events: true,
+          messages: true,
+          birthdays: true,
+          polls: true,
+          newsletters: true,
+          celebrations: true,
+          highlights: true,
+          points: true
+        }
             });
 
           if (profileError) {
