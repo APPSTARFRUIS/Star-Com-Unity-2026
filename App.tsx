@@ -206,6 +206,7 @@ const App: React.FC = () => {
       setCurrentUser({
         ...profile,
         notification_settings: profile.notification_settings || {
+          inApp: true,
           email: true,
           desktop: true,
           mobile: true,
@@ -213,7 +214,11 @@ const App: React.FC = () => {
           events: true,
           messages: true,
           birthdays: true,
-          polls: true
+          polls: true,
+          newsletters: true,
+          celebrations: true,
+          highlights: true,
+          points: true
         }
       } as User);
     }
@@ -1189,6 +1194,7 @@ const App: React.FC = () => {
       setCurrentUser({
         ...profileData,
         notification_settings: profileData.notification_settings || {
+          inApp: true,
           email: true,
           desktop: true,
           mobile: true,
@@ -1196,7 +1202,11 @@ const App: React.FC = () => {
           events: true,
           messages: true,
           birthdays: true,
-          polls: true
+          polls: true,
+          newsletters: true,
+          celebrations: true,
+          highlights: true,
+          points: true
         }
       } as User);
 

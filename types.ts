@@ -6,6 +6,7 @@ export enum UserRole {
 }
 
 export interface NotificationSettings {
+  inApp: boolean;
   email: boolean;
   desktop: boolean;
   mobile: boolean;
@@ -14,6 +15,10 @@ export interface NotificationSettings {
   messages: boolean;
   birthdays: boolean;
   polls: boolean;
+  newsletters: boolean;
+  celebrations: boolean;
+  highlights: boolean;
+  points: boolean;
 }
 
 export interface User {
