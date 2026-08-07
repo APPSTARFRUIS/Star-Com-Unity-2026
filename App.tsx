@@ -623,7 +623,12 @@ const App: React.FC = () => {
           case 'boutique': {
             const [rewardsResult, transactionsResult] = await Promise.all([
               supabase.from('rewards').select('*').order('cost', { ascending: true }).limit(100),
-              supabase.from('transactions').select('*').order('date', { ascending: false }).limit(400)
+              supabase
+                .from('transactions')
+                .select('*')
+                .eq('user_id', currentUserRef.current!.id)
+                .order('date', { ascending: false })
+                .limit(250)
             ]);
             if (rewardsResult.data) setRewards(rewardsResult.data as any);
             if (transactionsResult.data) setTransactions(transactionsResult.data.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
