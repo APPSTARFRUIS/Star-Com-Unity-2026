@@ -214,7 +214,7 @@ export default async function handler(request, response) {
         .insert({
           id: profileId,
           ...baseProfilePayload,
-          avatar: ''
+          avatar: safeAvatar || ''
         });
 
       if (profileError) {
@@ -292,7 +292,7 @@ export default async function handler(request, response) {
         .from('profiles')
         .update({
           ...baseProfilePayload,
-          avatar: previousProfile.avatar || '',
+          avatar: safeAvatar || previousProfile.avatar || '',
           notification_settings: previousProfile.notification_settings || null
         })
         .eq('id', requestedProfileId);

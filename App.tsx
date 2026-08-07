@@ -1168,6 +1168,12 @@ const App: React.FC = () => {
     name: String(user.name || '').trim().slice(0, 160),
     password: user.password ? String(user.password).slice(0, 128) : undefined,
     role: user.role,
+    avatar:
+      typeof user.avatar === 'string' &&
+      !user.avatar.startsWith('data:') &&
+      user.avatar.length <= 2048
+        ? user.avatar
+        : undefined,
     department: String(user.department || '').slice(0, 160),
     company: String(user.company || 'Star Fruits').slice(0, 160),
     birthday: user.birthday ? String(user.birthday).slice(0, 20) : null,
@@ -1264,6 +1270,74 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error("Erreur suppression utilisateur :", error);
       addToast(error?.message || "Erreur lors de la suppression.", "error");
+    }
+  };
+
+  const handleSelfUpdateProfile = async (user: User) => {
+    if (!supabase || !currentUser) return;
+
+    try {
+      const password = user.password?.trim();
+
+      if (password) {
+        if (password.length < 6) {
+          throw new Error('Le nouveau mot de passe doit contenir au moins 6 caractères.');
+        }
+
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password
+        });
+
+        if (passwordError) throw passwordError;
+      }
+
+      const avatar =
+        typeof user.avatar === 'string' && !user.avatar.startsWith('data:')
+          ? user.avatar
+          : currentUser.avatar;
+
+      const profilePayload = {
+        name: user.name,
+        email: user.email,
+        avatar,
+        department: user.department,
+        company: user.company,
+        birthday: user.birthday || null,
+        phone: user.phone || null,
+        job_function: user.job_function || null,
+        notification_settings: user.notification_settings || null
+      };
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(profilePayload)
+        .eq('id', currentUser.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      const updatedUser = {
+        ...currentUser,
+        ...data,
+        password: undefined
+      } as User;
+
+      setCurrentUser(updatedUser);
+      localStorage.setItem('star_community_user_id', updatedUser.id);
+      localStorage.removeItem('star_community_profiles_cache');
+      loadedViewsRef.current.delete('equipe');
+      loadedViewsRef.current.delete('admin');
+
+      setUsers(previous =>
+        previous.map(item => item.id === updatedUser.id ? updatedUser : item)
+      );
+
+      addToast('Profil mis à jour.');
+    } catch (error: any) {
+      console.error('Erreur mise à jour du profil personnel :', error);
+      addToast(error?.message || 'Impossible de mettre à jour le profil.', 'error');
+      throw error;
     }
   };
 
@@ -2071,7 +2145,7 @@ const App: React.FC = () => {
           </div>
         );
 
-      case 'parametres': return <Settings user={currentUser} onSave={handleUpdateProfile} />;
+      case 'parametres': return <Settings user={currentUser} onSave={handleSelfUpdateProfile} />;
 
       case 'accueil':
       default:

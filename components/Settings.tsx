@@ -6,7 +6,7 @@ import { uploadMediaToStorage } from '../storageUtils';
 
 interface SettingsProps {
   user: User;
-  onSave: (updatedUser: User) => void;
+  onSave: (updatedUser: User) => Promise<void> | void;
 }
 
 type SettingsTab = 'profil' | 'notifications' | 'confidentialite' | 'theme';
@@ -17,6 +17,8 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
   const [theme, setTheme] = useState<'clair' | 'sombre'>('clair');
   const [textSize, setTextSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // État initial basé sur les données réelles de l'utilisateur
   const [notifications, setNotifications] = useState<NotificationSettings>(
@@ -38,6 +40,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
     birthday: true
   });
 
+  useEffect(() => {
+    setFormData({ ...user, password: undefined });
+    setNotifications(user.notification_settings || notifications);
+  }, [user.id, user.avatar, user.name, user.email, user.department, user.phone, user.job_function]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -50,11 +57,14 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setSaveError('');
+
     try {
-      const url = await uploadMediaToStorage(file, 'profiles');
+      const url = await uploadMediaToStorage(file, `profiles/${user.id}`);
       setFormData(prev => ({ ...prev, avatar: url }));
     } catch (error: any) {
-      alert(error?.message || 'Erreur lors de l’upload de l’avatar.');
+      setSaveError(error?.message || 'Erreur lors de l’upload de la photo.');
     } finally {
       e.target.value = '';
     }
@@ -65,11 +75,22 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
     setNotifications(user.notification_settings || notifications);
   };
 
-  const handleSave = () => {
-    onSave({
-      ...formData,
-      notification_settings: notifications
-    });
+  const handleSave = async () => {
+    if (isSaving) return;
+
+    setSaveError('');
+    setIsSaving(true);
+
+    try {
+      await onSave({
+        ...formData,
+        notification_settings: notifications
+      });
+    } catch (error: any) {
+      setSaveError(error?.message || 'Impossible d’enregistrer les modifications.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleNotification = (key: keyof NotificationSettings) => {
