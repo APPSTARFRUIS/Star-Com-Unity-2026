@@ -13,6 +13,7 @@ interface AdminPanelProps {
   onUpdateUser: (user: User) => Promise<void>;
   onAdjustPoints: (userId: string, delta: number) => Promise<void>;
   onToggleOrderStatus: (orderId: string) => Promise<void>;
+  onDeleteOrder: (orderId: string) => Promise<void>;
   posts: Post[];
   onDeletePost: (id: string) => void;
   ideas: Idea[];
@@ -83,7 +84,7 @@ const ADMIN_TABS = [
 ];
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
-  users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onToggleOrderStatus, onAddUser,
+  users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onToggleOrderStatus, onDeleteOrder, onAddUser,
   posts, onDeletePost,
   ideas, onUpdateIdeaStatus,
   moods,
@@ -97,6 +98,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
+  const [orderFilter, setOrderFilter] = useState<'pending' | 'distributed' | 'all'>('pending');
   const [newDocCategory, setNewDocCategory] = useState('');
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (data: string) => void, folder = 'admin') => {
@@ -468,6 +470,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions]);
 
+  const pendingOrdersCount = useMemo(
+    () => orders.filter(order => (order.orderStatus || 'pending') === 'pending').length,
+    [orders]
+  );
+
+  const distributedOrdersCount = useMemo(
+    () => orders.filter(order => order.orderStatus === 'distributed').length,
+    [orders]
+  );
+
+  const visibleOrders = useMemo(() => {
+    if (orderFilter === 'all') return orders;
+    return orders.filter(order => (order.orderStatus || 'pending') === orderFilter);
+  }, [orders, orderFilter]);
+
   const logoRef = useRef<HTMLInputElement>(null);
 
   const editingArticle = newsArticles.find(a => a.id === editingArticleId);
@@ -760,6 +777,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <button onClick={() => setShowRewardModal(true)} className="px-6 py-2.5 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 shadow-lg">Ajouter une récompense</button>
            </div>
 
+           {rewardsSubTab === 'orders' && (
+             <div className="flex flex-wrap items-center gap-2">
+               <button
+                 type="button"
+                 onClick={() => setOrderFilter('pending')}
+                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                   orderFilter === 'pending'
+                     ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                     : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                 }`}
+               >
+                 En attente ({pendingOrdersCount})
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setOrderFilter('distributed')}
+                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                   orderFilter === 'distributed'
+                     ? 'bg-green-100 text-green-800 border border-green-200'
+                     : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                 }`}
+               >
+                 Distribuées ({distributedOrdersCount})
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setOrderFilter('all')}
+                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                   orderFilter === 'all'
+                     ? 'bg-slate-900 text-white border border-slate-900'
+                     : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                 }`}
+               >
+                 Toutes ({orders.length})
+               </button>
+             </div>
+           )}
+
            {rewardsSubTab === 'products' ? (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {rewards.map(r => (
@@ -791,7 +846,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
-                      {orders.map(o => {
+                      {visibleOrders.map(o => {
                         const user = users.find(u => u.id === o.userId);
                         return (
                           <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
@@ -842,14 +897,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                      Remise le {new Date(o.distributedAt).toLocaleDateString('fr-FR')}
                                    </span>
                                  )}
+
+                                 {o.orderStatus === 'distributed' && (
+                                   <button
+                                     type="button"
+                                     onClick={() => {
+                                       const confirmed = window.confirm(
+                                         'Supprimer définitivement cette commande de l’historique ? Cette action ne restitue ni les points ni le stock.'
+                                       );
+                                       if (confirmed) {
+                                         void onDeleteOrder(o.id);
+                                       }
+                                     }}
+                                     className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all"
+                                   >
+                                     Supprimer
+                                   </button>
+                                 )}
                                </div>
                              </td>
                              <td className="px-6 py-4 text-right font-black text-red-600">-{o.amount} pts</td>
                           </tr>
                         );
                       })}
-                      {orders.length === 0 && (
-                        <tr><td colSpan={5} className="p-12 text-center text-slate-300 italic">Aucune commande pour le moment.</td></tr>
+                      {visibleOrders.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-12 text-center text-slate-300 italic">
+                            {orderFilter === 'pending'
+                              ? 'Aucune commande en attente.'
+                              : orderFilter === 'distributed'
+                                ? 'Aucune commande distribuée.'
+                                : 'Aucune commande pour le moment.'}
+                          </td>
+                        </tr>
                       )}
                    </tbody>
                 </table>

@@ -121,6 +121,46 @@ export default async function handler(request, response) {
       });
     }
 
+    if (action === 'delete_order') {
+      const orderId = String(body.orderId || '').trim();
+
+      if (!orderId) {
+        return response.status(400).json({ error: 'Identifiant de commande manquant.' });
+      }
+
+      const { data: order, error: orderLookupError } = await adminClient
+        .from('transactions')
+        .select('id,type,reason,order_status')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (orderLookupError || !order) {
+        return response.status(404).json({ error: 'Commande introuvable.' });
+      }
+
+      if (order.type !== 'spend' || !String(order.reason || '').match(/^Achat\s*:/i)) {
+        return response.status(400).json({ error: 'Cette transaction n’est pas une commande Boutique.' });
+      }
+
+      if (order.order_status !== 'distributed') {
+        return response.status(400).json({
+          error: 'Seules les commandes déjà distribuées peuvent être supprimées.'
+        });
+      }
+
+      const { error: deleteError } = await adminClient
+        .from('transactions')
+        .delete()
+        .eq('id', orderId);
+
+      if (deleteError) throw deleteError;
+
+      return response.status(200).json({
+        ok: true,
+        orderId
+      });
+    }
+
     if (action === 'mark_order_distributed') {
       const orderId = String(body.orderId || '').trim();
 

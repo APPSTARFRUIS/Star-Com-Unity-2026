@@ -1350,7 +1350,7 @@ const App: React.FC = () => {
   });
 
   const callAdminUsers = async (
-    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders' | 'mark_order_distributed',
+    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders' | 'mark_order_distributed' | 'delete_order',
     payload: Record<string, any>
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
@@ -1373,7 +1373,7 @@ const App: React.FC = () => {
             }
           : action === 'list_orders'
             ? { action }
-            : action === 'mark_order_distributed'
+            : action === 'mark_order_distributed' || action === 'delete_order'
               ? {
                   action,
                   orderId: String(payload.orderId || '').slice(0, 160)
@@ -1592,6 +1592,27 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error('Erreur statut commande :', error);
       addToast(error?.message || 'Impossible de modifier le statut de la commande.', 'error');
+      throw error;
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!currentUser || currentUser.role !== UserRole.ADMIN) {
+      addToast('Action réservée aux administrateurs.', 'error');
+      throw new Error('Action réservée aux administrateurs.');
+    }
+
+    try {
+      await callAdminUsers('delete_order', { orderId });
+
+      setTransactions(previous =>
+        previous.filter(transaction => transaction.id !== orderId)
+      );
+
+      addToast('Commande supprimée de l’historique.');
+    } catch (error: any) {
+      console.error('Erreur suppression commande :', error);
+      addToast(error?.message || 'Impossible de supprimer la commande.', 'error');
       throw error;
     }
   };
@@ -1822,6 +1843,7 @@ const App: React.FC = () => {
             onUpdateUser={handleUpdateProfile}
             onAdjustPoints={handleAdjustUserPoints}
             onToggleOrderStatus={handleToggleOrderStatus}
+            onDeleteOrder={handleDeleteOrder}
             onDeleteUser={handleDeleteUser}
             posts={posts}
             onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
