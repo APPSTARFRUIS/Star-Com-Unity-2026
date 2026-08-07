@@ -104,6 +104,23 @@ export default async function handler(request, response) {
       return null;
     };
 
+    if (action === 'list_orders') {
+      const { data: orders, error: ordersError } = await adminClient
+        .from('transactions')
+        .select('id,user_id,amount,reason,type,date')
+        .eq('type', 'spend')
+        .ilike('reason', 'Achat :%')
+        .order('date', { ascending: false })
+        .limit(500);
+
+      if (ordersError) throw ordersError;
+
+      return response.status(200).json({
+        ok: true,
+        orders: orders || []
+      });
+    }
+
     if (action === 'adjust_points') {
       const userId = String(body.userId || '').trim();
       const delta = Number(body.delta || 0);

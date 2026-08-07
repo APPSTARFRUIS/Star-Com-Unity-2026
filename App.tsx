@@ -138,12 +138,7 @@ const App: React.FC = () => {
             .select('*')
             .order('cost', { ascending: true })
             .limit(100),
-          supabase
-            .from('transactions')
-            .select('*')
-            .eq('type', 'spend')
-            .order('date', { ascending: false })
-            .limit(500)
+          callAdminUsers('list_orders', {})
         ]);
 
         if (cancelled) return;
@@ -152,9 +147,9 @@ const App: React.FC = () => {
           setRewards(rewardsResult.data as any);
         }
 
-        if (ordersResult.data) {
+        if (Array.isArray(ordersResult?.orders)) {
           setTransactions(
-            ordersResult.data.map((t: any) => ({
+            ordersResult.orders.map((t: any) => ({
               ...t,
               userId: t.user_id,
               date: t.date
@@ -1325,7 +1320,7 @@ const App: React.FC = () => {
   });
 
   const callAdminUsers = async (
-    action: 'create' | 'update' | 'delete' | 'adjust_points',
+    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders',
     payload: Record<string, any>
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
@@ -1346,7 +1341,9 @@ const App: React.FC = () => {
               userId: String(payload.userId || '').slice(0, 160),
               delta: Number(payload.delta || 0)
             }
-          : { action, user: sanitizeUserForAdminApi(payload.user as User) };
+          : action === 'list_orders'
+            ? { action }
+            : { action, user: sanitizeUserForAdminApi(payload.user as User) };
 
     const requestBody = JSON.stringify(requestPayload);
 
@@ -2273,6 +2270,7 @@ const App: React.FC = () => {
                 await supabase.from('profiles').update({ points: newPts }).eq('id', currentUser.id);
                 await supabase.from('rewards').update({ stock: Math.max(0, rew.stock - 1) }).eq('id', rid);
                 addToast("Récompense réclamée !");
+                loadedViewsRef.current.delete('admin');
                 fetchUserProfile(currentUser.id);
                 void fetchViewData(currentViewRef.current, true);
               }
