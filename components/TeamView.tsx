@@ -4,6 +4,7 @@ import { DEPARTMENTS } from '../constants';
 
 interface TeamViewProps {
   users: User[];
+  gamificationStats?: Record<string, { earned: number; purchases: number; gains: number }>;
 }
 
 type TeamSubView = 'list' | 'department' | 'org';
@@ -11,10 +12,27 @@ type TeamSubView = 'list' | 'department' | 'org';
 interface UserCardProps {
   user: User;
   small?: boolean;
+  gamification?: { earned: number; purchases: number; gains: number };
 }
 
-const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false }) => {
+const getPublicBadges = (stats?: { earned: number; purchases: number; gains: number }) => {
+  const earned = stats?.earned || 0;
+  const purchases = stats?.purchases || 0;
+  const gains = stats?.gains || 0;
+
+  return [
+    { id: 'first-points', icon: '✨', title: 'Premier pas', unlocked: gains >= 1 },
+    { id: '100-points', icon: '🌱', title: 'Ça pousse', unlocked: earned >= 100 },
+    { id: '250-points', icon: '⭐', title: 'Contributeur', unlocked: earned >= 250 },
+    { id: '500-points', icon: '🚀', title: 'Top contributeur', unlocked: earned >= 500 },
+    { id: 'first-purchase', icon: '🎁', title: 'Premier échange', unlocked: purchases >= 1 },
+    { id: 'five-purchases', icon: '💎', title: 'Collectionneur', unlocked: purchases >= 5 },
+  ].filter(badge => badge.unlocked);
+};
+
+const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false, gamification }) => {
   const isLeader = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
+  const publicBadges = getPublicBadges(gamification);
   const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name || user.email)}`;
   const [avatarSrc, setAvatarSrc] = useState(user.avatar || fallbackAvatar);
 
@@ -44,6 +62,28 @@ const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false }) =
         <h4 className={`font-bold text-slate-900 truncate ${small ? 'text-xs' : 'text-sm'}`}>{user.name}</h4>
         <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
         {isLeader && <span className="text-[8px] font-black text-green-600 uppercase tracking-widest">Responsable</span>}
+
+        {publicBadges.length > 0 && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap" aria-label={`${publicBadges.length} badge${publicBadges.length > 1 ? 's' : ''}`}>
+            {publicBadges.slice(0, small ? 2 : 3).map(badge => (
+              <span
+                key={badge.id}
+                title={badge.title}
+                className="w-6 h-6 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-sm shadow-sm"
+              >
+                {badge.icon}
+              </span>
+            ))}
+            {publicBadges.length > (small ? 2 : 3) && (
+              <span
+                title={publicBadges.slice(small ? 2 : 3).map(badge => badge.title).join(', ')}
+                className="h-6 px-2 rounded-lg bg-slate-100 text-[9px] font-black text-slate-500 flex items-center"
+              >
+                +{publicBadges.length - (small ? 2 : 3)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -51,7 +91,7 @@ const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false }) =
 
 UserCard.displayName = 'UserCard';
 
-const TeamView: React.FC<TeamViewProps> = ({ users }) => {
+const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) => {
   const [activeSubView, setActiveSubView] = useState<TeamSubView>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('Tous');
@@ -130,7 +170,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredUsers.map(user => (
-              <UserCard key={user.id} user={user} />
+              <UserCard key={user.id} user={user} gamification={gamificationStats[user.id]} />
             ))}
             {filteredUsers.length === 0 && (
               <div className="col-span-full py-32 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
@@ -168,6 +208,13 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                           {user.name}
                         </p>
                         <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{user.role}</p>
+                        {getPublicBadges(gamificationStats[user.id]).length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {getPublicBadges(gamificationStats[user.id]).slice(0, 3).map(badge => (
+                              <span key={badge.id} title={badge.title} className="text-xs">{badge.icon}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -191,7 +238,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
               <div className="flex flex-wrap justify-center gap-6">
                 {directionMembers.map(user => (
                   <div key={user.id} className="animate-in zoom-in duration-500">
-                    <UserCard user={user} small />
+                    <UserCard user={user} small gamification={gamificationStats[user.id]} />
                   </div>
                 ))}
               </div>
@@ -220,7 +267,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users }) => {
                            .sort((a,b) => (a.role === UserRole.ADMIN || a.role === UserRole.MODERATOR ? -1 : 1))
                            .map(user => (
                              <div key={user.id} className="animate-in fade-in slide-in-from-top-2 duration-700" style={{ animationDelay: `${idx * 100}ms` }}>
-                               <UserCard user={user} small />
+                               <UserCard user={user} small gamification={gamificationStats[user.id]} />
                              </div>
                            ))
                        ) : (

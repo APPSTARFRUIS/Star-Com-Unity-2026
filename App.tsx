@@ -91,6 +91,7 @@ const App: React.FC = () => {
   const [engagementAnimations, setEngagementAnimations] = useState<EngagementAnimation[]>([]);
   const [adventOpenings, setAdventOpenings] = useState<AdventOpening[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [publicGamificationStats, setPublicGamificationStats] = useState<Record<string, { earned: number; purchases: number; gains: number }>>({});
 
   const [view, setView] = useState<ViewType>('accueil');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -495,8 +496,40 @@ const App: React.FC = () => {
               setUsers(cachedProfiles);
             }
 
-            // Actualisation Supabase en arrière-plan, sans bloquer l'annuaire.
+            // Actualisation profils en arrière-plan.
             void fetchProfilesWithRetry(2);
+
+            // On charge uniquement les champs nécessaires aux badges publics.
+            // Aucun historique détaillé, motif ou date n'est exposé dans l'annuaire.
+            const { data: publicTransactions, error: publicTransactionsError } = await supabase
+              .from('transactions')
+              .select('user_id,amount,type')
+              .limit(2000);
+
+            if (!publicTransactionsError && publicTransactions) {
+              const stats = publicTransactions.reduce((acc: Record<string, { earned: number; purchases: number; gains: number }>, row: any) => {
+                const userId = String(row.user_id || '');
+                if (!userId) return acc;
+
+                if (!acc[userId]) {
+                  acc[userId] = { earned: 0, purchases: 0, gains: 0 };
+                }
+
+                if (row.type === 'earn') {
+                  acc[userId].earned += Math.abs(Number(row.amount || 0));
+                  acc[userId].gains += 1;
+                }
+
+                if (row.type === 'spend') {
+                  acc[userId].purchases += 1;
+                }
+
+                return acc;
+              }, {});
+
+              setPublicGamificationStats(stats);
+            }
+
             break;
           }
 
@@ -1748,7 +1781,13 @@ const App: React.FC = () => {
           />
         );
 
-      case 'equipe': return <TeamView users={users} />;
+      case 'equipe':
+        return (
+          <TeamView
+            users={users}
+            gamificationStats={publicGamificationStats}
+          />
+        );
 
       case 'messages':
         return (
