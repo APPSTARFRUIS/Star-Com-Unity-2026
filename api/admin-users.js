@@ -107,7 +107,7 @@ export default async function handler(request, response) {
     if (action === 'list_orders') {
       const { data: orders, error: ordersError } = await adminClient
         .from('transactions')
-        .select('id,user_id,amount,reason,type,date')
+        .select('id,user_id,amount,reason,type,date,order_status,distributed_at')
         .eq('type', 'spend')
         .ilike('reason', 'Achat :%')
         .order('date', { ascending: false })
@@ -118,6 +118,48 @@ export default async function handler(request, response) {
       return response.status(200).json({
         ok: true,
         orders: orders || []
+      });
+    }
+
+    if (action === 'mark_order_distributed') {
+      const orderId = String(body.orderId || '').trim();
+
+      if (!orderId) {
+        return response.status(400).json({ error: 'Identifiant de commande manquant.' });
+      }
+
+      const { data: order, error: orderLookupError } = await adminClient
+        .from('transactions')
+        .select('id,type,reason,order_status')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (orderLookupError || !order) {
+        return response.status(404).json({ error: 'Commande introuvable.' });
+      }
+
+      if (order.type !== 'spend' || !String(order.reason || '').match(/^Achat\s*:/i)) {
+        return response.status(400).json({ error: 'Cette transaction n’est pas une commande Boutique.' });
+      }
+
+      const nextStatus = order.order_status === 'distributed' ? 'pending' : 'distributed';
+      const distributedAt = nextStatus === 'distributed' ? new Date().toISOString() : null;
+
+      const { error: updateError } = await adminClient
+        .from('transactions')
+        .update({
+          order_status: nextStatus,
+          distributed_at: distributedAt
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      return response.status(200).json({
+        ok: true,
+        orderId,
+        orderStatus: nextStatus,
+        distributedAt
       });
     }
 

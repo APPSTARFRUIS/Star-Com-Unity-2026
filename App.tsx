@@ -152,7 +152,9 @@ const App: React.FC = () => {
             ordersResult.orders.map((t: any) => ({
               ...t,
               userId: t.user_id,
-              date: t.date
+              date: t.date,
+              orderStatus: t.order_status || 'pending',
+              distributedAt: t.distributed_at || null
             }))
           );
         }
@@ -525,7 +527,9 @@ const App: React.FC = () => {
             ordersResult.orders.map((t: any) => ({
               ...t,
               userId: t.user_id,
-              date: t.date
+              date: t.date,
+              orderStatus: t.order_status || 'pending',
+              distributedAt: t.distributed_at || null
             }))
           );
         }
@@ -1346,7 +1350,7 @@ const App: React.FC = () => {
   });
 
   const callAdminUsers = async (
-    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders',
+    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders' | 'mark_order_distributed',
     payload: Record<string, any>
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
@@ -1369,7 +1373,12 @@ const App: React.FC = () => {
             }
           : action === 'list_orders'
             ? { action }
-            : { action, user: sanitizeUserForAdminApi(payload.user as User) };
+            : action === 'mark_order_distributed'
+              ? {
+                  action,
+                  orderId: String(payload.orderId || '').slice(0, 160)
+                }
+              : { action, user: sanitizeUserForAdminApi(payload.user as User) };
 
     const requestBody = JSON.stringify(requestPayload);
 
@@ -1550,6 +1559,39 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error('Erreur ajustement points :', error);
       addToast(error?.message || 'Impossible de modifier les points.', 'error');
+      throw error;
+    }
+  };
+
+  const handleToggleOrderStatus = async (orderId: string) => {
+    if (!currentUser || currentUser.role !== UserRole.ADMIN) {
+      addToast('Action réservée aux administrateurs.', 'error');
+      throw new Error('Action réservée aux administrateurs.');
+    }
+
+    try {
+      const result = await callAdminUsers('mark_order_distributed', { orderId });
+
+      setTransactions(previous =>
+        previous.map(transaction =>
+          transaction.id === orderId
+            ? {
+                ...transaction,
+                orderStatus: result.orderStatus,
+                distributedAt: result.distributedAt || null
+              }
+            : transaction
+        )
+      );
+
+      addToast(
+        result.orderStatus === 'distributed'
+          ? 'Commande marquée comme distribuée.'
+          : 'Commande repassée en attente.'
+      );
+    } catch (error: any) {
+      console.error('Erreur statut commande :', error);
+      addToast(error?.message || 'Impossible de modifier le statut de la commande.', 'error');
       throw error;
     }
   };
@@ -1779,6 +1821,7 @@ const App: React.FC = () => {
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateProfile}
             onAdjustPoints={handleAdjustUserPoints}
+            onToggleOrderStatus={handleToggleOrderStatus}
             onDeleteUser={handleDeleteUser}
             posts={posts}
             onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}

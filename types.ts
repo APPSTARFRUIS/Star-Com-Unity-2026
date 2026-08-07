@@ -401,6 +401,8 @@ export interface PointsTransaction {
   reason: string;
   date: string;
   type: 'earn' | 'spend';
+  orderStatus?: 'pending' | 'distributed';
+  distributedAt?: string | null;
 }
 
 export type EngagementType = 'countdown' | 'raffle' | 'contest' | 'advent' | 'mission' | 'season' | 'predictions';

@@ -12,6 +12,7 @@ interface AdminPanelProps {
   onAddUser: (user: User) => Promise<void>;
   onUpdateUser: (user: User) => Promise<void>;
   onAdjustPoints: (userId: string, delta: number) => Promise<void>;
+  onToggleOrderStatus: (orderId: string) => Promise<void>;
   posts: Post[];
   onDeletePost: (id: string) => void;
   ideas: Idea[];
@@ -82,7 +83,7 @@ const ADMIN_TABS = [
 ];
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
-  users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onAddUser,
+  users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onToggleOrderStatus, onAddUser,
   posts, onDeletePost,
   ideas, onUpdateIdeaStatus,
   moods,
@@ -785,6 +786,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Date</th>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Utilisateur</th>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Commande</th>
+                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Statut</th>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-right">Points</th>
                       </tr>
                    </thead>
@@ -815,12 +817,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                  Récompense réclamée
                                </p>
                              </td>
+                             <td className="px-6 py-4">
+                               <div className="flex flex-col items-start gap-2">
+                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                   o.orderStatus === 'distributed'
+                                     ? 'bg-green-50 text-green-700 border border-green-100'
+                                     : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                 }`}>
+                                   {o.orderStatus === 'distributed' ? 'Distribuée' : 'En attente'}
+                                 </span>
+                                 <button
+                                   type="button"
+                                   onClick={() => void onToggleOrderStatus(o.id)}
+                                   className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                     o.orderStatus === 'distributed'
+                                       ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                       : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                                   }`}
+                                 >
+                                   {o.orderStatus === 'distributed' ? 'Repasser en attente' : 'Marquer distribuée'}
+                                 </button>
+                                 {o.orderStatus === 'distributed' && o.distributedAt && (
+                                   <span className="text-[10px] text-slate-400">
+                                     Remise le {new Date(o.distributedAt).toLocaleDateString('fr-FR')}
+                                   </span>
+                                 )}
+                               </div>
+                             </td>
                              <td className="px-6 py-4 text-right font-black text-red-600">-{o.amount} pts</td>
                           </tr>
                         );
                       })}
                       {orders.length === 0 && (
-                        <tr><td colSpan={4} className="p-12 text-center text-slate-300 italic">Aucune commande pour le moment.</td></tr>
+                        <tr><td colSpan={5} className="p-12 text-center text-slate-300 italic">Aucune commande pour le moment.</td></tr>
                       )}
                    </tbody>
                 </table>
