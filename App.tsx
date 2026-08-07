@@ -116,6 +116,63 @@ const App: React.FC = () => {
     currentViewRef.current = view;
   }, [view]);
 
+  // Administration > Boutique : charge toutes les commandes boutique.
+  // 'admin' n'appartient pas au ViewType de fetchViewData, on le traite donc séparément.
+  useEffect(() => {
+    if (view !== 'admin' || !supabase || !currentUserRef.current) return;
+
+    let cancelled = false;
+
+    const loadAdminShopData = async () => {
+      try {
+        const cachedProfiles = getCachedProfiles();
+        if (cachedProfiles?.length && !cancelled) {
+          setUsers(cachedProfiles);
+        }
+
+        void fetchProfilesWithRetry(2);
+
+        const [rewardsResult, ordersResult] = await Promise.all([
+          supabase
+            .from('rewards')
+            .select('*')
+            .order('cost', { ascending: true })
+            .limit(100),
+          supabase
+            .from('transactions')
+            .select('*')
+            .eq('type', 'spend')
+            .order('date', { ascending: false })
+            .limit(500)
+        ]);
+
+        if (cancelled) return;
+
+        if (rewardsResult.data) {
+          setRewards(rewardsResult.data as any);
+        }
+
+        if (ordersResult.data) {
+          setTransactions(
+            ordersResult.data.map((t: any) => ({
+              ...t,
+              userId: t.user_id,
+              date: t.date
+            }))
+          );
+        }
+      } catch (error) {
+        console.error('Erreur chargement commandes boutique admin :', error);
+      }
+    };
+
+    void loadAdminShopData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
   const addToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     const id = Math.random().toString(36).substr(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
@@ -673,45 +730,6 @@ const App: React.FC = () => {
             break;
           }
 
-          case 'admin': {
-            const cachedProfiles = getCachedProfiles();
-            if (cachedProfiles?.length) {
-              setUsers(cachedProfiles);
-            }
-
-            // Profils et produits sont actualisés sans charger d'historique inutile.
-            void fetchProfilesWithRetry(2);
-
-            const [rewardsResult, ordersResult] = await Promise.all([
-              supabase
-                .from('rewards')
-                .select('*')
-                .order('cost', { ascending: true })
-                .limit(100),
-              supabase
-                .from('transactions')
-                .select('*')
-                .eq('type', 'spend')
-                .order('date', { ascending: false })
-                .limit(500)
-            ]);
-
-            if (rewardsResult.data) {
-              setRewards(rewardsResult.data as any);
-            }
-
-            if (ordersResult.data) {
-              setTransactions(
-                ordersResult.data.map((t: any) => ({
-                  ...t,
-                  userId: t.user_id,
-                  date: t.date
-                }))
-              );
-            }
-
-            break;
-          }
 
           case 'engagement': {
             const [profiles, transactionsResult, postsResult, commentsResult, ideasResult, pollsResult] = await Promise.all([
