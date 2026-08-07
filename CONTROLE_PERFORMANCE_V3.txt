@@ -1,0 +1,2 @@
+Vérifications statiques : OK
+Build local : npm install indisponible dans l'environnement

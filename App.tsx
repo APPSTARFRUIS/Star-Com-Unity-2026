@@ -407,9 +407,16 @@ const App: React.FC = () => {
     const now = Date.now();
     if (!force && loadedViewsRef.current.has('accueil') && now - lastFullFetchAtRef.current < 60_000) return;
 
-    const [profiles, configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult, notificationsResult] =
+    const cachedProfiles = getCachedProfiles();
+    if (cachedProfiles?.length) {
+      setUsers(cachedProfiles);
+    }
+
+    // Les profils ne bloquent plus l'accueil : mise à jour en arrière-plan.
+    void fetchProfilesWithRetry(2);
+
+    const [configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult, notificationsResult] =
       await Promise.all([
-        fetchProfilesWithRetry(),
         supabase.from('app_config').select('*').maybeSingle(),
         supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(12),
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(120),
@@ -418,15 +425,6 @@ const App: React.FC = () => {
         supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(30),
         supabase.from('notifications').select('*').eq('user_id', currentUserRef.current!.id).order('created_at', { ascending: false }).limit(100)
       ]);
-
-    if (profiles) {
-      setUsers(profiles);
-      try {
-        localStorage.setItem('star_community_profiles_cache', JSON.stringify({ data: profiles, cachedAt: Date.now() }));
-      } catch {
-        // Cache facultatif.
-      }
-    }
 
     if (configResult.data) {
       const config = configResult.data;
@@ -503,11 +501,16 @@ const App: React.FC = () => {
           }
 
           case 'messages': {
-            const [profiles, messagesResult] = await Promise.all([
-              fetchProfilesWithRetry(),
-              supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(250)
-            ]);
-            if (profiles) setUsers(profiles);
+            const cachedProfiles = getCachedProfiles();
+            if (cachedProfiles?.length) setUsers(cachedProfiles);
+            void fetchProfilesWithRetry(2);
+
+            const messagesResult = await supabase
+              .from('messages')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .limit(250);
+
             if (messagesResult.data) {
               setMessages([...messagesResult.data].reverse().map((m: any) => ({
                 ...m,
@@ -559,11 +562,16 @@ const App: React.FC = () => {
           }
 
           case 'celebrations': {
-            const [profiles, celebrationsResult] = await Promise.all([
-              fetchProfilesWithRetry(),
-              supabase.from('celebrations').select('*').order('date', { ascending: false }).limit(150)
-            ]);
-            if (profiles) setUsers(profiles);
+            const cachedProfiles = getCachedProfiles();
+            if (cachedProfiles?.length) setUsers(cachedProfiles);
+            void fetchProfilesWithRetry(2);
+
+            const celebrationsResult = await supabase
+              .from('celebrations')
+              .select('*')
+              .order('date', { ascending: false })
+              .limit(150);
+
             if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
             break;
           }
@@ -902,22 +910,45 @@ const App: React.FC = () => {
     }
   }, [session]);
 
-  const scheduleRealtimeRefresh = useCallback(() => {
+  const realtimeViewsByTable: Record<string, ViewType[]> = {
+    posts: ['accueil', 'social', 'engagement', 'admin'],
+    comments: ['accueil', 'social', 'idees', 'engagement', 'admin'],
+    events: ['accueil', 'evenements', 'admin'],
+    ideas: ['idees', 'engagement', 'admin'],
+    profiles: ['equipe', 'messages', 'celebrations', 'engagement', 'admin'],
+    moods: ['humeur', 'admin'],
+    documents: ['documents', 'admin'],
+    wellness_challenges: ['bienetre', 'admin'],
+    wellness_contents: ['bienetre', 'admin'],
+    messages: ['messages'],
+    rewards: ['boutique', 'admin'],
+    transactions: ['boutique', 'engagement', 'tempsforts', 'admin'],
+    games: ['jeux', 'tempsforts', 'admin'],
+    engagement_animations: ['accueil', 'tempsforts', 'admin'],
+    advent_openings: ['tempsforts'],
+    newsletters: ['newsletter', 'admin'],
+    polls: ['sondages', 'engagement', 'admin'],
+    celebrations: ['accueil', 'celebrations', 'admin']
+  };
+
+  const scheduleRealtimeRefresh = useCallback((table?: string) => {
+    const activeView = currentViewRef.current;
+    const affectedViews = table ? realtimeViewsByTable[table] || [] : [activeView];
+
+    // Invalide les vues concernées pour leur prochaine ouverture.
+    affectedViews.forEach(viewName => loadedViewsRef.current.delete(viewName));
+
+    // Si la vue affichée n'est pas concernée, aucune requête immédiate.
+    if (table && !affectedViews.includes(activeView)) return;
+
     if (realtimeRefreshTimerRef.current) {
       window.clearTimeout(realtimeRefreshTimerRef.current);
     }
 
     realtimeRefreshTimerRef.current = window.setTimeout(() => {
       realtimeRefreshTimerRef.current = null;
-      const activeView = currentViewRef.current;
-      loadedViewsRef.current.delete(activeView);
       void fetchViewData(activeView, true);
-
-      // L'accueil reste léger et actualisé pour les compteurs et le temps fort.
-      if (activeView !== 'accueil') {
-        loadedViewsRef.current.delete('accueil');
-      }
-    }, 1200);
+    }, 700);
   }, [fetchViewData]);
 
   useEffect(() => {
@@ -929,32 +960,32 @@ const App: React.FC = () => {
           if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
             addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('posts');
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => scheduleRealtimeRefresh('ideas'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => scheduleRealtimeRefresh('profiles'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => scheduleRealtimeRefresh('comments'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => scheduleRealtimeRefresh('moods'))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
             addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('events');
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => scheduleRealtimeRefresh('documents'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefresh('wellness_challenges'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefresh('wellness_contents'))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
           if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('messages');
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefresh())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, () => scheduleRealtimeRefresh())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefresh('rewards'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => scheduleRealtimeRefresh('transactions'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefresh('games'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefresh('engagement_animations'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, () => scheduleRealtimeRefresh('advent_openings'))
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -973,19 +1004,19 @@ const App: React.FC = () => {
           if (currentUser && currentUser.notification_settings?.posts) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('newsletters');
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
             addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('polls');
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh('celebrations');
         })
         .subscribe();
 
