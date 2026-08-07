@@ -154,7 +154,8 @@ export default async function handler(request, response) {
           reason: effectiveDelta > 0
             ? 'Ajustement administrateur : points ajoutés'
             : 'Ajustement administrateur : points retirés',
-          type: effectiveDelta > 0 ? 'earn' : 'spend'
+          type: effectiveDelta > 0 ? 'earn' : 'spend',
+          date: new Date().toISOString()
         });
 
       if (transactionError) {
@@ -381,10 +382,17 @@ export default async function handler(request, response) {
   } catch (error) {
     console.error(error);
 
-    return response.status(500).json({
-      error: error instanceof Error
+    const errorMessage =
+      error instanceof Error
         ? error.message
-        : 'Erreur interne du service utilisateurs.'
+        : error && typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : typeof error === 'string'
+            ? error
+            : 'Erreur interne du service utilisateurs.';
+
+    return response.status(500).json({
+      error: errorMessage
     });
   }
 }
