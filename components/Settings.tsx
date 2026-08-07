@@ -23,6 +23,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
   // État initial basé sur les données réelles de l'utilisateur
   const [notifications, setNotifications] = useState<NotificationSettings>(
     user.notification_settings || {
+      inApp: true,
       email: true,
       desktop: true,
       mobile: true,
@@ -30,7 +31,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
       events: true,
       messages: true,
       birthdays: true,
-      polls: true
+      polls: true,
+      newsletters: true,
+      celebrations: true,
+      highlights: true,
+      points: true
     }
   );
 
@@ -211,13 +216,21 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
 
           {activeTab === 'notifications' && (
             <div className="space-y-10 animate-in fade-in duration-300">
+              <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-4">
+                <p className="font-bold text-green-900">Vos préférences sont maintenant actives.</p>
+                <p className="text-xs text-green-800 mt-1">
+                  Les choix par type déterminent les notifications créées pour votre compte dans Star Com’Unity.
+                </p>
+              </div>
+
               <section className="space-y-6">
                 <h3 className="text-lg font-bold text-slate-800">Canaux de notification</h3>
                 <div className="space-y-4">
                   {[
-                    { id: 'email', label: 'Email', sub: 'Recevez les notifications par email' },
-                    { id: 'desktop', label: 'Notifications bureau', sub: 'Recevez les notifications sur votre navigateur' },
-                    { id: 'mobile', label: 'Notifications mobiles', sub: 'Recevez les notifications sur votre téléphone' }
+                    { id: 'inApp', label: 'Dans Star Com’Unity', sub: 'Centre de notifications et compteur de notifications non lues' },
+                    { id: 'email', label: 'Email', sub: 'Préférence enregistrée pour les futurs envois email' },
+                    { id: 'desktop', label: 'Notifications bureau', sub: 'Préférence enregistrée pour les futures notifications navigateur' },
+                    { id: 'mobile', label: 'Notifications mobiles', sub: 'Préférence enregistrée pour les futures notifications push' }
                   ].map(channel => (
                     <div key={channel.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <div>
@@ -238,7 +251,11 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                     { id: 'events', label: 'Événements' },
                     { id: 'messages', label: 'Messages directs' },
                     { id: 'birthdays', label: 'Anniversaires' },
-                    { id: 'polls', label: 'Nouveaux sondages' }
+                    { id: 'polls', label: 'Nouveaux sondages' },
+                    { id: 'newsletters', label: 'Newsletters' },
+                    { id: 'celebrations', label: 'Célébrations' },
+                    { id: 'highlights', label: 'Temps forts & animations' },
+                    { id: 'points', label: 'Points gagnés ou utilisés' }
                   ].map(type => (
                     <div key={type.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <span className="font-medium text-slate-700">{type.label}</span>
