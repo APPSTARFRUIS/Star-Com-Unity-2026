@@ -517,6 +517,22 @@ const App: React.FC = () => {
 
     if (targetView === 'admin') {
       await fetchAllData(true);
+
+      try {
+        const ordersResult = await callAdminUsers('list_orders', {});
+        if (Array.isArray(ordersResult?.orders)) {
+          setTransactions(
+            ordersResult.orders.map((t: any) => ({
+              ...t,
+              userId: t.user_id,
+              date: t.date
+            }))
+          );
+        }
+      } catch (error) {
+        console.error('Erreur rechargement commandes admin :', error);
+      }
+
       loadedViewsRef.current.add(targetView);
       return;
     }
@@ -920,7 +936,17 @@ const App: React.FC = () => {
           .reverse()
           .map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at }))
       );
-      if (transData) setTransactions(transData.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+      // En Administration, les commandes sont chargées par l'API sécurisée list_orders.
+      // Ne jamais les écraser avec la requête navigateur sur transactions (soumise à la RLS).
+      if (transData && currentViewRef.current !== 'admin') {
+        setTransactions(
+          transData.map((t: any) => ({
+            ...t,
+            userId: t.user_id,
+            date: t.date
+          }))
+        );
+      }
       if (gamesData) setGames(gamesData.map((g: any) => ({
         ...g,
         rewardPoints: g.reward_points,
