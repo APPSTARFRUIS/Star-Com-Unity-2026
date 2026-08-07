@@ -460,7 +460,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const orders = useMemo(() => {
-    return transactions.filter(t => t.type === 'spend').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return transactions
+      .filter(t => t.type === 'spend')
+      .slice()
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions]);
 
   const logoRef = useRef<HTMLInputElement>(null);
@@ -763,7 +766,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       <tr>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Date</th>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Utilisateur</th>
-                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Détails</th>
+                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Commande</th>
                          <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-right">Points</th>
                       </tr>
                    </thead>
@@ -775,11 +778,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              <td className="px-6 py-4 text-xs font-bold text-slate-400">{new Date(o.date).toLocaleDateString('fr-FR')}</td>
                              <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                   <img src={user?.avatar} className="w-8 h-8 rounded-full border" alt="" />
-                                   <span className="font-bold text-slate-800 text-sm">{user?.name || 'Inconnu'}</span>
+                                   <img
+                                     src={user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.name || o.userId)}`}
+                                     className="w-8 h-8 rounded-full border object-cover"
+                                     alt=""
+                                   />
+                                   <div>
+                                     <p className="font-bold text-slate-800 text-sm">{user?.name || 'Utilisateur inconnu'}</p>
+                                     <p className="text-[10px] text-slate-400">{user?.email || o.userId}</p>
+                                   </div>
                                 </div>
                              </td>
-                             <td className="px-6 py-4 text-sm font-medium text-slate-600">{o.reason}</td>
+                             <td className="px-6 py-4">
+                               <p className="text-sm font-bold text-slate-700">
+                                 {o.reason?.replace(/^Achat\s*:\s*/i, '') || 'Récompense boutique'}
+                               </p>
+                               <p className="text-[10px] uppercase tracking-widest font-black text-green-600 mt-1">
+                                 Récompense réclamée
+                               </p>
+                             </td>
                              <td className="px-6 py-4 text-right font-black text-red-600">-{o.amount} pts</td>
                           </tr>
                         );

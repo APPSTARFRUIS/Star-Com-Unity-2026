@@ -673,6 +673,46 @@ const App: React.FC = () => {
             break;
           }
 
+          case 'admin': {
+            const cachedProfiles = getCachedProfiles();
+            if (cachedProfiles?.length) {
+              setUsers(cachedProfiles);
+            }
+
+            // Profils et produits sont actualisés sans charger d'historique inutile.
+            void fetchProfilesWithRetry(2);
+
+            const [rewardsResult, ordersResult] = await Promise.all([
+              supabase
+                .from('rewards')
+                .select('*')
+                .order('cost', { ascending: true })
+                .limit(100),
+              supabase
+                .from('transactions')
+                .select('*')
+                .eq('type', 'spend')
+                .order('date', { ascending: false })
+                .limit(500)
+            ]);
+
+            if (rewardsResult.data) {
+              setRewards(rewardsResult.data as any);
+            }
+
+            if (ordersResult.data) {
+              setTransactions(
+                ordersResult.data.map((t: any) => ({
+                  ...t,
+                  userId: t.user_id,
+                  date: t.date
+                }))
+              );
+            }
+
+            break;
+          }
+
           case 'engagement': {
             const [profiles, transactionsResult, postsResult, commentsResult, ideasResult, pollsResult] = await Promise.all([
               fetchProfilesWithRetry(),
