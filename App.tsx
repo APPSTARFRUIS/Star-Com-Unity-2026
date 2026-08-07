@@ -565,7 +565,7 @@ const App: React.FC = () => {
             // Aucun historique détaillé, motif ou date n'est exposé dans l'annuaire.
             const { data: publicTransactions, error: publicTransactionsError } = await supabase
               .from('transactions')
-              .select('user_id,amount,type')
+              .select('user_id,amount,type,reason')
               .limit(2000);
 
             if (!publicTransactionsError && publicTransactions) {
@@ -582,7 +582,7 @@ const App: React.FC = () => {
                   acc[userId].gains += 1;
                 }
 
-                if (row.type === 'spend') {
+                if (row.type === 'spend' && /^Achat\s*:/i.test(String(row.reason || ''))) {
                   acc[userId].purchases += 1;
                 }
 
@@ -1325,7 +1325,7 @@ const App: React.FC = () => {
   });
 
   const callAdminUsers = async (
-    action: 'create' | 'update' | 'delete',
+    action: 'create' | 'update' | 'delete' | 'adjust_points',
     payload: Record<string, any>
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
@@ -1340,7 +1340,13 @@ const App: React.FC = () => {
     const requestPayload =
       action === 'delete'
         ? { action, userId: String(payload.userId || '').slice(0, 160) }
-        : { action, user: sanitizeUserForAdminApi(payload.user as User) };
+        : action === 'adjust_points'
+          ? {
+              action,
+              userId: String(payload.userId || '').slice(0, 160),
+              delta: Number(payload.delta || 0)
+            }
+          : { action, user: sanitizeUserForAdminApi(payload.user as User) };
 
     const requestBody = JSON.stringify(requestPayload);
 
@@ -1479,6 +1485,48 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error('Erreur mise à jour du profil personnel :', error);
       addToast(error?.message || 'Impossible de mettre à jour le profil.', 'error');
+      throw error;
+    }
+  };
+
+  const handleAdjustUserPoints = async (userId: string, delta: number) => {
+    if (!currentUser || currentUser.role !== UserRole.ADMIN) {
+      addToast('Action réservée aux administrateurs.', 'error');
+      throw new Error('Action réservée aux administrateurs.');
+    }
+
+    try {
+      const result = await callAdminUsers('adjust_points', { userId, delta });
+
+      setUsers(previous =>
+        previous.map(user =>
+          user.id === userId
+            ? { ...user, points: Number(result.points ?? user.points) }
+            : user
+        )
+      );
+
+      if (currentUser.id === userId) {
+        setCurrentUser(previous =>
+          previous
+            ? { ...previous, points: Number(result.points ?? previous.points) }
+            : previous
+        );
+      }
+
+      localStorage.removeItem('star_community_profiles_cache');
+      loadedViewsRef.current.delete('equipe');
+      loadedViewsRef.current.delete('engagement');
+      loadedViewsRef.current.delete('boutique');
+
+      addToast(
+        Number(result.delta || 0) >= 0
+          ? `+${Math.abs(Number(result.delta || 0))} points ajoutés.`
+          : `${Math.abs(Number(result.delta || 0))} points retirés.`
+      );
+    } catch (error: any) {
+      console.error('Erreur ajustement points :', error);
+      addToast(error?.message || 'Impossible de modifier les points.', 'error');
       throw error;
     }
   };
@@ -1707,6 +1755,7 @@ const App: React.FC = () => {
             onUpdateRole={handleUpdateUserRole}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateProfile}
+            onAdjustPoints={handleAdjustUserPoints}
             onDeleteUser={handleDeleteUser}
             posts={posts}
             onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}

@@ -41,7 +41,9 @@ const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onCla
       .filter(t => t.type === 'spend')
       .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
 
-    const purchases = myTransactions.filter(t => t.type === 'spend').length;
+    const purchases = myTransactions.filter(
+      t => t.type === 'spend' && /^Achat\s*:/i.test(t.reason || '')
+    ).length;
     const gains = myTransactions.filter(t => t.type === 'earn').length;
 
     return { earned, spent, purchases, gains };

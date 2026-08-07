@@ -104,6 +104,77 @@ export default async function handler(request, response) {
       return null;
     };
 
+    if (action === 'adjust_points') {
+      const userId = String(body.userId || '').trim();
+      const delta = Number(body.delta || 0);
+
+      if (!userId) {
+        return response.status(400).json({ error: 'Identifiant utilisateur manquant.' });
+      }
+
+      if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 100000) {
+        return response.status(400).json({ error: 'Ajustement de points invalide.' });
+      }
+
+      const { data: targetProfile, error: targetError } = await adminClient
+        .from('profiles')
+        .select('id, points, name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (targetError || !targetProfile) {
+        return response.status(404).json({ error: 'Profil utilisateur introuvable.' });
+      }
+
+      const previousPoints = Number(targetProfile.points || 0);
+      const nextPoints = Math.max(0, previousPoints + delta);
+      const effectiveDelta = nextPoints - previousPoints;
+
+      if (effectiveDelta === 0) {
+        return response.status(200).json({
+          ok: true,
+          userId,
+          points: nextPoints,
+          delta: 0
+        });
+      }
+
+      const { error: pointsError } = await adminClient
+        .from('profiles')
+        .update({ points: nextPoints })
+        .eq('id', userId);
+
+      if (pointsError) throw pointsError;
+
+      const { error: transactionError } = await adminClient
+        .from('transactions')
+        .insert({
+          user_id: userId,
+          amount: Math.abs(effectiveDelta),
+          reason: effectiveDelta > 0
+            ? 'Ajustement administrateur : points ajoutés'
+            : 'Ajustement administrateur : points retirés',
+          type: effectiveDelta > 0 ? 'earn' : 'spend'
+        });
+
+      if (transactionError) {
+        // Retour à l'ancien solde pour ne jamais laisser un ajustement sans trace.
+        await adminClient
+          .from('profiles')
+          .update({ points: previousPoints })
+          .eq('id', userId);
+
+        throw transactionError;
+      }
+
+      return response.status(200).json({
+        ok: true,
+        userId,
+        points: nextPoints,
+        delta: effectiveDelta
+      });
+    }
+
     if (action === 'delete') {
       if (!requestedProfileId) {
         return response.status(400).json({ error: 'Identifiant utilisateur manquant.' });

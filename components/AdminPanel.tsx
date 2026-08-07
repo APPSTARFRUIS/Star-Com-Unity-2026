@@ -11,6 +11,7 @@ interface AdminPanelProps {
   onDeleteUser: (userId: string) => Promise<void> | void;
   onAddUser: (user: User) => Promise<void>;
   onUpdateUser: (user: User) => Promise<void>;
+  onAdjustPoints: (userId: string, delta: number) => Promise<void>;
   posts: Post[];
   onDeletePost: (id: string) => void;
   ideas: Idea[];
@@ -81,7 +82,7 @@ const ADMIN_TABS = [
 ];
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
-  users, onUpdateRole, onDeleteUser, onUpdateUser, onAddUser,
+  users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onAddUser,
   posts, onDeletePost,
   ideas, onUpdateIdeaStatus,
   moods,
@@ -546,10 +547,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         <td className="px-6 py-4">
                            <div className="flex items-center gap-3">
                               <span className="font-black text-green-600">{u.points} pts</span>
-                              <div className="flex gap-1">
-                                 <button onClick={() => onUpdateUser({...u, points: u.points + 50})} className="w-6 h-6 bg-green-50 text-green-600 rounded flex items-center justify-center text-xs font-bold hover:bg-green-100 transition-colors">+</button>
-                                 <button onClick={() => onUpdateUser({...u, points: Math.max(0, u.points - 50)})} className="w-6 h-6 bg-red-50 text-red-600 rounded flex items-center justify-center text-xs font-bold hover:bg-red-100 transition-colors">-</button>
-                              </div>
+                              {currentUser.role === UserRole.ADMIN && (
+                                <div className="flex gap-1">
+                                   <button
+                                     type="button"
+                                     title="Ajouter 50 points"
+                                     onClick={() => void onAdjustPoints(u.id, 50)}
+                                     className="w-7 h-7 bg-green-50 text-green-600 rounded-lg flex items-center justify-center text-sm font-black hover:bg-green-100 transition-colors"
+                                   >
+                                     +
+                                   </button>
+                                   <button
+                                     type="button"
+                                     title="Retirer 50 points"
+                                     onClick={() => void onAdjustPoints(u.id, -50)}
+                                     disabled={u.points <= 0}
+                                     className="w-7 h-7 bg-red-50 text-red-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg flex items-center justify-center text-sm font-black hover:bg-red-100 transition-colors"
+                                   >
+                                     −
+                                   </button>
+                                </div>
+                              )}
                            </div>
                         </td>
                         <td className="px-6 py-4">
