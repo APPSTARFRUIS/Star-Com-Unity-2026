@@ -2290,16 +2290,113 @@ const App: React.FC = () => {
             rewards={rewards}
             onClaimReward={async (rid) => {
               const rew = rewards.find(r => r.id === rid);
-              if (rew && currentUser.points >= rew.cost && supabase) {
-                await supabase.from('transactions').insert({ user_id: currentUser.id, amount: rew.cost, reason: `Achat : ${rew.title}`, type: 'spend' });
-                const newPts = currentUser.points - rew.cost;
-                await supabase.from('profiles').update({ points: newPts }).eq('id', currentUser.id);
-                await supabase.from('rewards').update({ stock: Math.max(0, rew.stock - 1) }).eq('id', rid);
-                addToast("Récompense réclamée !");
-                loadedViewsRef.current.delete('admin');
-                fetchUserProfile(currentUser.id);
-                void fetchViewData(currentViewRef.current, true);
+
+              if (!rew || !supabase) return;
+
+              if (currentUser.points < rew.cost) {
+                addToast("Vous n'avez pas assez de points.", "error");
+                return;
               }
+
+              if (rew.stock <= 0) {
+                addToast("Cette récompense n'est plus disponible.", "error");
+                return;
+              }
+
+              const orderDate = new Date().toISOString();
+              const newPts = currentUser.points - rew.cost;
+              const newStock = Math.max(0, rew.stock - 1);
+
+              // 1. Enregistrer d'abord la commande.
+              // La colonne `date` est obligatoire dans la table transactions.
+              const { data: orderRows, error: orderError } = await supabase
+                .from('transactions')
+                .insert({
+                  user_id: currentUser.id,
+                  amount: rew.cost,
+                  reason: `Achat : ${rew.title}`,
+                  type: 'spend',
+                  date: orderDate
+                })
+                .select('id')
+                .limit(1);
+
+              if (orderError) {
+                console.error('Erreur enregistrement commande boutique :', orderError);
+                addToast(
+                  orderError.message || "La commande n'a pas pu être enregistrée.",
+                  "error"
+                );
+                return;
+              }
+
+              const createdOrderId = orderRows?.[0]?.id;
+
+              // 2. Décompter les points.
+              const { error: pointsError } = await supabase
+                .from('profiles')
+                .update({ points: newPts })
+                .eq('id', currentUser.id);
+
+              if (pointsError) {
+                console.error('Erreur décompte points boutique :', pointsError);
+
+                // On supprime la commande créée puisque le débit n'a pas abouti.
+                if (createdOrderId) {
+                  await supabase.from('transactions').delete().eq('id', createdOrderId);
+                }
+
+                addToast(
+                  pointsError.message || "Impossible de débiter les points.",
+                  "error"
+                );
+                return;
+              }
+
+              // 3. Décompter le stock.
+              const { error: stockError } = await supabase
+                .from('rewards')
+                .update({ stock: newStock })
+                .eq('id', rid);
+
+              if (stockError) {
+                console.error('Erreur décompte stock boutique :', stockError);
+
+                // Rollback au mieux : restituer les points et retirer la commande.
+                await supabase
+                  .from('profiles')
+                  .update({ points: currentUser.points })
+                  .eq('id', currentUser.id);
+
+                if (createdOrderId) {
+                  await supabase.from('transactions').delete().eq('id', createdOrderId);
+                }
+
+                addToast(
+                  stockError.message || "Impossible de mettre à jour le stock.",
+                  "error"
+                );
+                return;
+              }
+
+              // Mise à jour locale immédiate.
+              setCurrentUser(previous =>
+                previous ? { ...previous, points: newPts } : previous
+              );
+              setRewards(previous =>
+                previous.map(item =>
+                  item.id === rid ? { ...item, stock: newStock } : item
+                )
+              );
+
+              addToast(`Commande enregistrée : ${rew.title}`);
+
+              // L'admin devra relire les commandes via l'API sécurisée.
+              loadedViewsRef.current.delete('admin');
+              loadedViewsRef.current.delete('boutique');
+
+              await fetchUserProfile(currentUser.id);
+              void fetchViewData(currentViewRef.current, true);
             }}
             transactions={transactions}
           />
