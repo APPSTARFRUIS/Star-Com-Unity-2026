@@ -6,7 +6,6 @@ interface NotificationCenterProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => Promise<void>;
   onMarkAllRead: () => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
   onOpen: (notification: AppNotification) => void;
 }
 
@@ -37,7 +36,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   notifications,
   onMarkRead,
   onMarkAllRead,
-  onDelete,
   onOpen,
 }) => {
   const [filter, setFilter] = useState('all');
@@ -152,14 +150,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   <p className="text-xs text-slate-400 mt-3 font-medium">{formatDate(notification.createdAt)}</p>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => void onDelete(notification.id)}
-                  className="p-2 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Supprimer"
-                >
-                  ×
-                </button>
               </div>
             </article>
           ))

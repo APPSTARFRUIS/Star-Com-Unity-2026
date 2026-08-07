@@ -60,6 +60,7 @@ export interface AppNotification {
   linkView?: string;
   entityId?: string;
   isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
 }
 

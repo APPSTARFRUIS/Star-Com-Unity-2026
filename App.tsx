@@ -458,8 +458,26 @@ const App: React.FC = () => {
       linkView: item.link_view || undefined,
       entityId: item.entity_id || undefined,
       isRead: Boolean(item.is_read),
+      readAt: item.read_at || null,
       createdAt: item.created_at
     }));
+
+  const purgeExpiredReadNotifications = useCallback(async () => {
+    if (!supabase || !currentUserRef.current) return;
+
+    const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', currentUserRef.current.id)
+      .eq('is_read', true)
+      .lt('read_at', threshold);
+
+    if (error) {
+      console.error('Erreur nettoyage notifications expirées :', error);
+    }
+  }, []);
 
   const fetchCoreData = useCallback(async (force = false) => {
     if (!supabase || (!session && !currentUserRef.current)) return;
@@ -471,6 +489,10 @@ const App: React.FC = () => {
     if (cachedProfiles?.length) {
       setUsers(cachedProfiles);
     }
+
+    // Nettoyage réel en base : les notifications lues depuis plus de 7 jours
+    // sont supprimées automatiquement au prochain chargement de l'application.
+    await purgeExpiredReadNotifications();
 
     // Les profils ne bloquent plus l'accueil : mise à jour en arrière-plan.
     void fetchProfilesWithRetry(2);
@@ -507,7 +529,7 @@ const App: React.FC = () => {
 
     loadedViewsRef.current.add('accueil');
     lastFullFetchAtRef.current = Date.now();
-  }, [session]);
+  }, [session, purgeExpiredReadNotifications]);
 
   const fetchViewData = useCallback(async (targetView: ViewType, force = false) => {
     if (!supabase || (!session && !currentUserRef.current)) return;
@@ -710,6 +732,8 @@ const App: React.FC = () => {
           }
 
           case 'notifications': {
+            await purgeExpiredReadNotifications();
+
             const { data, error } = await supabase
               .from('notifications')
               .select('*')
@@ -1974,16 +1998,36 @@ const App: React.FC = () => {
           <NotificationCenter
             notifications={notifications}
             onMarkRead={async (id) => {
-              const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id).eq('user_id', currentUser.id);
-              if (!error) setNotifications(previous => previous.map(item => item.id === id ? { ...item, isRead: true } : item));
+              const readAt = new Date().toISOString();
+              const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true, read_at: readAt })
+                .eq('id', id)
+                .eq('user_id', currentUser.id);
+
+              if (!error) {
+                setNotifications(previous =>
+                  previous.map(item =>
+                    item.id === id ? { ...item, isRead: true, readAt } : item
+                  )
+                );
+              }
             }}
             onMarkAllRead={async () => {
-              const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUser.id).eq('is_read', false);
-              if (!error) setNotifications(previous => previous.map(item => ({ ...item, isRead: true })));
-            }}
-            onDelete={async (id) => {
-              const { error } = await supabase.from('notifications').delete().eq('id', id).eq('user_id', currentUser.id);
-              if (!error) setNotifications(previous => previous.filter(item => item.id !== id));
+              const readAt = new Date().toISOString();
+              const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true, read_at: readAt })
+                .eq('user_id', currentUser.id)
+                .eq('is_read', false);
+
+              if (!error) {
+                setNotifications(previous =>
+                  previous.map(item =>
+                    item.isRead ? item : { ...item, isRead: true, readAt }
+                  )
+                );
+              }
             }}
             onOpen={(notification) => {
               if (notification.linkView) setView(notification.linkView as ViewType);
