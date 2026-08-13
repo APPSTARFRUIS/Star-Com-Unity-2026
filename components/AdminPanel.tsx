@@ -217,6 +217,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [sportRoundLabel, setSportRoundLabel] = useState('');
   const [sportVenue, setSportVenue] = useState('');
   const [sportResultDrafts, setSportResultDrafts] = useState<Record<string, { home: string; away: string }>>({});
+  const [customTrivialCategories, setCustomTrivialCategories] = useState<string[]>([]);
+  const [newTrivialCategory, setNewTrivialCategory] = useState('');
 
   const handleAddSportFixture = () => {
     if (!sportHomeTeam.trim() || !sportAwayTeam.trim() || !sportEventDate || !sportClosingDate) {
@@ -246,6 +248,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewGame(prev => ({ ...prev, sportEvents: (prev.sportEvents || []).filter(f => f.id !== fixtureId) }));
   };
 
+  const trivialCategoryOptions = useMemo(() => {
+    const defaults = TRIVIAL_CATEGORIES.map(cat => cat.name);
+    const fromQuestions = (newGame.questions || [])
+      .map(question => question.trivialCategory?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    return [...new Set([...defaults, ...customTrivialCategories, ...fromQuestions])];
+  }, [newGame.questions, customTrivialCategories]);
+
+  const handleAddTrivialCategory = () => {
+    const cleaned = newTrivialCategory.trim();
+    if (!cleaned) return;
+
+    const alreadyExists = trivialCategoryOptions.some(
+      category => category.toLocaleLowerCase('fr-FR') === cleaned.toLocaleLowerCase('fr-FR')
+    );
+
+    if (!alreadyExists) {
+      setCustomTrivialCategories(previous => [...previous, cleaned]);
+    }
+
+    setNewTrivialCategory('');
+  };
+
+  const handleRemoveCustomTrivialCategory = (category: string) => {
+    const usedByQuestion = (newGame.questions || []).some(
+      question => question.trivialCategory?.trim() === category
+    );
+
+    if (usedByQuestion) {
+      alert('Cette catégorie est utilisée par au moins une question. Modifiez d’abord la catégorie de cette question.');
+      return;
+    }
+
+    setCustomTrivialCategories(previous => previous.filter(item => item !== category));
+  };
+
   // --- QUIZ EDITOR HELPERS ---
   const handleAddQuestion = () => {
     const q: QuizQuestion = { 
@@ -254,7 +293,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       question: 'Nouvelle question ?', 
       options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'], 
       correctIndices: [0],
-      trivialCategory: newGame.type === 'Trivial' ? TRIVIAL_CATEGORIES[0].name : undefined
+      trivialCategory: newGame.type === 'Trivial' ? (trivialCategoryOptions[0] || 'Entreprise') : undefined
     };
     setNewGame(prev => ({ ...prev, questions: [...(prev.questions || []), q] }));
   };
@@ -377,6 +416,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     
     onAddGame(newGame);
     setShowGameModal(false);
+    setCustomTrivialCategories([]);
+    setNewTrivialCategory('');
     setNewGame({ 
       title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
       hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5 
@@ -1130,6 +1171,63 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <h4 className="text-xs font-black uppercase text-indigo-700 tracking-[0.3em]">ÉDITEUR DE QUESTIONS ({newGame.questions?.length})</h4>
                               <button type="button" onClick={handleAddQuestion} className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-lg shadow-indigo-200">+ AJOUTER UNE QUESTION</button>
                            </div>
+                           {newGame.type === 'Trivial' && (
+                             <div className="rounded-[28px] border border-indigo-100 bg-indigo-50/70 p-5 space-y-4">
+                               <div>
+                                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-700">Catégories du Trivial</p>
+                                 <p className="text-xs text-slate-500 mt-1">
+                                   Utilisez les catégories classiques ou créez vos propres catégories liées à l’entreprise.
+                                 </p>
+                               </div>
+
+                               <div className="flex flex-col sm:flex-row gap-2">
+                                 <input
+                                   value={newTrivialCategory}
+                                   onChange={e => setNewTrivialCategory(e.target.value)}
+                                   onKeyDown={e => {
+                                     if (e.key === 'Enter') {
+                                       e.preventDefault();
+                                       handleAddTrivialCategory();
+                                     }
+                                   }}
+                                   placeholder="Ex. Star Fruits, Variétés, Métiers, Marques..."
+                                   className="flex-1 bg-white border border-indigo-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-400"
+                                 />
+                                 <button
+                                   type="button"
+                                   onClick={handleAddTrivialCategory}
+                                   className="px-5 py-3 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:bg-indigo-700"
+                                 >
+                                   Ajouter
+                                 </button>
+                               </div>
+
+                               <div className="flex flex-wrap gap-2">
+                                 {trivialCategoryOptions.map(category => {
+                                   const isCustom = customTrivialCategories.includes(category);
+                                   return (
+                                     <span
+                                       key={category}
+                                       className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-slate-700"
+                                     >
+                                       {category}
+                                       {isCustom && (
+                                         <button
+                                           type="button"
+                                           onClick={() => handleRemoveCustomTrivialCategory(category)}
+                                           className="text-slate-300 hover:text-red-500"
+                                           title="Supprimer cette catégorie"
+                                         >
+                                           ×
+                                         </button>
+                                       )}
+                                     </span>
+                                   );
+                                 })}
+                               </div>
+                             </div>
+                           )}
+
                            <div className="space-y-8 max-h-[50vh] overflow-y-auto pr-4 scrollbar-hide">
                               {newGame.questions?.map((q, qIdx) => (
                                 <div key={q.id} className="p-8 bg-white rounded-[32px] border border-slate-200 space-y-6 relative group/q shadow-sm animate-in slide-in-from-top-4 duration-500">
@@ -1148,19 +1246,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       <div className="w-full md:w-48 space-y-2">
                                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{newGame.type === 'Trivial' ? 'Catégorie Trivial' : 'Modèle'}</label>
                                          {newGame.type === 'Trivial' ? (
-                                           <div className="space-y-2">
-                                             <input
-                                               list="trivial-categories"
-                                               value={q.trivialCategory || ''}
-                                               onChange={e => handleUpdateQuizQuestion(qIdx, { trivialCategory: e.target.value })}
-                                               placeholder="Ex. Star Fruits, Variétés, Histoire..."
-                                               className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none"
-                                             />
-                                             <datalist id="trivial-categories">
-                                               {TRIVIAL_CATEGORIES.map(cat => <option key={cat.name} value={cat.name} />)}
-                                               {[...new Set((newGame.questions || []).map(item => item.trivialCategory).filter(Boolean))].map(cat => <option key={cat} value={cat} />)}
-                                             </datalist>
-                                           </div>
+                                           <select
+                                             value={q.trivialCategory || ''}
+                                             onChange={e => handleUpdateQuizQuestion(qIdx, { trivialCategory: e.target.value })}
+                                             className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                                           >
+                                             <option value="" disabled>Choisir une catégorie</option>
+                                             {trivialCategoryOptions.map(category => (
+                                               <option key={category} value={category}>{category}</option>
+                                             ))}
+                                           </select>
                                          ) : (
                                            <select 
                                              value={q.type} 
