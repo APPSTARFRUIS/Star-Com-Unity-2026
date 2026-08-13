@@ -304,7 +304,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   };
 
   // Logique Objets Cachés
-  const handleHiddenImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleHiddenImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!playingGame?.hiddenObjects) return;
     
     // Identifier l'objet actuel à trouver (le premier non trouvé)
@@ -760,6 +760,142 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                               <p className="text-white text-3xl font-black">+{playingGame?.rewardPoints} points</p>
                            </div>
                            <button onClick={closeGame} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase text-sm shadow-xl active:scale-95 transition-transform">Quitter le jeu</button>
+                        </div>
+                      )}
+                   </div>
+                 ) : playingGame.type === 'Objets Cachés' ? (
+                   <div className="w-full max-w-5xl flex flex-col items-center justify-center py-6 sm:py-8">
+                      {hiddenStep === 'intro' && (
+                        <div className="text-center space-y-7 animate-in zoom-in duration-500 px-5">
+                           <div className="text-7xl">🕵️‍♂️</div>
+                           <div>
+                             <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-[0.12em]">{playingGame.title}</h2>
+                             <p className="text-slate-400 max-w-xl mx-auto mt-3">
+                               {playingGame.description || 'Retrouvez tous les objets cachés dans l’image.'}
+                             </p>
+                           </div>
+                           <div className="flex flex-wrap justify-center gap-3 text-xs font-bold">
+                             <span className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                               {playingGame.hiddenObjects?.length || 0} objet{(playingGame.hiddenObjects?.length || 0) > 1 ? 's' : ''} à trouver
+                             </span>
+                             <span className="px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20 text-green-300">
+                               +{playingGame.rewardPoints} points
+                             </span>
+                           </div>
+
+                           {!playingGame.hiddenObjectsImage || !playingGame.hiddenObjects?.length ? (
+                             <div className="max-w-xl mx-auto rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5 text-left">
+                               <p className="font-black text-amber-300">Jeu incomplet</p>
+                               <p className="text-sm text-amber-100/80 mt-1">
+                                 L’image ou les zones d’objets cachés ne sont pas configurées. L’administrateur doit compléter le jeu.
+                               </p>
+                             </div>
+                           ) : (
+                             <button
+                               onClick={() => {
+                                 setSeconds(0);
+                                 setFoundObjectIds([]);
+                                 setHiddenStep('play');
+                               }}
+                               className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase tracking-[0.18em] text-sm hover:scale-105 transition-all shadow-xl active:scale-95"
+                             >
+                               Lancer la partie
+                             </button>
+                           )}
+                        </div>
+                      )}
+
+                      {hiddenStep === 'play' && (
+                        <div className="w-full space-y-5 animate-in fade-in duration-300 px-3 sm:px-6">
+                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-4xl mx-auto">
+                             <div className="min-w-0">
+                               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Objet à trouver</p>
+                               <p className="text-xl sm:text-2xl font-black text-white truncate">
+                                 {currentObjToFind?.question || currentObjToFind?.label || 'Cherchez dans l’image'}
+                               </p>
+                               {currentObjToFind?.question && currentObjToFind?.label && (
+                                 <p className="text-sm text-slate-400 mt-1">Indice : {currentObjToFind.label}</p>
+                               )}
+                             </div>
+                             <div className="shrink-0 px-4 py-3 rounded-2xl bg-white/5 border border-white/10">
+                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progression</p>
+                               <p className="text-lg font-black text-green-400">
+                                 {foundObjectIds.length} / {playingGame.hiddenObjects?.length || 0}
+                               </p>
+                             </div>
+                           </div>
+
+                           <div className="max-w-4xl mx-auto rounded-[28px] overflow-hidden border border-white/10 bg-black/20 shadow-2xl">
+                             {playingGame.hiddenObjectsImage ? (
+                               <div className="relative w-full">
+                                 <img
+                                   src={playingGame.hiddenObjectsImage}
+                                   alt="Jeu des objets cachés"
+                                   onClick={handleHiddenImageClick}
+                                   draggable={false}
+                                   className="block w-full h-auto select-none cursor-crosshair"
+                                 />
+                                 {(playingGame.hiddenObjects || [])
+                                   .filter(object => foundObjectIds.includes(object.id))
+                                   .map(object => (
+                                     <div
+                                       key={object.id}
+                                       className="absolute pointer-events-none rounded-full border-4 border-green-400 bg-green-400/20 shadow-[0_0_0_4px_rgba(34,197,94,0.15)]"
+                                       style={{
+                                         left: `${object.x}%`,
+                                         top: `${object.y}%`,
+                                         width: `${Math.max(3, object.radius * 2)}%`,
+                                         aspectRatio: '1 / 1',
+                                         transform: 'translate(-50%, -50%)'
+                                       }}
+                                     >
+                                       <span className="absolute inset-0 flex items-center justify-center text-white font-black drop-shadow">✓</span>
+                                     </div>
+                                   ))}
+                               </div>
+                             ) : (
+                               <div className="p-12 text-center text-slate-400">Image du jeu indisponible.</div>
+                             )}
+                           </div>
+
+                           <div className="max-w-4xl mx-auto">
+                             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                               <div
+                                 className="h-full bg-green-500 transition-all duration-300"
+                                 style={{
+                                   width: `${playingGame.hiddenObjects?.length
+                                     ? Math.round((foundObjectIds.length / playingGame.hiddenObjects.length) * 100)
+                                     : 0}%`
+                                 }}
+                               />
+                             </div>
+                             <p className="text-xs text-slate-500 text-center mt-3">
+                               Cliquez directement sur l’objet demandé. Les objets déjà trouvés sont entourés en vert.
+                             </p>
+                           </div>
+                        </div>
+                      )}
+
+                      {hiddenStep === 'finished' && (
+                        <div className="text-center space-y-8 animate-in zoom-in duration-500 px-5">
+                           <div className="text-7xl">🏆</div>
+                           <div>
+                             <h2 className="text-4xl sm:text-5xl font-black text-white">Tous trouvés !</h2>
+                             <p className="text-slate-400 mt-3">
+                               Vous avez retrouvé {playingGame.hiddenObjects?.length || 0} objet{(playingGame.hiddenObjects?.length || 0) > 1 ? 's' : ''} en{' '}
+                               <span className="text-white font-black">{formatTime(seconds)}</span>.
+                             </p>
+                           </div>
+                           <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-[40px] max-w-md mx-auto shadow-2xl">
+                              <p className="text-green-400 font-black uppercase text-[10px] tracking-widest mb-2">Récompense débloquée</p>
+                              <p className="text-white text-3xl font-black">+{playingGame.rewardPoints} points</p>
+                           </div>
+                           <button
+                             onClick={closeGame}
+                             className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase text-sm shadow-xl active:scale-95 transition-transform"
+                           >
+                             Fermer le jeu
+                           </button>
                         </div>
                       )}
                    </div>
