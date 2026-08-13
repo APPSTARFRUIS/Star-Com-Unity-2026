@@ -1,0 +1,13 @@
+{
+  "hidden_branch": true,
+  "click_handler": true,
+  "image": true,
+  "progress": true,
+  "finish": true,
+  "fallback_still_present": true
+}
+
+tsc --noEmit return code: 2
+error TS2688: Cannot find type definition file for 'node'.
+  The file is in the program because:
+    Entry point of type library 'node' specified in compilerOptions
