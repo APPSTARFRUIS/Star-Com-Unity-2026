@@ -300,7 +300,7 @@ export interface WellnessChallenge {
   isActive: boolean;
 }
 
-export type GameType = 'Quiz' | 'Escape Game' | 'Memory' | 'Objets Cachés' | 'Chronologie' | 'Trivial' | 'Pari';
+export type GameType = 'Quiz' | 'Memory' | 'Objets Cachés' | 'Chronologie' | 'Trivial' | 'Pari';
 export type GameCategory = 'Histoire' | 'Produits' | 'Valeurs' | 'Processus' | 'Pari Sportif';
 
 export type QuizType = 'QCU' | 'QCM' | 'Vrai/Faux';
