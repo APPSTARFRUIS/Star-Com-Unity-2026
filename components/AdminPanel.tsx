@@ -343,7 +343,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // --- HIDDEN OBJECTS SELECTION ---
-  const handleHiddenAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleHiddenAreaClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!newGame.hiddenObjectsImage) { alert("Chargez d'abord l'image du décor !"); return; }
     if (!currentObjectName.trim()) { alert("Entrez un nom pour l'objet avant de cliquer sur l'image !"); return; }
     const rect = e.currentTarget.getBoundingClientRect();
@@ -365,7 +365,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleAddGameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newGame.type === 'Quiz' && (!newGame.questions || newGame.questions.length === 0)) { alert("Ajoutez au moins une question au Quiz !"); return; }
-    if (newGame.type === 'Trivial' && (!newGame.questions || newGame.questions.length === 0)) { alert("Ajoutez au moins une question au Trivial !"); return; }
+    if (newGame.type === 'Trivial') {
+      const categories = [...new Set((newGame.questions || []).map(q => q.trivialCategory?.trim()).filter(Boolean))];
+      if (categories.length < 2) { alert("Créez au moins 2 catégories pour le Trivial, avec au moins une question dans chacune."); return; }
+      if ((newGame.questions || []).some(q => !q.trivialCategory?.trim())) { alert("Chaque question du Trivial doit avoir une catégorie."); return; }
+    }
     if (newGame.type === 'Memory' && (!newGame.memoryItems || newGame.memoryItems.length < 2)) { alert("Ajoutez au moins 2 paires au Memory !"); return; }
     if (newGame.type === 'Chronologie' && (!newGame.timelineItems || newGame.timelineItems.length < 2)) { alert("Ajoutez au moins 2 dates à la Chronologie !"); return; }
     if (newGame.type === 'Objets Cachés' && (!newGame.hiddenObjects || newGame.hiddenObjects.length === 0)) { alert("Placez au moins un objet caché !"); return; }
@@ -1144,13 +1148,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       <div className="w-full md:w-48 space-y-2">
                                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{newGame.type === 'Trivial' ? 'Catégorie Trivial' : 'Modèle'}</label>
                                          {newGame.type === 'Trivial' ? (
-                                           <select 
-                                              value={q.trivialCategory} 
-                                              onChange={e => handleUpdateQuizQuestion(qIdx, { trivialCategory: e.target.value })}
-                                              className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none appearance-none"
-                                           >
-                                              {TRIVIAL_CATEGORIES.map(cat => <option key={cat.name} value={cat.name}>{cat.name}</option>)}
-                                           </select>
+                                           <div className="space-y-2">
+                                             <input
+                                               list="trivial-categories"
+                                               value={q.trivialCategory || ''}
+                                               onChange={e => handleUpdateQuizQuestion(qIdx, { trivialCategory: e.target.value })}
+                                               placeholder="Ex. Star Fruits, Variétés, Histoire..."
+                                               className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                                             />
+                                             <datalist id="trivial-categories">
+                                               {TRIVIAL_CATEGORIES.map(cat => <option key={cat.name} value={cat.name} />)}
+                                               {[...new Set((newGame.questions || []).map(item => item.trivialCategory).filter(Boolean))].map(cat => <option key={cat} value={cat} />)}
+                                             </datalist>
+                                           </div>
                                          ) : (
                                            <select 
                                              value={q.type} 
@@ -1236,7 +1246,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <button type="button" onClick={handleAddTimeItem} className="col-span-1 bg-indigo-600 text-white rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">+</button>
                            </div>
                            <div className="space-y-3 pt-4">
-                              {newGame.timelineItems?.sort((a,b)=>a.year-b.year).map(t => (
+                              {[...(newGame.timelineItems || [])].sort((a,b)=>a.year-b.year).map(t => (
                                 <div key={t.id} className="flex justify-between items-center p-4 bg-white rounded-2xl text-sm font-bold border border-slate-100 shadow-sm transition-all hover:bg-slate-50 group">
                                    <div className="flex items-center gap-4"><span className="w-16 text-indigo-600 font-black tracking-widest">{t.year}</span><span className="text-slate-700">{t.text}</span></div>
                                    <button type="button" onClick={() => setNewGame(prev => ({...prev, timelineItems: prev.timelineItems?.filter(ti => ti.id !== t.id)}))} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="4"/></svg></button>
@@ -1259,10 +1269,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                               <input placeholder="Question (ex: Quel outil sert à...)..." className="flex-1 bg-white border border-indigo-200 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" value={currentObjectQuestion} onChange={e => setCurrentObjectQuestion(e.target.value)} />
                            </div>
                            <div className="bg-indigo-100 text-indigo-700 px-6 py-4 rounded-2xl text-[10px] font-black flex items-center justify-center italic tracking-widest uppercase">CLIQUEZ SUR L'IMAGE POUR PLACER L'OBJET RÉPONSE</div>
-                           <div className="relative w-full aspect-video bg-white border-4 border-indigo-200 rounded-[40px] flex items-center justify-center cursor-crosshair overflow-hidden shadow-inner group" onClick={handleHiddenAreaClick}>
+                           <div className="relative w-full bg-white border-4 border-indigo-200 rounded-[40px] flex items-center justify-center overflow-hidden shadow-inner group">
                               {newGame.hiddenObjectsImage ? (
-                                <>
-                                   <img src={newGame.hiddenObjectsImage} className="w-full h-full object-contain pointer-events-none select-none" />
+                                <div className="relative inline-block max-w-full">
+                                   <img src={newGame.hiddenObjectsImage} onClick={handleHiddenAreaClick} className="block max-w-full max-h-[60vh] w-auto h-auto cursor-crosshair select-none" />
                                    {newGame.hiddenObjects?.map(obj => (
                                      <div key={obj.id} className="absolute border-4 border-red-500 bg-red-500/30 rounded-full flex items-center justify-center group/marker shadow-[0_0_15px_rgba(239,68,68,0.5)]" style={{ left: `${obj.x}%`, top: `${obj.y}%`, width: '40px', height: '40px', transform: 'translate(-50%, -50%)' }}>
                                         <button type="button" onClick={(e) => { e.stopPropagation(); setNewGame(prev => ({...prev, hiddenObjects: prev.hiddenObjects?.filter(o=>o.id!==obj.id)})); }} className="absolute -top-10 bg-red-600 text-white rounded-full p-2 opacity-0 group-hover/marker:opacity-100 transition-all shadow-xl"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="4"/></svg></button>
@@ -1271,7 +1281,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                         </div>
                                      </div>
                                    ))}
-                                </>
+                                </div>
                               ) : <span className="text-sm font-bold text-indigo-300 italic opacity-50">Aucune image chargée. Chargez un décor pour commencer à placer vos objets secrets.</span>}
                            </div>
                         </div>

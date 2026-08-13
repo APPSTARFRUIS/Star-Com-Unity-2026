@@ -745,12 +745,8 @@ const App: React.FC = () => {
           }
 
           case 'jeux': {
-            const [gamesResult, predictionsResult] = await Promise.all([
-              supabase.from('games').select('*').order('created_at', { ascending: false }).limit(100),
-              supabase.from('game_predictions').select('*').order('submitted_at', { ascending: false }).limit(500)
-            ]);
-            if (gamesResult.data) setGames(mapGames(gamesResult.data));
-            if (predictionsResult.data) setPredictions(mapPredictions(predictionsResult.data));
+            const { data, error } = await supabase.from('games').select('*').neq('type', 'Pari').order('created_at', { ascending: false }).limit(100);
+            if (!error && data) setGames(mapGames(data));
             break;
           }
 
@@ -1929,7 +1925,7 @@ const App: React.FC = () => {
                   const { data: profile } = await supabase.from('profiles').select('points').eq('id', prediction.userId).single();
                   const newPoints = (profile?.points || 0) + points;
                   await supabase.from('profiles').update({ points: newPoints }).eq('id', prediction.userId);
-                  await supabase.from('transactions').insert({ user_id: prediction.userId, amount: points, reason: `Pronostic ${exact ? 'score exact' : 'bon résultat'} : ${updatedEvents.find(f => f.id === fixtureId)?.homeTeam} - ${updatedEvents.find(f => f.id === fixtureId)?.awayTeam}`, type: 'earn' });
+                  await supabase.from('transactions').insert({ user_id: prediction.userId, amount: points, reason: `Pronostic ${exact ? 'score exact' : 'bon résultat'} : ${updatedEvents.find(f => f.id === fixtureId)?.homeTeam} - ${updatedEvents.find(f => f.id === fixtureId)?.awayTeam}`, type: 'earn', date: new Date().toISOString() });
                 }
               }
               addToast('Résultat validé et points calculés.');
@@ -2173,23 +2169,19 @@ const App: React.FC = () => {
             users={users}
             predictions={predictions}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
-              const existing = predictions.find(p => p.userId === currentUser.id && p.gameId === gameId && p.eventId === eventId);
-              const payload = JSON.stringify({ eventId, homeScore, awayScore, awarded: false, pointsAwarded: 0 });
-              if (existing?.id) {
-                await supabase.from('game_predictions').update({ choice: payload, submitted_at: new Date().toISOString() }).eq('id', existing.id);
-              } else {
-                await supabase.from('game_predictions').insert({ user_id: currentUser.id, game_id: gameId, choice: payload });
-              }
+              const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
+              if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
               addToast('Pronostic enregistré !');
               void fetchViewData(currentViewRef.current, true);
             }}
-            onEarnPoints={async (uid, a, r) => {
-              const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
-              const newPts = (data?.points || 0) + a;
-              await supabase.from('profiles').update({ points: newPts }).eq('id', uid);
-              await supabase.from('transactions').insert({ user_id: uid, amount: a, reason: r, type: 'earn' });
-              fetchUserProfile(uid);
-              void fetchViewData(currentViewRef.current, true);
+            onEarnPoints={async (uid, amount, reason, gameId) => {
+              if (uid !== currentUser.id) return false;
+              const { data, error } = await supabase.rpc('award_game_points', { p_game_id: gameId, p_amount: amount, p_reason: reason });
+              if (error) { addToast(`Points non attribués : ${error.message}`, 'error'); return false; }
+              const awarded = data === true;
+              addToast(awarded ? `+${amount} points !` : 'Jeu déjà récompensé : vous pouvez rejouer, sans regagner les points.');
+              await fetchUserProfile(uid);
+              return awarded;
             }}
           />
         );
@@ -2209,17 +2201,15 @@ const App: React.FC = () => {
           predictions={predictions}
           section={view === 'tempsforts' ? 'highlights' : 'rankings'}
           onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
-            const existing = predictions.find(p => p.userId === currentUser.id && p.gameId === gameId && p.eventId === eventId);
-            const payload = JSON.stringify({ eventId, homeScore, awayScore, awarded: false, pointsAwarded: 0 });
-            if (existing?.id) await supabase.from('game_predictions').update({ choice: payload, submitted_at: new Date().toISOString() }).eq('id', existing.id);
-            else await supabase.from('game_predictions').insert({ user_id: currentUser.id, game_id: gameId, choice: payload });
+            const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
+            if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
             addToast('Pronostic enregistré !');
             void fetchViewData(currentViewRef.current, true);
           }}
           onEarnPoints={async (uid, amount, reason) => {
             const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
             await supabase.from('profiles').update({ points: (data?.points || 0) + amount }).eq('id', uid);
-            await supabase.from('transactions').insert({ user_id: uid, amount, reason, type: 'earn' });
+            await supabase.from('transactions').insert({ user_id: uid, amount, reason, type: 'earn', date: new Date().toISOString() });
             fetchUserProfile(uid); void fetchViewData(currentViewRef.current, true);
           }}
           onJoinAnimation={async (animation) => {

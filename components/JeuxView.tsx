@@ -8,7 +8,7 @@ interface JeuxViewProps {
   users: User[];
   predictions: GamePrediction[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
-  onEarnPoints: (userId: string, amount: number, reason: string) => void;
+  onEarnPoints: (userId: string, amount: number, reason: string, gameId: string) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
 }
 
@@ -31,6 +31,15 @@ const TRIVIAL_CATEGORIES = [
 const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, onAddPrediction, onEarnPoints, mode = 'games' }) => {
   const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
+  const trivialCategories = useMemo(() => {
+    if (!playingGame || playingGame.type !== 'Trivial') return TRIVIAL_CATEGORIES;
+    const names = [...new Set((playingGame.questions || []).map(q => q.trivialCategory?.trim()).filter((name): name is string => Boolean(name)))];
+    const palette = TRIVIAL_CATEGORIES;
+    return names.map((name, index) => {
+      const preset = palette.find(cat => cat.name === name);
+      return preset || { ...palette[index % palette.length], name, icon: '⭐' };
+    });
+  }, [playingGame]);
 
   // Quiz game state
   const [quizStep, setQuizStep] = useState<'intro' | 'play' | 'finished'>('intro');
@@ -221,11 +230,11 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       if (isCorrect) {
         const nextWedges = [...earnedWedges, activeTrivialCat!];
         setEarnedWedges(nextWedges);
-        if (nextWedges.length === 6) {
+        if (nextWedges.length === trivialCategories.length) {
           setTrivialStep('finished');
           if (!isProcessingPoints) {
             setIsProcessingPoints(true);
-            onEarnPoints(currentUser.id, playingGame?.rewardPoints || 100, `Grand Chelem Trivial en ${formatTime(seconds)}`);
+            void onEarnPoints(currentUser.id, playingGame?.rewardPoints || 100, `Grand Chelem Trivial en ${formatTime(seconds)}`, playingGame!.id);
           }
         } else {
           setTrivialStep('board');
@@ -286,7 +295,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
             setMemoryStep('finished');
             if (!isProcessingPoints) {
               setIsProcessingPoints(true);
-              onEarnPoints(currentUser.id, playingGame?.rewardPoints || 50, `Mémoire réussie en ${formatTime(seconds)}`);
+              void onEarnPoints(currentUser.id, playingGame?.rewardPoints || 50, `Mémoire réussie en ${formatTime(seconds)}`, playingGame!.id);
             }
           }
         }, 500);
@@ -327,7 +336,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
           setHiddenStep('finished');
           if (!isProcessingPoints) {
             setIsProcessingPoints(true);
-            onEarnPoints(currentUser.id, playingGame.rewardPoints, `Tous les objets trouvés en ${formatTime(seconds)}`);
+            void onEarnPoints(currentUser.id, playingGame.rewardPoints, `Tous les objets trouvés en ${formatTime(seconds)}`, playingGame.id);
           }
         }, 600);
       }
@@ -343,10 +352,19 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
     e.preventDefault(); if (draggedItemIdx === null || draggedItemIdx === idx) return;
     const newItems = [...timelineItems]; const item = newItems.splice(draggedItemIdx, 1)[0]; newItems.splice(idx, 0, item); setTimelineItems(newItems); setDraggedItemIdx(idx);
   };
+  const moveTimelineItem = (idx: number, direction: -1 | 1) => {
+    const target = idx + direction;
+    if (target < 0 || target >= timelineItems.length) return;
+    setTimelineItems(items => {
+      const next = [...items];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
   const validateTimeline = () => {
     if (timelineItems.every((item, idx) => idx === 0 || item.year >= timelineItems[idx-1].year)) {
       setTimelineStep('finished');
-      if (!isProcessingPoints) { setIsProcessingPoints(true); onEarnPoints(currentUser.id, playingGame?.rewardPoints || 50, `Chronologie réussie en ${formatTime(seconds)}`); }
+      if (!isProcessingPoints) { setIsProcessingPoints(true); void onEarnPoints(currentUser.id, playingGame?.rewardPoints || 50, `Chronologie réussie en ${formatTime(seconds)}`, playingGame!.id); }
     } else alert("La chronologie n'est pas encore correcte !");
   };
 
@@ -403,7 +421,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
     if (earnedPoints > 0 && !isProcessingPoints) {
       setIsProcessingPoints(true);
-      onEarnPoints(currentUser.id, earnedPoints, `Score au quiz : ${correctCount}/${playingGame.questions.length}`);
+      void onEarnPoints(currentUser.id, earnedPoints, `Score au quiz : ${correctCount}/${playingGame.questions.length}`, playingGame.id);
     }
   };
 
@@ -552,7 +570,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                          <div className="space-y-8 animate-in zoom-in duration-500">
                             <div className="text-7xl">🎓</div>
                             <h2 className="text-4xl font-black text-white uppercase tracking-[0.2em]">{playingGame.title}</h2>
-                            <p className="text-slate-400 max-w-md mx-auto">Collectez les 6 camemberts de couleur en répondant aux questions de chaque catégorie pour gagner le défi !</p>
+                            <p className="text-slate-400 max-w-md mx-auto">Validez chaque catégorie en répondant correctement à ses questions pour gagner le défi !</p>
                             <button onClick={() => setTrivialStep('board')} className="px-12 py-5 bg-white text-slate-900 rounded-[24px] font-black uppercase tracking-[0.2em] text-sm hover:scale-105 transition-all shadow-2xl">C'est parti !</button>
                          </div>
                        )}
@@ -561,7 +579,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                          <div className="space-y-12 animate-in fade-in duration-500 w-full">
                             <h3 className="text-2xl font-black text-white uppercase tracking-widest">Choisissez une catégorie</h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto">
-                               {TRIVIAL_CATEGORIES.map((cat) => {
+                               {trivialCategories.map((cat) => {
                                  const isEarned = earnedWedges.includes(cat.name);
                                  return (
                                    <button 
@@ -580,11 +598,11 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                             </div>
                             <div className="pt-8 flex flex-col items-center">
                                <div className="flex gap-2 mb-4">
-                                  {[...Array(6)].map((_, i) => (
+                                  {[...Array(trivialCategories.length)].map((_, i) => (
                                     <div key={i} className={`w-4 h-4 rounded-full ${earnedWedges.length > i ? 'bg-green-500 shadow-[0_0_10px_green]' : 'bg-white/10'}`} />
                                   ))}
                                </div>
-                               <p className="text-slate-500 text-xs font-black uppercase tracking-widest">{earnedWedges.length} / 6 Catégories</p>
+                               <p className="text-slate-500 text-xs font-black uppercase tracking-widest">{earnedWedges.length} / {trivialCategories.length} Catégories</p>
                             </div>
                          </div>
                        )}
@@ -592,7 +610,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        {trivialStep === 'question' && currentTrivialQuestion && (
                          <div className="space-y-10 w-full max-w-3xl animate-in slide-in-from-bottom-8 duration-500">
                             <div className="flex items-center justify-center gap-4">
-                               <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-white ${TRIVIAL_CATEGORIES.find(c=>c.name===activeTrivialCat)?.color}`}>
+                               <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-white ${trivialCategories.find(c=>c.name===activeTrivialCat)?.color}`}>
                                  {activeTrivialCat}
                                </span>
                             </div>
@@ -922,7 +940,11 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                 >
                                    <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-black shrink-0 shadow-lg">{idx + 1}</div>
                                    <div className="flex-1 text-left"><p className="text-white font-bold text-lg leading-tight">{item.text}</p></div>
-                                   <div className="text-white/20"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16" strokeWidth="3" /></svg></div>
+                                   <div className="flex flex-col gap-1 sm:hidden">
+                                     <button type="button" disabled={idx === 0} onClick={() => moveTimelineItem(idx, -1)} className="px-3 py-1 rounded-lg bg-white/10 text-white disabled:opacity-20">↑</button>
+                                     <button type="button" disabled={idx === timelineItems.length - 1} onClick={() => moveTimelineItem(idx, 1)} className="px-3 py-1 rounded-lg bg-white/10 text-white disabled:opacity-20">↓</button>
+                                   </div>
+                                   <div className="hidden sm:block text-white/20"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16" strokeWidth="3" /></svg></div>
                                 </div>
                               ))}
                            </div>
