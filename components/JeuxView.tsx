@@ -1,14 +1,15 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { CompanyGame, GameCategory, GamePrediction, User, TimelineItem, HiddenObject, QuizQuestion } from '../types';
+import { CompanyGame, GameCategory, GameCompletion, GamePrediction, User, TimelineItem, HiddenObject, QuizQuestion } from '../types';
 
 interface JeuxViewProps {
   games: CompanyGame[];
   currentUser: User;
   users: User[];
   predictions: GamePrediction[];
+  completions: GameCompletion[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
-  onEarnPoints: (userId: string, amount: number, reason: string, gameId: string) => Promise<boolean> | void;
+  onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
 }
 
@@ -28,7 +29,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, onAddPrediction, onEarnPoints, mode = 'games' }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions, onAddPrediction, onEarnPoints, mode = 'games' }) => {
   const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
   const trivialCategories = useMemo(() => {
@@ -163,6 +164,65 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const completionByGame = useMemo(
+    () => new Map(completions.map(completion => [completion.gameId, completion])),
+    [completions]
+  );
+
+  const isGamePassed = (gameId: string) => completionByGame.get(gameId)?.passed === true;
+
+  const isGameUnlocked = (game: CompanyGame) => {
+    const path = game.learningPath?.trim();
+    const level = Number(game.levelNumber || 1);
+
+    if (!path || level <= 1) return true;
+
+    const pathGames = games.filter(
+      item => item.type !== 'Pari' && item.status !== 'Inactif' && item.learningPath?.trim() === path
+    );
+
+    const previousLevels = [...new Set(
+      pathGames
+        .map(item => Number(item.levelNumber || 1))
+        .filter(itemLevel => itemLevel < level)
+    )].sort((a, b) => b - a);
+
+    const previousLevel = previousLevels[0];
+    if (!previousLevel) return true;
+
+    const requiredGames = pathGames.filter(item => Number(item.levelNumber || 1) === previousLevel);
+    return requiredGames.length > 0 && requiredGames.every(item => isGamePassed(item.id));
+  };
+
+  const learningPaths = useMemo(() => {
+    const visibleGames = games.filter(game => game.type !== 'Pari' && game.status !== 'Inactif' && game.learningPath?.trim());
+    const grouped = new Map<string, CompanyGame[]>();
+
+    visibleGames.forEach(game => {
+      const name = game.learningPath!.trim();
+      grouped.set(name, [...(grouped.get(name) || []), game]);
+    });
+
+    return [...grouped.entries()]
+      .map(([name, pathGames]) => {
+        const completed = pathGames.filter(game => isGamePassed(game.id)).length;
+        const levels = [...new Set(pathGames.map(game => Number(game.levelNumber || 1)))].sort((a, b) => a - b);
+        const unlockedLevels = levels.filter(level =>
+          pathGames.some(game => Number(game.levelNumber || 1) === level && isGameUnlocked(game))
+        );
+
+        return {
+          name,
+          games: pathGames,
+          completed,
+          total: pathGames.length,
+          levels,
+          unlockedLevel: unlockedLevels.length ? Math.max(...unlockedLevels) : 1
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }, [games, completionByGame]);
+
   const filteredGames = useMemo(() => {
     return games.filter(g => {
       const visibleStatus = g.status === 'Actif' || g.status === 'Terminé';
@@ -173,6 +233,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   }, [games, activeCategory, mode]);
 
   const handleStartGame = (game: CompanyGame) => {
+    if (!isGameUnlocked(game)) return;
     setPlayingGame(game);
     setIsProcessingPoints(false);
     setSeconds(0);
@@ -419,9 +480,10 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
     });
     setQuizStep('finished');
 
-    if (earnedPoints > 0 && !isProcessingPoints) {
+    if (!isProcessingPoints) {
       setIsProcessingPoints(true);
-      void onEarnPoints(currentUser.id, earnedPoints, `Score au quiz : ${correctCount}/${playingGame.questions.length}`, playingGame.id);
+      const scorePercent = Math.round((correctCount / playingGame.questions.length) * 100);
+      void onEarnPoints(currentUser.id, earnedPoints, `Score au quiz : ${correctCount}/${playingGame.questions.length}`, playingGame.id, scorePercent);
     }
   };
 
@@ -457,6 +519,63 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
         </div>}
       </div>
 
+      {mode === 'games' && learningPaths.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-green-700">Parcours</p>
+              <h2 className="text-2xl font-black text-slate-800 mt-1">Votre progression</h2>
+            </div>
+            <span className="text-xs font-bold text-slate-400">Les niveaux suivants se déverrouillent automatiquement.</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {learningPaths.map(path => {
+              const percent = path.total ? Math.round((path.completed / path.total) * 100) : 0;
+              return (
+                <div key={path.name} className="bg-white rounded-[28px] border border-slate-100 p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-800 truncate">{path.name}</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {path.completed}/{path.total} jeux validés · niveau {path.unlockedLevel} accessible
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 shrink-0 rounded-2xl bg-green-50 text-green-700 flex items-center justify-center font-black">
+                      {percent}%
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden mt-4">
+                    <div className="h-full bg-green-600 transition-all duration-500" style={{ width: `${percent}%` }} />
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {path.levels.map(level => {
+                      const levelGames = path.games.filter(game => Number(game.levelNumber || 1) === level);
+                      const levelPassed = levelGames.length > 0 && levelGames.every(game => isGamePassed(game.id));
+                      const levelUnlocked = levelGames.some(game => isGameUnlocked(game));
+                      return (
+                        <span
+                          key={level}
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                            levelPassed
+                              ? 'bg-green-50 border-green-100 text-green-700'
+                              : levelUnlocked
+                                ? 'bg-indigo-50 border-indigo-100 text-indigo-700'
+                                : 'bg-slate-50 border-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {levelPassed ? '✓' : levelUnlocked ? '→' : '🔒'} Niveau {level}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredGames.map(game => (
           <div key={game.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group">
@@ -467,10 +586,42 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
               <div className="absolute top-4 right-4"><span className="px-3 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">{game.type === 'Pari' ? `${game.exactScorePoints || game.rewardPoints || 10} pts exact` : `+${game.rewardPoints} pts`}</span></div>
             </div>
             <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{game.type}</span></div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{game.type}</span>
+                {game.learningPath && (
+                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
+                    isGamePassed(game.id)
+                      ? 'bg-green-50 text-green-700'
+                      : isGameUnlocked(game)
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'bg-slate-100 text-slate-400'
+                  }`}>
+                    {isGamePassed(game.id) ? '✓ Validé' : isGameUnlocked(game) ? `Niveau ${game.levelNumber || 1}` : `🔒 Niveau ${game.levelNumber || 1}`}
+                  </span>
+                )}
+              </div>
+              {game.learningPath && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-green-700 truncate">
+                  {game.learningPath} · {game.levelTitle || `Niveau ${game.levelNumber || 1}`}
+                </p>
+              )}
               <h3 className="text-xl font-black text-slate-800 truncate">{game.title}</h3>
               <p className="text-slate-500 text-sm line-clamp-2 italic">"{game.description}"</p>
-              <button onClick={() => handleStartGame(game)} className="w-full py-4 bg-green-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all active:scale-95">Jouer maintenant</button>
+              <button
+                onClick={() => handleStartGame(game)}
+                disabled={!isGameUnlocked(game)}
+                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
+                  isGameUnlocked(game)
+                    ? 'bg-green-600 text-white shadow-lg hover:bg-green-700 active:scale-95'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {isGamePassed(game.id)
+                  ? 'Rejouer'
+                  : isGameUnlocked(game)
+                    ? 'Jouer maintenant'
+                    : 'Niveau verrouillé'}
+              </button>
             </div>
           </div>
         ))}

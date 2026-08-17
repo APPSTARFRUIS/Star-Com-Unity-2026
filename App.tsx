@@ -27,6 +27,7 @@ import {
   WellnessContent,
   WellnessChallenge,
   CompanyGame,
+  GameCompletion,
   GamePrediction,
   Reward,
   PointsTransaction,
@@ -85,6 +86,7 @@ const App: React.FC = () => {
   const [wellnessContents, setWellnessContents] = useState<WellnessContent[]>([]);
   const [wellnessChallenges, setWellnessChallenges] = useState<WellnessChallenge[]>([]);
   const [games, setGames] = useState<CompanyGame[]>([]);
+  const [gameCompletions, setGameCompletions] = useState<GameCompletion[]>([]);
   const [predictions, setPredictions] = useState<GamePrediction[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
@@ -376,8 +378,23 @@ const App: React.FC = () => {
       outcomePoints: g.outcome_points ?? 5,
       matchDate: g.match_date,
       isProcessed: g.is_processed,
+      learningPath: g.learning_path || undefined,
+      levelNumber: Number(g.level_number || 1),
+      levelTitle: g.level_title || undefined,
+      passingScore: Number(g.passing_score || 0),
       createdAt: g.created_at,
       createdBy: g.created_by
+    }));
+
+  const mapGameCompletions = (rows: any[] | null | undefined): GameCompletion[] =>
+    (rows || []).map((row: any) => ({
+      id: row.id,
+      userId: row.user_id,
+      gameId: row.game_id,
+      bestScore: Number(row.best_score || 0),
+      passed: Boolean(row.passed),
+      completedAt: row.completed_at || null,
+      lastPlayedAt: row.last_played_at
     }));
 
   const mapPredictions = (rows: any[] | null | undefined) =>
@@ -745,8 +762,27 @@ const App: React.FC = () => {
           }
 
           case 'jeux': {
-            const { data, error } = await supabase.from('games').select('*').neq('type', 'Pari').order('created_at', { ascending: false }).limit(100);
-            if (!error && data) setGames(mapGames(data));
+            const [gamesResult, completionsResult] = await Promise.all([
+              supabase
+                .from('games')
+                .select('*')
+                .neq('type', 'Pari')
+                .order('learning_path', { ascending: true, nullsFirst: false })
+                .order('level_number', { ascending: true })
+                .order('created_at', { ascending: false })
+                .limit(150),
+              supabase
+                .from('game_completions')
+                .select('*')
+                .eq('user_id', currentUserRef.current!.id)
+                .order('last_played_at', { ascending: false })
+                .limit(300)
+            ]);
+
+            if (!gamesResult.error && gamesResult.data) setGames(mapGames(gamesResult.data));
+            if (!completionsResult.error && completionsResult.data) {
+              setGameCompletions(mapGameCompletions(completionsResult.data));
+            }
             break;
           }
 
@@ -1897,7 +1933,11 @@ const App: React.FC = () => {
                 sport_events: g.sportEvents || [],
                 sport_name: g.sportName || 'Football',
                 exact_score_points: g.exactScorePoints || g.rewardPoints || 10,
-                outcome_points: g.outcomePoints ?? 5
+                outcome_points: g.outcomePoints ?? 5,
+                learning_path: g.learningPath?.trim() || null,
+                level_number: Math.max(1, Number(g.levelNumber || 1)),
+                level_title: g.levelTitle?.trim() || null,
+                passing_score: Math.max(0, Math.min(100, Number(g.passingScore || 0)))
               });
               addToast("Jeu ajouté !");
               void fetchViewData(currentViewRef.current, true);
@@ -2168,19 +2208,46 @@ const App: React.FC = () => {
             currentUser={currentUser}
             users={users}
             predictions={predictions}
+            completions={gameCompletions}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
               const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
               if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
               addToast('Pronostic enregistré !');
               void fetchViewData(currentViewRef.current, true);
             }}
-            onEarnPoints={async (uid, amount, reason, gameId) => {
+            onEarnPoints={async (uid, amount, reason, gameId, scorePercent = 100) => {
               if (uid !== currentUser.id) return false;
-              const { data, error } = await supabase.rpc('award_game_points', { p_game_id: gameId, p_amount: amount, p_reason: reason });
-              if (error) { addToast(`Points non attribués : ${error.message}`, 'error'); return false; }
-              const awarded = data === true;
-              addToast(awarded ? `+${amount} points !` : 'Jeu déjà récompensé : vous pouvez rejouer, sans regagner les points.');
-              await fetchUserProfile(uid);
+
+              const { data, error } = await supabase.rpc('complete_game', {
+                p_game_id: gameId,
+                p_score_percent: Math.max(0, Math.min(100, Math.round(scorePercent))),
+                p_amount: Math.max(0, Math.round(amount)),
+                p_reason: reason
+              });
+
+              if (error) {
+                addToast(`Résultat non enregistré : ${error.message}`, 'error');
+                return false;
+              }
+
+              const result = typeof data === 'object' && data ? data : {};
+              const passed = result.passed === true;
+              const awarded = result.awarded === true;
+
+              if (!passed) {
+                const required = Number(result.passingScore || 0);
+                addToast(`Niveau non validé : ${Math.round(scorePercent)} % obtenu${required ? `, ${required} % requis` : ''}.`, 'info');
+              } else if (awarded && amount > 0) {
+                addToast(`Niveau validé · +${amount} points !`);
+              } else {
+                addToast('Niveau validé. Récompense déjà obtenue lors d’une précédente réussite.');
+              }
+
+              await Promise.all([
+                fetchUserProfile(uid),
+                fetchViewData('jeux', true)
+              ]);
+
               return awarded;
             }}
           />

@@ -204,7 +204,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showGameModal, setShowGameModal] = useState(false);
   const [newGame, setNewGame] = useState<Omit<CompanyGame, 'id' | 'createdAt'>>({
     title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5
+    hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5,
+    learningPath: '', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
   });
   const [currentObjectName, setCurrentObjectName] = useState('');
   const [currentObjectQuestion, setCurrentObjectQuestion] = useState('');
@@ -219,6 +220,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [sportResultDrafts, setSportResultDrafts] = useState<Record<string, { home: string; away: string }>>({});
   const [customTrivialCategories, setCustomTrivialCategories] = useState<string[]>([]);
   const [newTrivialCategory, setNewTrivialCategory] = useState('');
+
+  const learningPathOptions = useMemo(
+    () => [...new Set(games.map(game => game.learningPath?.trim()).filter((value): value is string => Boolean(value)))].sort(),
+    [games]
+  );
 
   const handleAddSportFixture = () => {
     if (!sportHomeTeam.trim() || !sportAwayTeam.trim() || !sportEventDate || !sportClosingDate) {
@@ -403,6 +409,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleAddGameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (newGame.learningPath?.trim()) {
+      if (!newGame.levelNumber || newGame.levelNumber < 1) { alert("Le numéro de niveau doit être supérieur ou égal à 1."); return; }
+      if (!newGame.levelTitle?.trim()) { alert("Donnez un nom au niveau (ex. Découverte, Explorateur, Expert)."); return; }
+      if ((newGame.passingScore || 0) < 0 || (newGame.passingScore || 0) > 100) { alert("Le score minimum doit être compris entre 0 et 100 %."); return; }
+    }
     if (newGame.type === 'Quiz' && (!newGame.questions || newGame.questions.length === 0)) { alert("Ajoutez au moins une question au Quiz !"); return; }
     if (newGame.type === 'Trivial') {
       const categories = [...new Set((newGame.questions || []).map(q => q.trivialCategory?.trim()).filter(Boolean))];
@@ -420,7 +431,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewTrivialCategory('');
     setNewGame({ 
       title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
-      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5 
+      hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5,
+      learningPath: '', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
     });
   };
 
@@ -1102,6 +1114,73 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Titre de l'expérience</label>
                          <input required placeholder="Titre du jeu..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-xl" value={newGame.title} onChange={e => setNewGame({...newGame, title: e.target.value})} />
                       </div>
+
+                      {newGame.type !== 'Pari' && (
+                        <div className="rounded-[32px] border border-emerald-100 bg-emerald-50/60 p-6 space-y-5">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">Progression pédagogique</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Laissez « Parcours » vide pour conserver un jeu libre. Sinon, les niveaux se déverrouillent dans l’ordre.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2 md:col-span-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Parcours</label>
+                              <input
+                                list="learning-paths"
+                                value={newGame.learningPath || ''}
+                                onChange={e => setNewGame({...newGame, learningPath: e.target.value})}
+                                placeholder="Ex. Onboarding Star Fruits, Découverte des métiers..."
+                                className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-emerald-400"
+                              />
+                              <datalist id="learning-paths">
+                                {learningPathOptions.map(path => <option key={path} value={path} />)}
+                              </datalist>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Niveau</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={newGame.levelNumber || 1}
+                                onChange={e => setNewGame({...newGame, levelNumber: Math.max(1, Number(e.target.value || 1))})}
+                                className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-black"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nom du niveau</label>
+                              <input
+                                value={newGame.levelTitle || ''}
+                                onChange={e => setNewGame({...newGame, levelTitle: e.target.value})}
+                                placeholder="Ex. Découverte, Explorateur, Expert..."
+                                className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-bold"
+                              />
+                            </div>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Score minimum pour valider</label>
+                                <span className="text-sm font-black text-emerald-700">{newGame.passingScore || 0} %</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="5"
+                                value={newGame.passingScore || 0}
+                                onChange={e => setNewGame({...newGame, passingScore: Number(e.target.value)})}
+                                className="w-full accent-emerald-600"
+                              />
+                              <p className="text-[11px] text-slate-500">
+                                0 % = terminer le jeu suffit. Pour un Quiz de validation, 70–80 % est généralement plus pertinent.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
