@@ -7,7 +7,7 @@ interface JeuxViewProps {
   currentUser: User;
   users: User[];
   predictions: GamePrediction[];
-  completions: GameCompletion[];
+  completions?: GameCompletion[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
@@ -29,7 +29,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions, onAddPrediction, onEarnPoints, mode = 'games' }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], onAddPrediction, onEarnPoints, mode = 'games' }) => {
   const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
   const trivialCategories = useMemo(() => {

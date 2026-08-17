@@ -369,7 +369,23 @@ export interface CompanyGame {
   sportName?: string;
   exactScorePoints?: number;
   outcomePoints?: number;
-  rewardPoints: number; 
+  rewardPoints: number;
+
+  // Parcours pédagogique (optionnel). Un jeu sans learningPath reste un jeu libre.
+  learningPath?: string;
+  levelNumber?: number;
+  levelTitle?: string;
+  passingScore?: number;
+}
+
+export interface GameCompletion {
+  id: string;
+  userId: string;
+  gameId: string;
+  bestScore: number;
+  passed: boolean;
+  completedAt?: string | null;
+  lastPlayedAt: string;
 }
 
 export interface GamePrediction {
