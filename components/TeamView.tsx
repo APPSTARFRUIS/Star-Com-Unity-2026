@@ -297,6 +297,8 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     const contentWidth = pageWidth - margin * 2;
 
     const children = activeEntities.filter(entity => entity.entityType !== 'group');
+    const founders = children.filter(entity => entity.entityType === 'shareholder');
+    const companies = children.filter(entity => entity.entityType !== 'shareholder');
     const structurePages = [group, ...children].filter(Boolean) as OrgEntity[];
 
     const companyPage = new Map<string, number>();
@@ -391,80 +393,83 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       }
     };
 
-    // PAGE 1 — GROUP
+    // PAGE 1 — GENERAL OVERVIEW
     addHeader(group?.name || 'Star Group', 'Vue d’ensemble · cliquez sur une structure');
-    pdf.setFontSize(11);
-    pdf.setTextColor(71, 85, 105);
-    pdf.text(
-      'Vue générale des structures · cliquez sur Star Group ou sur une structure',
-      margin,
-      40
-    );
+
+    // Membres fondateurs : rangée distincte au-dessus de Star Group, sans lien hiérarchique.
+    let groupY = 46;
+    if (founders.length) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text('MEMBRES FONDATEURS', margin, 39);
+
+      const founderCols = Math.min(4, Math.max(1, founders.length));
+      const founderGap = 6;
+      const founderW = Math.min(62, (contentWidth - founderGap * (founderCols - 1)) / founderCols);
+      const founderH = 25;
+      const totalW = founderCols * founderW + (founderCols - 1) * founderGap;
+      const founderStartX = margin + (contentWidth - totalW) / 2;
+
+      for (let index = 0; index < founders.length; index += 1) {
+        const entity = founders[index];
+        const row = Math.floor(index / founderCols);
+        const col = index % founderCols;
+        const x = founderStartX + col * (founderW + founderGap);
+        const y = 43 + row * (founderH + 5);
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(203, 213, 225);
+        pdf.roundedRect(x, y, founderW, founderH, 4, 4, 'FD');
+        if (entity.logoUrl) await addImageSafe(entity.logoUrl, x + 4, y + 4, 16, 10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(entity.name, x + 4, y + 19, { maxWidth: founderW - 8 });
+        const targetPage = companyPage.get(entity.id);
+        if (targetPage) pdf.link(x, y, founderW, founderH, { pageNumber: targetPage, top: 0 });
+      }
+      groupY = 43 + Math.ceil(founders.length / founderCols) * (founderH + 5) + 8;
+    }
 
     if (group) {
       const groupCardW = 82;
       const groupCardH = 32;
       const groupX = (pageWidth - groupCardW) / 2;
-      const groupY = 46;
-
       pdf.setFillColor(15, 23, 42);
       pdf.roundedRect(groupX, groupY, groupCardW, groupCardH, 6, 6, 'F');
-
-      if (group.logoUrl) {
-        await addImageSafe(group.logoUrl, groupX + 6, groupY + 5, 22, 22);
-      }
-
+      if (group.logoUrl) await addImageSafe(group.logoUrl, groupX + 6, groupY + 5, 22, 22);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(15);
       pdf.setTextColor(255, 255, 255);
       pdf.text(group.name, groupX + 34, groupY + 20);
-
       const groupTargetPage = companyPage.get(group.id);
-      if (groupTargetPage) {
-        pdf.link(groupX, groupY, groupCardW, groupCardH, { pageNumber: groupTargetPage, top: 0 });
-      }
+      if (groupTargetPage) pdf.link(groupX, groupY, groupCardW, groupCardH, { pageNumber: groupTargetPage, top: 0 });
     }
 
     const cols = 3;
     const gap = 7;
     const cardW = (contentWidth - gap * (cols - 1)) / cols;
     const cardH = 52;
-
-    for (let index = 0; index < children.length; index += 1) {
-      const entity = children[index];
+    const companiesY = groupY + 43;
+    for (let index = 0; index < companies.length; index += 1) {
+      const entity = companies[index];
       const row = Math.floor(index / cols);
       const col = index % cols;
       const x = margin + col * (cardW + gap);
-      const y = 88 + row * (cardH + gap);
-
+      const y = companiesY + row * (cardH + gap);
       pdf.setFillColor(248, 250, 252);
       pdf.setDrawColor(203, 213, 225);
       pdf.roundedRect(x, y, cardW, cardH, 5, 5, 'FD');
-
-      if (entity.logoUrl) {
-        await addImageSafe(entity.logoUrl, x + 6, y + 7, 26, 18);
-      }
-
+      if (entity.logoUrl) await addImageSafe(entity.logoUrl, x + 6, y + 7, 26, 18);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(13);
       pdf.setTextColor(15, 23, 42);
       pdf.text(entity.name, x + 6, y + 33);
-
-      pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(8);
       pdf.setTextColor(22, 101, 52);
-      pdf.text(
-        entity.entityType === 'shareholder'
-          ? 'ACTIONNAIRE PÉPINIÉRISTE'
-          : 'FILIALE / ENTREPRISE',
-        x + 6,
-        y + 41
-      );
-
+      pdf.text('FILIALE / ENTREPRISE', x + 6, y + 41);
       const targetPage = companyPage.get(entity.id);
-      if (targetPage) {
-        pdf.link(x, y, cardW, cardH, { pageNumber: targetPage, top: 0 });
-      }
+      if (targetPage) pdf.link(x, y, cardW, cardH, { pageNumber: targetPage, top: 0 });
     }
     addFooter();
 
@@ -865,6 +870,22 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
           {orgOverview ? (
             <div className="bg-slate-100 rounded-[40px] p-8 md:p-10 min-h-[560px]">
+              {activeEntities.some(entity => entity.entityType === 'shareholder') && (
+                <div className="mb-8">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400 mb-4 text-center">Membres fondateurs</p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {activeEntities.filter(entity => entity.entityType === 'shareholder').map(entity => (
+                      <button key={entity.id} type="button" onClick={() => choose(entity.id)} className="bg-white border border-slate-200 rounded-[22px] px-6 py-4 min-w-[190px] hover:border-green-500 hover:shadow-lg transition-all text-center">
+                        <div className="h-14 flex items-center justify-center">
+                          {entity.logoUrl ? <img src={entity.logoUrl} alt="" className="max-h-12 max-w-[130px] object-contain" /> : <span className="text-slate-300 font-black">LOGO</span>}
+                        </div>
+                        <p className="font-black text-base mt-2">{entity.name}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-center">
                 <button
                   type="button"
@@ -882,11 +903,9 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
                 </button>
               </div>
 
-              <div className="w-px h-12 bg-slate-300 mx-auto" />
-
-              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="mt-10 grid md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {activeEntities
-                  .filter(entity => entity.entityType !== 'group')
+                  .filter(entity => entity.entityType !== 'group' && entity.entityType !== 'shareholder')
                   .map(entity => (
                     <button
                       key={entity.id}
