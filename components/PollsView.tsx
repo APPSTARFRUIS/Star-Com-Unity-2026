@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { User, Poll, Question, QuestionType, UserRole, PollResponse, Attachment } from '../types';
+import { User, Poll, Question, QuestionType, UserRole, PollResponse, Attachment, OrgEntity } from '../types';
 import { uploadMediaToStorage } from '../storageUtils';
 
 interface PollsViewProps {

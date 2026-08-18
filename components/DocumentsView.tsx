@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { User, DocumentFile, UserRole } from '../types';
+import { User, DocumentFile, UserRole, OrgEntity } from '../types';
 import { uploadMediaToStorage } from '../storageUtils';
 
 interface DocumentsViewProps {
