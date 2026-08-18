@@ -226,6 +226,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     [games]
   );
 
+  const levelThemeOptions = useMemo(
+    () => [...new Set(games.map(game => game.levelTitle?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'fr')),
+    [games]
+  );
+
   const handleAddSportFixture = () => {
     if (!sportHomeTeam.trim() || !sportAwayTeam.trim() || !sportEventDate || !sportClosingDate) {
       alert('Renseignez les deux équipes, la date du match et la date de clôture des pronostics.');
@@ -1156,13 +1161,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             </div>
 
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Thème / nom du niveau</label>
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Thème du niveau</label>
                               <input
+                                list="level-themes"
                                 value={newGame.levelTitle || ''}
                                 onChange={e => setNewGame({...newGame, levelTitle: e.target.value})}
-                                placeholder="Ex. Nos valeurs, Notre histoire, Nos métiers..."
+                                placeholder="Ex. Nos valeurs, Notre histoire, Nos missions, Nos entreprises..."
                                 className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-bold"
                               />
+                              <datalist id="level-themes">
+                                {levelThemeOptions.map(theme => <option key={theme} value={theme} />)}
+                              </datalist>
+                              <p className="text-[11px] text-slate-500">
+                                Saisissez librement un nouveau thème. Une fois un jeu enregistré, ce thème sera reproposé automatiquement pour les prochains niveaux.
+                              </p>
                             </div>
 
                             <div className="space-y-2 md:col-span-2">
