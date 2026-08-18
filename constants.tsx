@@ -6,7 +6,8 @@ export const INITIAL_CONFIG: AppConfig = {
   logoUrl: 'logo.png',
   welcomeTitle: 'Bonjour, {name} !',
   welcomeSubtitle: 'Voici les dernières actualités de la matinée.',
-  documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique']
+  documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique'],
+  gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus']
 };
 
 export const INITIAL_USERS: User[] = [

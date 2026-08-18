@@ -535,6 +535,7 @@ const App: React.FC = () => {
         welcomeTitle: config.welcome_title ?? INITIAL_CONFIG.welcomeTitle,
         welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
         documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
+        gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
       });
     }
 
@@ -933,6 +934,7 @@ const App: React.FC = () => {
           welcomeTitle: config.welcome_title ?? INITIAL_CONFIG.welcomeTitle,
           welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
           documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
+        gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
         });
       }
 
@@ -1984,10 +1986,34 @@ const App: React.FC = () => {
                 logo_url: cfg.logoUrl,
                 welcome_title: cfg.welcomeTitle,
                 welcome_subtitle: cfg.welcomeSubtitle,
-                document_categories: cfg.documentCategories
+                document_categories: cfg.documentCategories,
+                game_categories: cfg.gameCategories
               }).eq('id', 1);
               setAppConfig(cfg);
               addToast("Configuration mise à jour.");
+            }}
+            onRenameGameCategory={async (oldCategory, newCategory) => {
+              const clean = newCategory.trim();
+              if (!clean || clean === oldCategory) return;
+              const { error: gamesError } = await supabase.from('games').update({ category: clean }).eq('category', oldCategory);
+              if (gamesError) throw gamesError;
+              const nextCategories = (appConfig.gameCategories || INITIAL_CONFIG.gameCategories).map(category => category === oldCategory ? clean : category);
+              const uniqueCategories = [...new Set(nextCategories)];
+              const { error: configError } = await supabase.from('app_config').update({ game_categories: uniqueCategories }).eq('id', 1);
+              if (configError) throw configError;
+              setAppConfig(previous => ({ ...previous, gameCategories: uniqueCategories }));
+              setGames(previous => previous.map(game => game.category === oldCategory ? { ...game, category: clean } : game));
+              addToast(`Catégorie renommée : ${clean}`);
+            }}
+            onDeleteGameCategory={async (category, replacementCategory) => {
+              const { error: gamesError } = await supabase.from('games').update({ category: replacementCategory }).eq('category', category);
+              if (gamesError) throw gamesError;
+              const nextCategories = (appConfig.gameCategories || INITIAL_CONFIG.gameCategories).filter(item => item !== category);
+              const { error: configError } = await supabase.from('app_config').update({ game_categories: nextCategories }).eq('id', 1);
+              if (configError) throw configError;
+              setAppConfig(previous => ({ ...previous, gameCategories: nextCategories }));
+              setGames(previous => previous.map(game => game.category === category ? { ...game, category: replacementCategory } : game));
+              addToast(`Catégorie supprimée. Les jeux concernés ont été reclassés « ${replacementCategory} ».`);
             }}
             engagementAnimations={engagementAnimations}
             onCreateEngagementAnimation={async (animation) => {
@@ -2209,6 +2235,7 @@ const App: React.FC = () => {
             users={users}
             predictions={predictions}
             completions={gameCompletions}
+            categories={appConfig.gameCategories || INITIAL_CONFIG.gameCategories}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
               const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
               if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }

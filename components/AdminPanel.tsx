@@ -41,7 +41,9 @@ interface AdminPanelProps {
   onDeleteReward: (id: string) => void;
   currentUser: User;
   appConfig: AppConfig;
-  onUpdateConfig: (config: AppConfig) => void;
+  onUpdateConfig: (config: AppConfig) => Promise<void> | void;
+  onRenameGameCategory: (oldCategory: string, newCategory: string) => Promise<void>;
+  onDeleteGameCategory: (category: string, replacementCategory: string) => Promise<void>;
   transactions: PointsTransaction[];
   engagementAnimations: EngagementAnimation[];
   onCreateEngagementAnimation: (animation: Omit<EngagementAnimation, 'id' | 'createdAt' | 'participants' | 'winnerIds'>) => Promise<void>;
@@ -93,13 +95,76 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   wellnessChallenges, onAddWellnessChallenge, onDeleteWellnessChallenge, onToggleWellnessChallenge,
   games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult, predictions,
   rewards, onAddReward, onDeleteReward,
-  appConfig, onUpdateConfig, currentUser,
+  appConfig, onUpdateConfig, onRenameGameCategory, onDeleteGameCategory, currentUser,
   transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner
 }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
   const [orderFilter, setOrderFilter] = useState<'pending' | 'distributed' | 'all'>('pending');
   const [newDocCategory, setNewDocCategory] = useState('');
+  const [newGameCategory, setNewGameCategory] = useState('');
+  const [isUpdatingGameCategories, setIsUpdatingGameCategories] = useState(false);
+
+  const gameCategoryOptions = useMemo(() => {
+    const configured = appConfig.gameCategories?.length ? appConfig.gameCategories : ['Produits', 'Histoire', 'Valeurs', 'Processus'];
+    return [...new Set(configured.filter(Boolean))];
+  }, [appConfig.gameCategories]);
+
+  const handleAddGameCategory = async () => {
+    const clean = newGameCategory.trim();
+    if (!clean) return;
+    if (gameCategoryOptions.some(category => category.toLocaleLowerCase('fr-FR') === clean.toLocaleLowerCase('fr-FR'))) {
+      alert('Cette catégorie existe déjà.');
+      return;
+    }
+    setIsUpdatingGameCategories(true);
+    try {
+      await onUpdateConfig({ ...appConfig, gameCategories: [...gameCategoryOptions, clean] });
+      setNewGameCategory('');
+    } finally {
+      setIsUpdatingGameCategories(false);
+    }
+  };
+
+  const handleRenameGameCategory = async (category: string) => {
+    const value = window.prompt('Nouveau nom de la catégorie :', category)?.trim();
+    if (!value || value === category) return;
+    if (gameCategoryOptions.some(item => item !== category && item.toLocaleLowerCase('fr-FR') === value.toLocaleLowerCase('fr-FR'))) {
+      alert('Une catégorie porte déjà ce nom.');
+      return;
+    }
+    setIsUpdatingGameCategories(true);
+    try {
+      await onRenameGameCategory(category, value);
+      if (newGame.category === category) setNewGame(previous => ({ ...previous, category: value }));
+    } catch (error: any) {
+      alert(error?.message || 'Impossible de renommer cette catégorie.');
+    } finally {
+      setIsUpdatingGameCategories(false);
+    }
+  };
+
+  const handleDeleteGameCategory = async (category: string) => {
+    if (gameCategoryOptions.length <= 1) {
+      alert('Il faut conserver au moins une catégorie de jeu.');
+      return;
+    }
+    const replacement = gameCategoryOptions.find(item => item !== category)!;
+    const usedCount = games.filter(game => game.type !== 'Pari' && game.category === category).length;
+    const message = usedCount
+      ? `Supprimer « ${category} » ? Les ${usedCount} jeu(x) de cette catégorie seront automatiquement reclassés dans « ${replacement} ».`
+      : `Supprimer la catégorie « ${category} » ?`;
+    if (!window.confirm(message)) return;
+    setIsUpdatingGameCategories(true);
+    try {
+      await onDeleteGameCategory(category, replacement);
+      if (newGame.category === category) setNewGame(previous => ({ ...previous, category: replacement }));
+    } catch (error: any) {
+      alert(error?.message || 'Impossible de supprimer cette catégorie.');
+    } finally {
+      setIsUpdatingGameCategories(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, callback: (data: string) => void, folder = 'admin') => {
     const file = e.target.files?.[0];
@@ -1062,6 +1127,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <h2 className="text-2xl font-black text-slate-800">Gestion des Jeux</h2>
               <button onClick={() => setShowGameModal(true)} className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg">Nouveau Jeu</button>
            </div>
+           <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">Catégories de jeux</p>
+                <p className="text-xs text-slate-500 mt-1">Ajoutez, renommez ou supprimez les catégories visibles dans les filtres de la page Jeux.</p>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <input
+                  value={newGameCategory}
+                  onChange={e => setNewGameCategory(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleAddGameCategory(); } }}
+                  placeholder="Ex. Missions, Entreprises, Métiers, Marques..."
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-400"
+                />
+                <button type="button" disabled={isUpdatingGameCategories} onClick={() => void handleAddGameCategory()} className="px-5 py-3 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50">Ajouter</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {gameCategoryOptions.map(category => (
+                  <span key={category} className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">
+                    {category}
+                    <button type="button" disabled={isUpdatingGameCategories} onClick={() => void handleRenameGameCategory(category)} className="text-indigo-500 hover:text-indigo-700" title="Renommer">✎</button>
+                    <button type="button" disabled={isUpdatingGameCategories} onClick={() => void handleDeleteGameCategory(category)} className="text-slate-300 hover:text-red-500" title="Supprimer">×</button>
+                  </span>
+                ))}
+              </div>
+           </div>
+
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {games.filter(g => g.type !== 'Pari').map(g => (
                 <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200 grid grid-cols-[1fr_auto] items-center justify-between group shadow-sm transition-all hover:shadow-md">
@@ -1111,11 +1202,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                         <div className="space-y-2">
                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1">Catégorie</label>
-                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.category} onChange={e => setNewGame({...newGame, category: e.target.value as any})}>
-                              <option value="Produits">Produits</option>
-                              <option value="Histoire">Histoire</option>
-                              <option value="Valeurs">Valeurs</option>
-                              <option value="Processus">Processus</option>
+                           <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none" value={newGame.category} onChange={e => setNewGame({...newGame, category: e.target.value})}>
+                              {gameCategoryOptions.map(category => <option key={category} value={category}>{category}</option>)}
                            </select>
                         </div>
                       </div>

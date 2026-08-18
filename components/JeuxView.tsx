@@ -8,6 +8,7 @@ interface JeuxViewProps {
   users: User[];
   predictions: GamePrediction[];
   completions?: GameCompletion[];
+  categories?: string[];
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
@@ -29,8 +30,8 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], onAddPrediction, onEarnPoints, mode = 'games' }) => {
-  const [activeCategory, setActiveCategory] = useState<GameCategory | 'Tous'>('Tous');
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], categories = ['Produits', 'Histoire', 'Valeurs', 'Processus'], onAddPrediction, onEarnPoints, mode = 'games' }) => {
+  const [activeCategory, setActiveCategory] = useState<string | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
   const trivialCategories = useMemo(() => {
     if (!playingGame || playingGame.type !== 'Trivial') return TRIVIAL_CATEGORIES;
@@ -518,8 +519,8 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
           </div>
         </div>
         {mode === 'games' && <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {['Tous', 'Histoire', 'Produits', 'Valeurs', 'Processus'].map(cat => (
-            <button key={cat} onClick={() => setActiveCategory(cat as any)} className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all border shrink-0 ${activeCategory === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{cat}</button>
+          {['Tous', ...categories].map(cat => (
+            <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all border shrink-0 ${activeCategory === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{cat}</button>
           ))}
         </div>}
       </div>

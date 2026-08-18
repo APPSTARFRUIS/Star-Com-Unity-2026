@@ -71,6 +71,7 @@ export interface AppConfig {
   welcomeTitle: string;
   welcomeSubtitle: string;
   documentCategories: string[];
+  gameCategories: string[];
 }
 
 export enum QuestionType {
@@ -301,7 +302,7 @@ export interface WellnessChallenge {
 }
 
 export type GameType = 'Quiz' | 'Memory' | 'Objets Cachés' | 'Chronologie' | 'Trivial' | 'Pari';
-export type GameCategory = 'Histoire' | 'Produits' | 'Valeurs' | 'Processus' | 'Pari Sportif';
+export type GameCategory = string;
 
 export type QuizType = 'QCU' | 'QCM' | 'Vrai/Faux';
 
