@@ -55,6 +55,52 @@ const imageAsDataUrl = async (url?: string | null): Promise<string | null> => {
   }
 };
 
+const imageAsHighResPng = async (
+  url?: string | null,
+  targetWidthPx = 900,
+  targetHeightPx = 600
+): Promise<string | null> => {
+  const source = await imageAsDataUrl(url);
+  if (!source) return null;
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = source;
+    });
+
+    const naturalWidth = Math.max(1, image.naturalWidth || image.width || 1);
+    const naturalHeight = Math.max(1, image.naturalHeight || image.height || 1);
+    const scale = Math.min(targetWidthPx / naturalWidth, targetHeightPx / naturalHeight);
+    const width = Math.max(1, Math.round(naturalWidth * scale));
+    const height = Math.max(1, Math.round(naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(width, Math.min(targetWidthPx, naturalWidth * 4));
+    canvas.height = Math.max(height, Math.min(targetHeightPx, naturalHeight * 4));
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return source;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const ratio = Math.min(canvas.width / naturalWidth, canvas.height / naturalHeight);
+    const drawWidth = naturalWidth * ratio;
+    const drawHeight = naturalHeight * ratio;
+    const drawX = (canvas.width - drawWidth) / 2;
+    const drawY = (canvas.height - drawHeight) / 2;
+
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    return canvas.toDataURL('image/png', 1);
+  } catch {
+    return source;
+  }
+};
+
 const ProfileModal = ({
   person,
   entityName,
@@ -304,6 +350,22 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       pdf.text(`${pdf.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
     };
 
+    const addBackButton = (label: string, targetPage: number) => {
+      const buttonW = 62;
+      const buttonH = 11;
+      const x = pageWidth - margin - buttonW;
+      const y = 35;
+
+      pdf.setFillColor(22, 101, 52);
+      pdf.roundedRect(x, y, buttonW, buttonH, 3, 3, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.3);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(label, x + buttonW / 2, y + 7.1, { align: 'center' });
+      pdf.link(x, y, buttonW, buttonH, { pageNumber: targetPage, top: 0 });
+      pdf.setTextColor(15, 23, 42);
+    };
+
     const addImageSafe = async (
       url: string | null | undefined,
       x: number,
@@ -311,7 +373,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       w: number,
       h: number
     ) => {
-      const data = await imageAsDataUrl(url);
+      const data = await imageAsHighResPng(url, 1200, 800);
       if (!data) return false;
 
       try {
@@ -322,7 +384,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         const drawH = ratio > boxRatio ? w / ratio : h;
         const drawX = x + (w - drawW) / 2;
         const drawY = y + (h - drawH) / 2;
-        pdf.addImage(data, drawX, drawY, drawW, drawH, undefined, 'FAST');
+        pdf.addImage(data, 'PNG', drawX, drawY, drawW, drawH, undefined, 'SLOW');
         return true;
       } catch {
         return false;
@@ -415,13 +477,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         await addImageSafe(entity.logoUrl, margin, 38, 32, 22);
       }
 
-      pdf.setFillColor(22, 101, 52);
-      pdf.roundedRect(pageWidth - margin - 52, 35, 52, 11, 3, 3, 'F');
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('← VUE GÉNÉRALE', pageWidth - margin - 26, 42, { align: 'center' });
-      pdf.link(pageWidth - margin - 52, 35, 52, 11, { pageNumber: 1, top: 0 });
+      addBackButton('RETOUR VUE GENERALE', 1);
 
       const eu = users.filter(user => norm(user.company) === norm(entity.name));
       const es = services
@@ -640,16 +696,9 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       pdf.text(noteLines.slice(0, 8), rightX + 5, 159);
 
       const entityPage = companyPage.get(item.entity.id);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(22, 101, 52);
-      pdf.text('← RETOUR À L’ENTREPRISE', pageWidth - margin, 35, { align: 'right' });
       if (entityPage) {
-        pdf.link(pageWidth - margin - 50, 29, 50, 10, { pageNumber: entityPage, top: 0 });
+        addBackButton('RETOUR ENTREPRISE', entityPage);
       }
-
-      pdf.text('STAR GROUP', pageWidth - margin, 195, { align: 'right' });
-      pdf.link(pageWidth - margin - 25, 189, 25, 8, { pageNumber: 1, top: 0 });
 
       addFooter();
     }
