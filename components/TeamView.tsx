@@ -182,6 +182,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
   );
   const group = activeEntities.find(entity => entity.entityType === 'group');
   const [selectedEntityId, setSelectedEntityId] = useState(group?.id || activeEntities[0]?.id || '');
+  const [orgOverview, setOrgOverview] = useState(true);
   const [query, setQuery] = useState('');
   const [profile, setProfile] = useState<Person | null>(null);
 
@@ -227,7 +228,13 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
   const choose = (id: string) => {
     setSelectedEntityId(id);
+    setOrgOverview(false);
     if (sub === 'org') setSub('org');
+  };
+
+  const showOrgOverview = () => {
+    setSub('org');
+    setOrgOverview(true);
   };
 
   const exportPdf = async () => {
@@ -244,17 +251,18 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     const contentWidth = pageWidth - margin * 2;
 
     const children = activeEntities.filter(entity => entity.entityType !== 'group');
+    const structurePages = [group, ...children].filter(Boolean) as OrgEntity[];
 
     const companyPage = new Map<string, number>();
     const personPage = new Map<string, number>();
 
     let nextPage = 2;
-    children.forEach(entity => {
+    structurePages.forEach(entity => {
       companyPage.set(entity.id, nextPage++);
     });
 
     const people: Array<{ key: string; person: Person; entity: OrgEntity; serviceName?: string }> = [];
-    children.forEach(entity => {
+    structurePages.forEach(entity => {
       users
         .filter(user => norm(user.company) === norm(entity.name))
         .forEach(user => {
@@ -305,16 +313,19 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     ) => {
       const data = await imageAsDataUrl(url);
       if (!data) return false;
+
       try {
-        pdf.addImage(data, 'JPEG', x, y, w, h, undefined, 'FAST');
+        const props = pdf.getImageProperties(data);
+        const ratio = props.width / props.height;
+        const boxRatio = w / h;
+        const drawW = ratio > boxRatio ? w : h * ratio;
+        const drawH = ratio > boxRatio ? w / ratio : h;
+        const drawX = x + (w - drawW) / 2;
+        const drawY = y + (h - drawH) / 2;
+        pdf.addImage(data, drawX, drawY, drawW, drawH, undefined, 'FAST');
         return true;
       } catch {
-        try {
-          pdf.addImage(data, 'PNG', x, y, w, h, undefined, 'FAST');
-          return true;
-        } catch {
-          return false;
-        }
+        return false;
       }
     };
 
@@ -323,10 +334,34 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     pdf.setFontSize(11);
     pdf.setTextColor(71, 85, 105);
     pdf.text(
-      'Filiales, entreprises et actionnaires pépiniéristes',
+      'Vue générale des structures · cliquez sur Star Group ou sur une structure',
       margin,
       40
     );
+
+    if (group) {
+      const groupCardW = 82;
+      const groupCardH = 32;
+      const groupX = (pageWidth - groupCardW) / 2;
+      const groupY = 46;
+
+      pdf.setFillColor(15, 23, 42);
+      pdf.roundedRect(groupX, groupY, groupCardW, groupCardH, 6, 6, 'F');
+
+      if (group.logoUrl) {
+        await addImageSafe(group.logoUrl, groupX + 6, groupY + 5, 22, 22);
+      }
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(15);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(group.name, groupX + 34, groupY + 20);
+
+      const groupTargetPage = companyPage.get(group.id);
+      if (groupTargetPage) {
+        pdf.link(groupX, groupY, groupCardW, groupCardH, { pageNumber: groupTargetPage, top: 0 });
+      }
+    }
 
     const cols = 3;
     const gap = 7;
@@ -338,7 +373,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       const row = Math.floor(index / cols);
       const col = index % cols;
       const x = margin + col * (cardW + gap);
-      const y = 50 + row * (cardH + gap);
+      const y = 88 + row * (cardH + gap);
 
       pdf.setFillColor(248, 250, 252);
       pdf.setDrawColor(203, 213, 225);
@@ -372,7 +407,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     addFooter();
 
     // COMPANY / ENTITY PAGES
-    for (const entity of children) {
+    for (const entity of structurePages) {
       pdf.addPage('a4', 'landscape');
       addHeader(entity.name, entity.entityType === 'shareholder' ? 'Actionnaire pépiniériste' : 'Organigramme entreprise');
 
@@ -380,11 +415,13 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         await addImageSafe(entity.logoUrl, margin, 38, 32, 22);
       }
 
-      pdf.setFontSize(9);
+      pdf.setFillColor(22, 101, 52);
+      pdf.roundedRect(pageWidth - margin - 52, 35, 52, 11, 3, 3, 'F');
+      pdf.setFontSize(8);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(22, 101, 52);
-      pdf.text('← RETOUR STAR GROUP', pageWidth - margin, 42, { align: 'right' });
-      pdf.link(pageWidth - margin - 43, 35, 43, 10, { pageNumber: 1, top: 0 });
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('← VUE GÉNÉRALE', pageWidth - margin - 26, 42, { align: 'center' });
+      pdf.link(pageWidth - margin - 52, 35, 52, 11, { pageNumber: 1, top: 0 });
 
       const eu = users.filter(user => norm(user.company) === norm(entity.name));
       const es = services
@@ -657,14 +694,25 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
       <div className="flex flex-wrap gap-2 bg-white border border-slate-200 rounded-2xl p-3">
         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 self-center mr-2">
-          Structure
+          {sub === 'org' ? 'Organigramme' : 'Structure'}
         </span>
+        {sub === 'org' && (
+          <button
+            type="button"
+            onClick={showOrgOverview}
+            className={`px-4 py-2 rounded-xl text-xs font-black ${
+              orgOverview ? 'bg-emerald-700 text-white' : 'bg-slate-50 text-slate-600'
+            }`}
+          >
+            Vue générale
+          </button>
+        )}
         {activeEntities.map(entity => (
           <button
             key={entity.id}
             onClick={() => choose(entity.id)}
             className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 ${
-              selectedEntity?.id === entity.id
+              !orgOverview && selectedEntity?.id === entity.id
                 ? 'bg-slate-900 text-white'
                 : 'bg-slate-50 text-slate-600'
             }`}
@@ -753,7 +801,9 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Organigramme interactif
               </p>
-              <h2 className="text-2xl font-black">{selectedEntity?.name}</h2>
+              <h2 className="text-2xl font-black">
+                {orgOverview ? 'Vue générale des structures' : selectedEntity?.name}
+              </h2>
             </div>
 
             <button
@@ -764,19 +814,23 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
             </button>
           </div>
 
-          {selectedEntity?.entityType === 'group' ? (
+          {orgOverview ? (
             <div className="bg-slate-100 rounded-[40px] p-8 md:p-10 min-h-[560px]">
               <div className="flex justify-center">
-                <div className="bg-slate-950 text-white px-10 py-5 rounded-[24px] font-black flex items-center gap-4 shadow-xl">
-                  {selectedEntity.logoUrl && (
+                <button
+                  type="button"
+                  onClick={() => group && choose(group.id)}
+                  className="bg-slate-950 text-white px-10 py-5 rounded-[24px] font-black flex items-center gap-4 shadow-xl hover:scale-[1.02] transition-transform"
+                >
+                  {group?.logoUrl && (
                     <img
-                      src={selectedEntity.logoUrl}
+                      src={group.logoUrl}
                       alt=""
                       className="w-12 h-12 bg-white object-contain rounded-xl p-1"
                     />
                   )}
-                  <span className="text-xl">{selectedEntity.name}</span>
-                </div>
+                  <span className="text-xl">{group?.name || 'Star Group'}</span>
+                </button>
               </div>
 
               <div className="w-px h-12 bg-slate-300 mx-auto" />
@@ -787,7 +841,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
                   .map(entity => (
                     <button
                       key={entity.id}
-                      onClick={() => setSelectedEntityId(entity.id)}
+                      onClick={() => choose(entity.id)}
                       className="bg-white border border-slate-200 rounded-[26px] p-6 hover:border-green-500 hover:shadow-xl transition-all text-center"
                     >
                       <div className="h-20 flex items-center justify-center">
@@ -815,10 +869,10 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
             <div className="bg-slate-100 rounded-[40px] p-6 md:p-8 min-h-[560px]">
               <div className="flex justify-center">
                 <button
-                  onClick={() => group && setSelectedEntityId(group.id)}
-                  className="text-xs font-black text-green-700 mb-5"
+                  onClick={showOrgOverview}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-black mb-5 shadow-md"
                 >
-                  ← Retour Star Group
+                  ← Retour à la vue générale
                 </button>
               </div>
 
