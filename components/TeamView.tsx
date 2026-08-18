@@ -4,6 +4,7 @@ import { DEPARTMENTS } from '../constants';
 
 interface TeamViewProps {
   users: User[];
+  companies: string[];
   gamificationStats?: Record<string, { earned: number; purchases: number; gains: number }>;
 }
 
@@ -61,6 +62,7 @@ const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false, gam
       <div className="overflow-hidden">
         <h4 className={`font-bold text-slate-900 truncate ${small ? 'text-xs' : 'text-sm'}`}>{user.name}</h4>
         <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-green-700 truncate">{user.company || 'Entreprise non renseignée'}</p>
         {isLeader && <span className="text-[8px] font-black text-green-600 uppercase tracking-widest">Responsable</span>}
 
         {publicBadges.length > 0 && (
@@ -91,27 +93,31 @@ const UserCard: React.FC<UserCardProps> = React.memo(({ user, small = false, gam
 
 UserCard.displayName = 'UserCard';
 
-const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) => {
+const normalizeCompany = (value?: string) => (value || '').trim().toLocaleLowerCase('fr-FR');
+
+const TeamView: React.FC<TeamViewProps> = ({ users, companies, gamificationStats = {} }) => {
   const [activeSubView, setActiveSubView] = useState<TeamSubView>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('Tous');
+  const [selectedCompany, setSelectedCompany] = useState('Toutes');
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             user.email.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDept = selectedDept === 'Tous' || user.department === selectedDept;
-      return matchesSearch && matchesDept;
+      const matchesCompany = selectedCompany === 'Toutes' || normalizeCompany(user.company) === normalizeCompany(selectedCompany);
+      return matchesSearch && matchesDept && matchesCompany;
     });
-  }, [users, searchQuery, selectedDept]);
+  }, [users, searchQuery, selectedDept, selectedCompany]);
 
   const usersByDept = useMemo(() => {
     const map: Record<string, User[]> = {};
     DEPARTMENTS.forEach(dept => {
-      map[dept] = users.filter(u => u.department === dept);
+      map[dept] = users.filter(u => u.department === dept && (selectedCompany === 'Toutes' || normalizeCompany(u.company) === normalizeCompany(selectedCompany)));
     });
     return map;
-  }, [users]);
+  }, [users, selectedCompany]);
 
   // Logic for Org Chart based on Departments
   const directionMembers = usersByDept['Direction'] || [];
@@ -122,7 +128,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) =>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Annuaire & Équipe</h1>
-          <p className="text-slate-500">Organisation et structure de Star Fruits.</p>
+          <p className="text-slate-500">Organisation Star Group et vues par entreprise.</p>
         </div>
         
         <div className="flex bg-white rounded-2xl border border-slate-200 p-1 shadow-sm shrink-0">
@@ -140,6 +146,12 @@ const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) =>
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 bg-white rounded-2xl border border-slate-200 p-2 shadow-sm">
+        <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Vue</span>
+        <button type="button" onClick={() => setSelectedCompany('Toutes')} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedCompany === 'Toutes' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600'}`}>Star Group</button>
+        {companies.map(company => <button key={company} type="button" onClick={() => setSelectedCompany(company)} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedCompany === company ? 'bg-green-700 text-white' : 'bg-slate-50 text-slate-600'}`}>{company}</button>)}
       </div>
 
       {activeSubView === 'list' && (
@@ -228,7 +240,12 @@ const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) =>
       )}
 
       {activeSubView === 'org' && (
-        <div className="bg-[#f1f5f9] rounded-[48px] p-8 md:p-12 shadow-inner overflow-x-auto min-h-[700px]">
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Organigramme</p>
+            <h2 className="font-black text-slate-900 mt-1">{selectedCompany === 'Toutes' ? 'Star Group — organigramme Groupe' : `${selectedCompany} — organigramme entreprise`}</h2>
+          </div>
+          <div className="bg-[#f1f5f9] rounded-[48px] p-8 md:p-12 shadow-inner overflow-x-auto min-h-[700px]">
           <div className="flex flex-col items-center min-w-[1000px]">
             {/* Level 1: Direction */}
             <div className="flex flex-col items-center">
@@ -290,6 +307,7 @@ const TeamView: React.FC<TeamViewProps> = ({ users, gamificationStats = {} }) =>
                </p>
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

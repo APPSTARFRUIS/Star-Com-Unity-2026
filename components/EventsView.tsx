@@ -6,6 +6,7 @@ import EventCalendar from './EventCalendar';
 interface EventsViewProps {
   currentUser: User;
   events: CompanyEvent[];
+  companies: string[];
   onToggleParticipation: (eventId: string) => void;
   onOpenCreateModal: () => void;
   onDeleteEvent: (eventId: string) => void;
@@ -13,7 +14,8 @@ interface EventsViewProps {
 
 const EventsView: React.FC<EventsViewProps> = ({ 
   currentUser, 
-  events, 
+  events,
+  companies,
   onToggleParticipation, 
   onOpenCreateModal,
   onDeleteEvent
@@ -21,13 +23,16 @@ const EventsView: React.FC<EventsViewProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const isAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
 
-  const filteredEvents = useMemo(() => {
-    return events.filter(e => e.date === selectedDate);
-  }, [events, selectedDate]);
+  const visibleEvents = useMemo(() => {
+    const userCompany = (currentUser.company || '').trim().toLocaleLowerCase('fr-FR');
+    return events.filter(event => {
+      const audience = event.audienceCompanies?.length ? event.audienceCompanies : ['Star Fruits'];
+      return isAdmin || audience.includes('ALL') || audience.some(company => company.trim().toLocaleLowerCase('fr-FR') === userCompany);
+    });
+  }, [events, currentUser.company, isAdmin]);
 
-  const sortedAllEvents = useMemo(() => {
-    return [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [events]);
+  const filteredEvents = useMemo(() => visibleEvents.filter(e => e.date === selectedDate), [visibleEvents, selectedDate]);
+  const sortedAllEvents = useMemo(() => [...visibleEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [visibleEvents]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -54,7 +59,7 @@ const EventsView: React.FC<EventsViewProps> = ({
         <div className="space-y-6">
           <div className="bg-white p-2 rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <EventCalendar 
-              events={events} 
+              events={visibleEvents} 
               selectedDate={selectedDate} 
               onSelectDate={setSelectedDate} 
             />

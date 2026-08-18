@@ -6,12 +6,14 @@ interface DocumentsViewProps {
   currentUser: User;
   documents: DocumentFile[];
   categories: string[];
+  companies: string[];
   onUpload: (
     name: string,
     type: string,
     size: number,
     category: string,
-    data: string
+    data: string,
+    audienceCompanies: string[]
   ) => void;
   onDelete: (id: string) => void;
 }
@@ -285,6 +287,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   currentUser,
   documents,
   categories,
+  companies,
   onUpload,
   onDelete,
 }) => {
@@ -297,6 +300,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [previewError, setPreviewError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadCategory, setUploadCategory] = useState(categories[0] || 'Général');
+  const [uploadAudience, setUploadAudience] = useState('ALL');
 
   const docCategoriesForFilter = useMemo(() => ['Tous', ...categories], [categories]);
 
@@ -305,10 +309,13 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       .filter((doc) => {
         const matchesCategory = selectedCategory === 'Tous' || doc.category === selectedCategory;
         const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
+        const audience = doc.audienceCompanies?.length ? doc.audienceCompanies : ['Star Fruits'];
+        const userCompany = (currentUser.company || '').trim().toLocaleLowerCase('fr-FR');
+        const matchesAudience = currentUser.role === UserRole.ADMIN || audience.includes('ALL') || audience.some(company => company.trim().toLocaleLowerCase('fr-FR') === userCompany);
+        return matchesCategory && matchesSearch && matchesAudience;
       })
       .sort((a, b) => new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime());
-  }, [documents, selectedCategory, searchQuery]);
+  }, [documents, selectedCategory, searchQuery, currentUser]);
 
   const getDocumentUrl = (doc: DocumentFile) => doc.data || '';
   const isPdf = (doc: DocumentFile) => (doc.type || '').includes('pdf') || getDocumentUrl(doc).startsWith('data:application/pdf');
@@ -322,7 +329,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
     try {
       const url = await uploadMediaToStorage(file, 'documents');
-      onUpload(file.name, file.type, file.size, uploadCategory, url);
+      onUpload(file.name, file.type, file.size, uploadCategory, url, [uploadAudience]);
     } catch (error: any) {
       alert(error?.message || 'Erreur lors de l’upload du document.');
     } finally {
@@ -474,6 +481,11 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
+              </select>
+
+              <select value={uploadAudience} onChange={(e) => setUploadAudience(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                <option value="ALL">Tout Star Group</option>
+                {companies.map(company => <option key={company} value={company}>{company}</option>)}
               </select>
 
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />

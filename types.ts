@@ -72,6 +72,7 @@ export interface AppConfig {
   welcomeSubtitle: string;
   documentCategories: string[];
   gameCategories: string[];
+  companies: string[];
 }
 
 export enum QuestionType {
@@ -145,6 +146,7 @@ export interface Poll {
   createdByName: string;
   createdAt: string;
   targetDepartments: string[];
+  audienceCompanies?: string[];
 }
 
 export interface Comment {
@@ -206,6 +208,7 @@ export interface DocumentFile {
   uploadedByName: string;
   uploadedAt: string;
   data: string;
+  audienceCompanies?: string[];
 }
 
 export type EventType = 'Réunion' | 'Formation' | 'Événement social' | 'Autre';
@@ -222,6 +225,7 @@ export interface CompanyEvent {
   participants: string[];
   createdBy: string;
   attendees: string[];
+  audienceCompanies?: string[];
 }
 
 export type MoodValue = 1 | 2 | 3 | 4 | 5;

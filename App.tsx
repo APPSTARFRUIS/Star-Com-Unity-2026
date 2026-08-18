@@ -538,11 +538,12 @@ const App: React.FC = () => {
         welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
         documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
+        companies: config.companies ?? INITIAL_CONFIG.companies,
       });
     }
 
     if (postsResult.data) setPosts(mapPosts(postsResult.data, commentsResult.data));
-    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
     if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
     if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
     if (notificationsResult.data) setNotifications(mapNotifications(notificationsResult.data));
@@ -605,7 +606,7 @@ const App: React.FC = () => {
 
           case 'evenements': {
             const { data } = await supabase.from('events').select('*').order('date', { ascending: true }).limit(100);
-            if (data) setEvents(data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+            if (data) setEvents(data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
             break;
           }
 
@@ -689,7 +690,8 @@ const App: React.FC = () => {
               ...d,
               uploadedBy: d.uploaded_by,
               uploadedByName: d.uploaded_by_name,
-              uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString()
+              uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString(),
+              audienceCompanies: d.audience_companies || ['Star Fruits']
             })) as any);
             break;
           }
@@ -702,7 +704,8 @@ const App: React.FC = () => {
               createdBy: p.created_by,
               createdByName: p.created_by_name,
               createdAt: p.created_at,
-              targetDepartments: p.target_departments
+              targetDepartments: p.target_departments,
+              audienceCompanies: p.audience_companies || ['Star Fruits']
             })));
             break;
           }
@@ -2162,6 +2165,7 @@ const App: React.FC = () => {
           <TeamView
             users={users}
             gamificationStats={publicGamificationStats}
+            companies={appConfig.companies || INITIAL_CONFIG.companies}
           />
         );
 
@@ -2214,8 +2218,9 @@ const App: React.FC = () => {
             currentUser={currentUser}
             documents={documents}
             categories={appConfig.documentCategories || []}
-            onUpload={async (n, t, s, c, d) => {
-              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size: s, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d });
+            companies={appConfig.companies || INITIAL_CONFIG.companies}
+            onUpload={async (n, t, size, c, d, audienceCompanies) => {
+              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d, audience_companies: audienceCompanies });
               void fetchViewData(currentViewRef.current, true);
             }}
             onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
@@ -2227,6 +2232,7 @@ const App: React.FC = () => {
           <PollsView
             currentUser={currentUser}
             polls={polls}
+            companies={appConfig.companies || INITIAL_CONFIG.companies}
             onCreatePoll={async (poll) => {
               if (supabase) {
                 const { error } = await supabase.from('polls').insert({
@@ -2238,6 +2244,7 @@ const App: React.FC = () => {
                   created_by: currentUser.id,
                   created_by_name: currentUser.name,
                   target_departments: poll.targetDepartments || [],
+                  audience_companies: poll.audienceCompanies || ['ALL'],
                   responses: []
                 });
                 if (error) { console.error("Erreur insertion poll:", error.message || error); addToast(`Erreur lors de la création : ${error.message || ''}`, "error"); }
@@ -2264,6 +2271,7 @@ const App: React.FC = () => {
           <EventsView
             currentUser={currentUser}
             events={events}
+            companies={appConfig.companies || INITIAL_CONFIG.companies}
             onToggleParticipation={async (id) => {
               const ev = events.find(e => e.id === id);
               if (!ev || !supabase) return;
@@ -2837,7 +2845,8 @@ const App: React.FC = () => {
                     end_time: e.endTime,
                     participants: e.participants,
                     created_by: currentUser.id,
-                    attendees: [currentUser.id]
+                    attendees: [currentUser.id],
+                    audience_companies: e.audienceCompanies || ['ALL']
                   });
 
                   if (error) {
@@ -2851,6 +2860,7 @@ const App: React.FC = () => {
                 }
               }}
               currentUser={currentUser}
+              companies={appConfig.companies || INITIAL_CONFIG.companies}
             />
           )}
         </>

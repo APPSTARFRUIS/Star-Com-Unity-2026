@@ -5,6 +5,7 @@ import { uploadMediaToStorage } from '../storageUtils';
 interface PollsViewProps {
   currentUser: User;
   polls: Poll[];
+  companies: string[];
   onCreatePoll: (poll: Omit<Poll, 'id' | 'createdBy' | 'createdByName' | 'createdAt' | 'responses'>) => void;
   onVote: (pollId: string, response: PollResponse) => void;
   onDeletePoll: (id: string) => void;
@@ -118,7 +119,7 @@ const QUESTION_TYPES_CONFIG = [
   { type: QuestionType.SECTION, label: 'Section (Séparateur)' },
 ];
 
-const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, onCreatePoll, onVote, onDeletePoll }) => {
+const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, companies, onCreatePoll, onVote, onDeletePoll }) => {
   const [activeTab, setActiveTab] = useState<'liste' | 'create' | 'vote'>('liste');
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
   const [formTitle, setFormTitle] = useState('Formulaire sans titre');
@@ -136,8 +137,17 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, onCreatePoll,
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [audienceCompany, setAudienceCompany] = useState('ALL');
 
   const canManage = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
+
+  const visiblePolls = useMemo(() => {
+    const userCompany = (currentUser.company || '').trim().toLocaleLowerCase('fr-FR');
+    return polls.filter(poll => {
+      const audience = poll.audienceCompanies?.length ? poll.audienceCompanies : ['Star Fruits'];
+      return canManage || audience.includes('ALL') || audience.some(company => company.trim().toLocaleLowerCase('fr-FR') === userCompany);
+    });
+  }, [polls, currentUser.company, canManage]);
 
   const handleAddQuestion = () => {
     const newQ: Question = {
@@ -209,7 +219,7 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, onCreatePoll,
       alert("Veuillez donner un titre et au moins une question.");
       return;
     }
-    onCreatePoll({ title: formTitle, description: formDesc, questions, settings, endDate: new Date(Date.now() + 86400000 * 30).toISOString(), targetDepartments: ['Tous'] });
+    onCreatePoll({ title: formTitle, description: formDesc, questions, settings, endDate: new Date(Date.now() + 86400000 * 30).toISOString(), targetDepartments: ['Tous'], audienceCompanies: [audienceCompany] });
     setQuestions([]);
     setFormTitle('Formulaire sans titre');
     setFormDesc('');
@@ -482,7 +492,7 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, onCreatePoll,
       <div className={activeTab === 'create' ? 'mt-24' : ''}>
         {activeTab === 'liste' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {polls.map(poll => (
+            {visiblePolls.map(poll => (
               <div key={poll.id} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col group">
                 <div className="flex items-center justify-between mb-4">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${new Date(poll.endDate) > new Date() ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-500'}`}>{new Date(poll.endDate) > new Date() ? 'Actif' : 'Terminé'}</span>
