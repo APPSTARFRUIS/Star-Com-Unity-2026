@@ -338,6 +338,8 @@ export default async function handler(request, response) {
       points: Number(incomingUser.points || 0),
       phone: incomingUser.phone ? String(incomingUser.phone).slice(0, 80) : null,
       job_function: incomingUser.job_function ? String(incomingUser.job_function).slice(0, 160) : null,
+      job_description: incomingUser.job_description ? String(incomingUser.job_description).slice(0, 4000) : null,
+      personal_note: incomingUser.personal_note ? String(incomingUser.personal_note).slice(0, 2000) : null,
       notification_settings: null
     };
 

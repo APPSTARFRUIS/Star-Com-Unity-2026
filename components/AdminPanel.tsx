@@ -902,6 +902,52 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                      </div>
 
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Poste / fonction</label>
+                           <input
+                             type="text"
+                             placeholder="Ex. Chargée de mission"
+                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                             value={userForm.job_function || ''}
+                             onChange={e => updateUserFormField({ job_function: e.target.value })}
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Téléphone</label>
+                           <input
+                             type="text"
+                             placeholder="+33 (0)4..."
+                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                             value={userForm.phone || ''}
+                             onChange={e => updateUserFormField({ phone: e.target.value })}
+                           />
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Métier / missions</label>
+                           <textarea
+                             rows={4}
+                             placeholder="Expliquez le métier, les missions principales, les activités..."
+                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-purple-500 outline-none transition-all resize-y"
+                             value={userForm.job_description || ''}
+                             onChange={e => updateUserFormField({ job_description: e.target.value })}
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">À propos / anecdote</label>
+                           <textarea
+                             rows={3}
+                             placeholder="Une anecdote, un trait personnel, une passion, une petite info #team..."
+                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-purple-500 outline-none transition-all resize-y"
+                             value={userForm.personal_note || ''}
+                             onChange={e => updateUserFormField({ personal_note: e.target.value })}
+                           />
+                        </div>
+                     </div>
+
                      <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                         <div className="space-y-1">
                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Points actuels</label>

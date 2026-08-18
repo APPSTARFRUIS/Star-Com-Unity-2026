@@ -28,6 +28,8 @@ export interface OrgContact {
   phone?: string | null;
   jobTitle?: string | null;
   avatarUrl?: string | null;
+  jobDescription?: string | null;
+  personalNote?: string | null;
   about?: string | null;
   sortOrder: number;
 }
@@ -67,6 +69,8 @@ export interface User {
   points: number;
   phone?: string;
   job_function?: string;
+  job_description?: string;
+  personal_note?: string;
   notification_settings?: NotificationSettings;
 }
 

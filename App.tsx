@@ -321,7 +321,7 @@ const App: React.FC = () => {
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,email,name,role,avatar,department,company,birthday,points,phone,job_function,notification_settings')
+        .select('id,email,name,role,avatar,department,company,birthday,points,phone,job_function,job_description,personal_note,notification_settings')
         .order('name', { ascending: true });
 
       if (!error && data) {
@@ -1430,7 +1430,9 @@ const App: React.FC = () => {
     birthday: user.birthday ? String(user.birthday).slice(0, 20) : null,
     points: Number(user.points || 0),
     phone: user.phone ? String(user.phone).slice(0, 80) : null,
-    job_function: user.job_function ? String(user.job_function).slice(0, 160) : null
+    job_function: user.job_function ? String(user.job_function).slice(0, 160) : null,
+    job_description: user.job_description ? String(user.job_description).slice(0, 4000) : null,
+    personal_note: user.personal_note ? String(user.personal_note).slice(0, 2000) : null
   });
 
   const callAdminUsers = async (
@@ -1569,6 +1571,8 @@ const App: React.FC = () => {
         birthday: user.birthday || null,
         phone: user.phone || null,
         job_function: user.job_function || null,
+        job_description: user.job_description || null,
+        personal_note: user.personal_note || null,
         notification_settings: user.notification_settings || null
       };
 
