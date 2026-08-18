@@ -34,7 +34,10 @@ import {
   EngagementAnimation,
   AdventOpening,
   AppNotification,
-  NotificationKind
+  NotificationKind,
+  OrgEntity,
+  OrgService,
+  OrgContact
 } from './types';
 import Sidebar, { ViewType } from './components/Sidebar';
 import PostCard from './components/PostCard';
@@ -73,6 +76,9 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [users, setUsers] = useState<User[]>([]);
+  const [orgEntities, setOrgEntities] = useState<OrgEntity[]>([]);
+  const [orgServices, setOrgServices] = useState<OrgService[]>([]);
+  const [orgContacts, setOrgContacts] = useState<OrgContact[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [events, setEvents] = useState<CompanyEvent[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -538,7 +544,6 @@ const App: React.FC = () => {
         welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
         documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
-        companies: config.companies ?? INITIAL_CONFIG.companies,
       });
     }
 
@@ -551,6 +556,18 @@ const App: React.FC = () => {
     loadedViewsRef.current.add('accueil');
     lastFullFetchAtRef.current = Date.now();
   }, [session, purgeExpiredReadNotifications]);
+
+  const fetchOrganization = useCallback(async () => {
+    if (!supabase) return;
+    const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
+      supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
+      supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
+      supabase.from('org_contacts').select('*').order('sort_order')
+    ]);
+    if (!entitiesResult.error && entitiesResult.data) setOrgEntities(entitiesResult.data.map((e:any)=>({ id:e.id, name:e.name, entityType:e.entity_type, parentId:e.parent_id, logoUrl:e.logo_url, sortOrder:Number(e.sort_order||0), active:e.active!==false })));
+    if (!servicesResult.error && servicesResult.data) setOrgServices(servicesResult.data.map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, sortOrder:Number(x.sort_order||0), active:x.active!==false })));
+    if (!contactsResult.error && contactsResult.data) setOrgContacts(contactsResult.data.map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, email:x.email, phone:x.phone, jobTitle:x.job_title, avatarUrl:x.avatar_url, about:x.about, sortOrder:Number(x.sort_order||0) })));
+  }, []);
 
   const fetchViewData = useCallback(async (targetView: ViewType, force = false) => {
     if (!supabase || (!session && !currentUserRef.current)) return;
@@ -605,12 +622,14 @@ const App: React.FC = () => {
           }
 
           case 'evenements': {
+            void fetchOrganization();
             const { data } = await supabase.from('events').select('*').order('date', { ascending: true }).limit(100);
             if (data) setEvents(data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
             break;
           }
 
           case 'equipe': {
+            void fetchOrganization();
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) {
               setUsers(cachedProfiles);
@@ -685,6 +704,7 @@ const App: React.FC = () => {
           }
 
           case 'documents': {
+            void fetchOrganization();
             const { data } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(100);
             if (data) setDocuments(data.map((d: any) => ({
               ...d,
@@ -697,6 +717,7 @@ const App: React.FC = () => {
           }
 
           case 'sondages': {
+            void fetchOrganization();
             const { data } = await supabase.from('polls').select('*').order('created_at', { ascending: false }).limit(100);
             if (data) setPolls(data.map((p: any) => ({
               ...p,
@@ -1882,6 +1903,7 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'admin':
+        if (orgEntities.length === 0) void fetchOrganization();
         return (
           <AdminPanel
             users={users}
@@ -2114,6 +2136,18 @@ const App: React.FC = () => {
               if (error) addToast(`Erreur : ${error.message}`, 'error');
               else { addToast(`${winnerIds.length} gagnant(s) tiré(s) au sort.`); void fetchViewData(currentViewRef.current, true); }
             }}
+            orgEntities={orgEntities}
+            orgServices={orgServices}
+            orgContacts={orgContacts}
+            onAddOrgEntity={async (entity) => { const { error } = await supabase.from('org_entities').insert({ name: entity.name, entity_type: entity.entityType, parent_id: entity.parentId || null, logo_url: entity.logoUrl || null, sort_order: entity.sortOrder, active: entity.active }); if(error){addToast(error.message,'error');throw error;} await fetchOrganization(); }}
+            onUpdateOrgEntity={async (id, changes) => { const payload:any={}; if(changes.name!==undefined)payload.name=changes.name;if(changes.entityType!==undefined)payload.entity_type=changes.entityType;if(changes.parentId!==undefined)payload.parent_id=changes.parentId;if(changes.logoUrl!==undefined)payload.logo_url=changes.logoUrl;if(changes.sortOrder!==undefined)payload.sort_order=changes.sortOrder;if(changes.active!==undefined)payload.active=changes.active; const { error }=await supabase.from('org_entities').update(payload).eq('id',id); if(error){addToast(error.message,'error');throw error;} await fetchOrganization(); }}
+            onDeleteOrgEntity={async (id) => { const { error }=await supabase.from('org_entities').delete().eq('id',id); if(error){addToast(error.message,'error');throw error;} await fetchOrganization(); }}
+            onAddOrgService={async (service) => { const { error }=await supabase.from('org_services').insert({ entity_id:service.entityId,name:service.name,sort_order:service.sortOrder,active:service.active });if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
+            onUpdateOrgService={async (id, changes) => { const payload:any={};if(changes.name!==undefined)payload.name=changes.name;if(changes.sortOrder!==undefined)payload.sort_order=changes.sortOrder;if(changes.active!==undefined)payload.active=changes.active;const {error}=await supabase.from('org_services').update(payload).eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
+            onDeleteOrgService={async (id) => { const {error}=await supabase.from('org_services').delete().eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
+            onAddOrgContact={async (contact) => { const {error}=await supabase.from('org_contacts').insert({entity_id:contact.entityId,name:contact.name,email:contact.email,phone:contact.phone,job_title:contact.jobTitle,avatar_url:contact.avatarUrl,about:contact.about,sort_order:contact.sortOrder});if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
+            onUpdateOrgContact={async (id, changes) => { const payload:any={};if(changes.name!==undefined)payload.name=changes.name;if(changes.email!==undefined)payload.email=changes.email;if(changes.phone!==undefined)payload.phone=changes.phone;if(changes.jobTitle!==undefined)payload.job_title=changes.jobTitle;if(changes.avatarUrl!==undefined)payload.avatar_url=changes.avatarUrl;if(changes.about!==undefined)payload.about=changes.about;if(changes.sortOrder!==undefined)payload.sort_order=changes.sortOrder;const {error}=await supabase.from('org_contacts').update(payload).eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
+            onDeleteOrgContact={async (id) => { const {error}=await supabase.from('org_contacts').delete().eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
             transactions={transactions}
           />
         );
@@ -2164,8 +2198,10 @@ const App: React.FC = () => {
         return (
           <TeamView
             users={users}
+            entities={orgEntities}
+            services={orgServices}
+            contacts={orgContacts}
             gamificationStats={publicGamificationStats}
-            companies={appConfig.companies || INITIAL_CONFIG.companies}
           />
         );
 
@@ -2218,7 +2254,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             documents={documents}
             categories={appConfig.documentCategories || []}
-            companies={appConfig.companies || INITIAL_CONFIG.companies}
+            entities={orgEntities}
             onUpload={async (n, t, size, c, d, audienceCompanies) => {
               if (supabase) await supabase.from('documents').insert({ name: n, type: t, size, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d, audience_companies: audienceCompanies });
               void fetchViewData(currentViewRef.current, true);
@@ -2232,7 +2268,7 @@ const App: React.FC = () => {
           <PollsView
             currentUser={currentUser}
             polls={polls}
-            companies={appConfig.companies || INITIAL_CONFIG.companies}
+            entities={orgEntities}
             onCreatePoll={async (poll) => {
               if (supabase) {
                 const { error } = await supabase.from('polls').insert({
@@ -2271,7 +2307,6 @@ const App: React.FC = () => {
           <EventsView
             currentUser={currentUser}
             events={events}
-            companies={appConfig.companies || INITIAL_CONFIG.companies}
             onToggleParticipation={async (id) => {
               const ev = events.find(e => e.id === id);
               if (!ev || !supabase) return;
@@ -2860,7 +2895,7 @@ const App: React.FC = () => {
                 }
               }}
               currentUser={currentUser}
-              companies={appConfig.companies || INITIAL_CONFIG.companies}
+              entities={orgEntities}
             />
           )}
         </>

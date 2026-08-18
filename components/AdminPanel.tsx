@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation } from '../types';
+import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation, OrgEntity, OrgService, OrgContact } from '../types';
 import { DEPARTMENTS } from '../constants';
+import OrganizationAdmin from './OrganizationAdmin';
 import { uploadMediaToStorage } from '../storageUtils';
 import EngagementAdmin from './EngagementAdmin';
 
@@ -50,6 +51,18 @@ interface AdminPanelProps {
   onCreateEngagementAnimation: (animation: Omit<EngagementAnimation, 'id' | 'createdAt' | 'participants' | 'winnerIds'>) => Promise<void>;
   onDeleteEngagementAnimation: (id: string) => Promise<void>;
   onDrawEngagementWinner: (animation: EngagementAnimation) => Promise<void>;
+  orgEntities: OrgEntity[];
+  orgServices: OrgService[];
+  orgContacts: OrgContact[];
+  onAddOrgEntity: (entity: Omit<OrgEntity, 'id'>) => Promise<void>;
+  onUpdateOrgEntity: (id: string, changes: Partial<OrgEntity>) => Promise<void>;
+  onDeleteOrgEntity: (id: string) => Promise<void>;
+  onAddOrgService: (service: Omit<OrgService, 'id'>) => Promise<void>;
+  onUpdateOrgService: (id: string, changes: Partial<OrgService>) => Promise<void>;
+  onDeleteOrgService: (id: string) => Promise<void>;
+  onAddOrgContact: (contact: Omit<OrgContact, 'id'>) => Promise<void>;
+  onUpdateOrgContact: (id: string, changes: Partial<OrgContact>) => Promise<void>;
+  onDeleteOrgContact: (id: string) => Promise<void>;
 }
 
 const TRIVIAL_CATEGORIES = [
@@ -61,21 +74,9 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const COMPANIES = [
-  'Star Group',
-  'Star Fruits',
-  'Star Export',
-  'AC Fruit',
-  'Star PMP',
-  'Eurostème',
-  'Pep Toulemonde',
-  'Pep Veauvy',
-  'Pep Cros-Viguier',
-  'Pep Val d\'Or'
-];
-
 const ADMIN_TABS = [
   { id: 'users', label: 'Utilisateurs', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  { id: 'organization', label: 'Organisation', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6' },
   { id: 'rewards', label: 'Boutique', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
   { id: 'jeux', label: 'Jeux', icon: 'M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z' },
   { id: 'newsletter', label: 'Newsletter', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
@@ -97,7 +98,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   games, onAddGame, onUpdateGameProgression, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult, predictions,
   rewards, onAddReward, onDeleteReward,
   appConfig, onUpdateConfig, onRenameGameCategory, onDeleteGameCategory, currentUser,
-  transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner
+  transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner,
+  orgEntities, orgServices, orgContacts, onAddOrgEntity, onUpdateOrgEntity, onDeleteOrgEntity, onAddOrgService, onUpdateOrgService, onDeleteOrgService, onAddOrgContact, onUpdateOrgContact, onDeleteOrgContact
 }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
@@ -201,8 +203,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         name: '',
         email: '',
         password: 'User123',
-        department: DEPARTMENTS[0],
-        company: COMPANIES[0],
+        company: orgEntities.find(e => e.entityType === 'group')?.name || orgEntities[0]?.name || 'Star Group',
+        department: '',
         role: UserRole.USER,
         points: 0,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random().toString(36).substring(7)}`
@@ -874,9 +876,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <select 
                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none" 
                              value={userForm.company || ''} 
-                             onChange={e => updateUserFormField({ company: e.target.value  })}
+                             onChange={e => {
+                               const company = e.target.value;
+                               const entity = orgEntities.find(item => item.name === company);
+                               const firstService = orgServices.filter(item => item.entityId === entity?.id && item.active).sort((a,b)=>a.sortOrder-b.sortOrder)[0]?.name || '';
+                               updateUserFormField({ company, department: firstService });
+                             }}
                            >
-                              {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                              {orgEntities.filter(e => e.active).sort((a,b)=>a.sortOrder-b.sortOrder).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                            </select>
                         </div>
                         <div className="space-y-1">
@@ -886,7 +893,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                              value={userForm.department || ''} 
                              onChange={e => updateUserFormField({ department: e.target.value  })}
                            >
-                              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                              {orgServices
+                                .filter(service => service.active && service.entityId === orgEntities.find(entity => entity.name === userForm.company)?.id)
+                                .sort((a,b)=>a.sortOrder-b.sortOrder)
+                                .map(service => <option key={service.id} value={service.name}>{service.name}</option>)}
+                              {!orgServices.some(service => service.active && service.entityId === orgEntities.find(entity => entity.name === userForm.company)?.id) && <option value="">Aucun service configuré</option>}
                            </select>
                         </div>
                      </div>
@@ -934,6 +945,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
              </div>
            )}
         </div>
+      )}
+
+      {activeTab === 'organization' && (
+        <OrganizationAdmin
+          entities={orgEntities}
+          services={orgServices}
+          contacts={orgContacts}
+          onAddEntity={onAddOrgEntity}
+          onUpdateEntity={onUpdateOrgEntity}
+          onDeleteEntity={onDeleteOrgEntity}
+          onAddService={onAddOrgService}
+          onUpdateService={onUpdateOrgService}
+          onDeleteService={onDeleteOrgService}
+          onAddContact={onAddOrgContact}
+          onUpdateContact={onUpdateOrgContact}
+          onDeleteContact={onDeleteOrgContact}
+        />
       )}
 
       {/* --- RÉCOMPENSES --- */}

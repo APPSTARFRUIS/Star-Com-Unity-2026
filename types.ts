@@ -1,4 +1,37 @@
 
+
+export type OrgEntityType = 'group' | 'subsidiary' | 'shareholder';
+
+export interface OrgEntity {
+  id: string;
+  name: string;
+  entityType: OrgEntityType;
+  parentId?: string | null;
+  logoUrl?: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface OrgService {
+  id: string;
+  entityId: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface OrgContact {
+  id: string;
+  entityId: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  jobTitle?: string | null;
+  avatarUrl?: string | null;
+  about?: string | null;
+  sortOrder: number;
+}
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   MODERATOR = 'MODERATEUR',
@@ -72,7 +105,6 @@ export interface AppConfig {
   welcomeSubtitle: string;
   documentCategories: string[];
   gameCategories: string[];
-  companies: string[];
 }
 
 export enum QuestionType {

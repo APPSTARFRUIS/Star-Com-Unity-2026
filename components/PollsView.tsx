@@ -5,7 +5,7 @@ import { uploadMediaToStorage } from '../storageUtils';
 interface PollsViewProps {
   currentUser: User;
   polls: Poll[];
-  companies: string[];
+  entities: OrgEntity[];
   onCreatePoll: (poll: Omit<Poll, 'id' | 'createdBy' | 'createdByName' | 'createdAt' | 'responses'>) => void;
   onVote: (pollId: string, response: PollResponse) => void;
   onDeletePoll: (id: string) => void;
@@ -119,7 +119,7 @@ const QUESTION_TYPES_CONFIG = [
   { type: QuestionType.SECTION, label: 'Section (Séparateur)' },
 ];
 
-const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, companies, onCreatePoll, onVote, onDeletePoll }) => {
+const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onCreatePoll, onVote, onDeletePoll }) => {
   const [activeTab, setActiveTab] = useState<'liste' | 'create' | 'vote'>('liste');
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
   const [formTitle, setFormTitle] = useState('Formulaire sans titre');
@@ -141,13 +141,10 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, companies, on
 
   const canManage = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
 
-  const visiblePolls = useMemo(() => {
-    const userCompany = (currentUser.company || '').trim().toLocaleLowerCase('fr-FR');
-    return polls.filter(poll => {
-      const audience = poll.audienceCompanies?.length ? poll.audienceCompanies : ['Star Fruits'];
-      return canManage || audience.includes('ALL') || audience.some(company => company.trim().toLocaleLowerCase('fr-FR') === userCompany);
-    });
-  }, [polls, currentUser.company, canManage]);
+  const visiblePolls = useMemo(() => polls.filter(poll => {
+    const audience = poll.audienceCompanies?.length ? poll.audienceCompanies : ['Star Fruits'];
+    return audience.includes('ALL') || audience.some(company => company.toLocaleLowerCase('fr-FR') === (currentUser.company || '').trim().toLocaleLowerCase('fr-FR'));
+  }), [polls, currentUser.company]);
 
   const handleAddQuestion = () => {
     const newQ: Question = {

@@ -6,7 +6,7 @@ interface DocumentsViewProps {
   currentUser: User;
   documents: DocumentFile[];
   categories: string[];
-  companies: string[];
+  entities: OrgEntity[];
   onUpload: (
     name: string,
     type: string,
@@ -287,7 +287,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   currentUser,
   documents,
   categories,
-  companies,
+  entities,
   onUpload,
   onDelete,
 }) => {
@@ -310,12 +310,11 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
         const matchesCategory = selectedCategory === 'Tous' || doc.category === selectedCategory;
         const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
         const audience = doc.audienceCompanies?.length ? doc.audienceCompanies : ['Star Fruits'];
-        const userCompany = (currentUser.company || '').trim().toLocaleLowerCase('fr-FR');
-        const matchesAudience = currentUser.role === UserRole.ADMIN || audience.includes('ALL') || audience.some(company => company.trim().toLocaleLowerCase('fr-FR') === userCompany);
+        const matchesAudience = audience.includes('ALL') || audience.some(company => company.toLocaleLowerCase('fr-FR') === (currentUser.company || '').trim().toLocaleLowerCase('fr-FR'));
         return matchesCategory && matchesSearch && matchesAudience;
       })
       .sort((a, b) => new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime());
-  }, [documents, selectedCategory, searchQuery, currentUser]);
+  }, [documents, selectedCategory, searchQuery, currentUser.company]);
 
   const getDocumentUrl = (doc: DocumentFile) => doc.data || '';
   const isPdf = (doc: DocumentFile) => (doc.type || '').includes('pdf') || getDocumentUrl(doc).startsWith('data:application/pdf');
@@ -483,9 +482,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 ))}
               </select>
 
-              <select value={uploadAudience} onChange={(e) => setUploadAudience(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2">
-                <option value="ALL">Tout Star Group</option>
-                {companies.map(company => <option key={company} value={company}>{company}</option>)}
+              <select value={uploadAudience} onChange={e=>setUploadAudience(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2">
+                <option value="ALL">Commun à tous</option>
+                {entities.filter(e=>e.active).map(e=><option key={e.id} value={e.name}>{e.name} uniquement</option>)}
               </select>
 
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />

@@ -7,8 +7,7 @@ export const INITIAL_CONFIG: AppConfig = {
   welcomeTitle: 'Bonjour, {name} !',
   welcomeSubtitle: 'Voici les dernières actualités de la matinée.',
   documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique'],
-  gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus'],
-  companies: ['Star Fruits', 'Star Export', 'Star PMP', 'AC Fruit', 'Eurostème']
+  gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus']
 };
 
 export const INITIAL_USERS: User[] = [
