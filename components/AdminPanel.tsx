@@ -205,7 +205,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newGame, setNewGame] = useState<Omit<CompanyGame, 'id' | 'createdAt'>>({
     title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
     hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5,
-    learningPath: '', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
+    learningPath: 'Parcours Star ComUnity', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
   });
   const [currentObjectName, setCurrentObjectName] = useState('');
   const [currentObjectQuestion, setCurrentObjectQuestion] = useState('');
@@ -409,9 +409,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleAddGameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newGame.learningPath?.trim()) {
+    const pathwayName = newGame.learningPath?.trim() || '';
+    if ((newGame.levelNumber || 1) > 1 && !pathwayName) {
+      alert("Un niveau supérieur à 1 doit appartenir à un parcours. Utilisez exactement le même nom de parcours pour les niveaux 1, 2, 3, 4...");
+      return;
+    }
+    if (pathwayName) {
       if (!newGame.levelNumber || newGame.levelNumber < 1) { alert("Le numéro de niveau doit être supérieur ou égal à 1."); return; }
-      if (!newGame.levelTitle?.trim()) { alert("Donnez un nom au niveau (ex. Découverte, Explorateur, Expert)."); return; }
+      if (!newGame.levelTitle?.trim()) { alert("Donnez un thème au niveau (ex. Nos valeurs, Notre histoire, Nos métiers)."); return; }
       if ((newGame.passingScore || 0) < 0 || (newGame.passingScore || 0) > 100) { alert("Le score minimum doit être compris entre 0 et 100 %."); return; }
     }
     if (newGame.type === 'Quiz' && (!newGame.questions || newGame.questions.length === 0)) { alert("Ajoutez au moins une question au Quiz !"); return; }
@@ -432,7 +437,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewGame({ 
       title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
       hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5,
-      learningPath: '', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
+      learningPath: 'Parcours Star ComUnity', levelNumber: 1, levelTitle: 'Découverte', passingScore: 0
     });
   };
 
@@ -1120,7 +1125,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                           <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">Progression pédagogique</p>
                             <p className="text-xs text-slate-500 mt-1">
-                              Laissez « Parcours » vide pour conserver un jeu libre. Sinon, les niveaux se déverrouillent dans l’ordre.
+                              Tous les niveaux d’un même parcours doivent avoir exactement le même nom de parcours. Exemple : « Parcours Star ComUnity » avec Niveau 1 = Nos valeurs, Niveau 2 = Notre histoire, Niveau 3 = Nos métiers. Effacez le parcours uniquement pour créer un jeu libre hors progression.
                             </p>
                           </div>
 
@@ -1131,7 +1136,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                 list="learning-paths"
                                 value={newGame.learningPath || ''}
                                 onChange={e => setNewGame({...newGame, learningPath: e.target.value})}
-                                placeholder="Ex. Onboarding Star Fruits, Découverte des métiers..."
+                                placeholder="Ex. Parcours Star ComUnity"
                                 className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-emerald-400"
                               />
                               <datalist id="learning-paths">
@@ -1151,11 +1156,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                             </div>
 
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nom du niveau</label>
+                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Thème / nom du niveau</label>
                               <input
                                 value={newGame.levelTitle || ''}
                                 onChange={e => setNewGame({...newGame, levelTitle: e.target.value})}
-                                placeholder="Ex. Découverte, Explorateur, Expert..."
+                                placeholder="Ex. Nos valeurs, Notre histoire, Nos métiers..."
                                 className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-bold"
                               />
                             </div>

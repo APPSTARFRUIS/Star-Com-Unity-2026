@@ -181,17 +181,14 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       item => item.type !== 'Pari' && item.status !== 'Inactif' && item.learningPath?.trim() === path
     );
 
-    const previousLevels = [...new Set(
-      pathGames
-        .map(item => Number(item.levelNumber || 1))
-        .filter(itemLevel => itemLevel < level)
-    )].sort((a, b) => b - a);
-
-    const previousLevel = previousLevels[0];
-    if (!previousLevel) return true;
-
+    const previousLevel = level - 1;
     const requiredGames = pathGames.filter(item => Number(item.levelNumber || 1) === previousLevel);
-    return requiredGames.length > 0 && requiredGames.every(item => isGamePassed(item.id));
+
+    // Séquence stricte : un niveau 4 ne peut pas contourner les niveaux 2 et 3.
+    // Si le niveau précédent n'existe pas, le niveau reste verrouillé.
+    if (requiredGames.length === 0) return false;
+
+    return requiredGames.every(item => isGamePassed(item.id));
   };
 
   const learningPaths = useMemo(() => {
@@ -224,12 +221,20 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   }, [games, completionByGame]);
 
   const filteredGames = useMemo(() => {
-    return games.filter(g => {
-      const visibleStatus = g.status === 'Actif' || g.status === 'Terminé';
-      const rightModule = mode === 'predictions' ? g.type === 'Pari' : g.type !== 'Pari';
-      const rightCategory = mode === 'predictions' || activeCategory === 'Tous' || g.category === activeCategory;
-      return visibleStatus && rightModule && rightCategory;
-    });
+    return games
+      .filter(g => {
+        const visibleStatus = g.status === 'Actif' || g.status === 'Terminé';
+        const rightModule = mode === 'predictions' ? g.type === 'Pari' : g.type !== 'Pari';
+        const rightCategory = mode === 'predictions' || activeCategory === 'Tous' || g.category === activeCategory;
+        return visibleStatus && rightModule && rightCategory;
+      })
+      .sort((a, b) => {
+        const pathA = a.learningPath?.trim() || '~~~~';
+        const pathB = b.learningPath?.trim() || '~~~~';
+        const pathCompare = pathA.localeCompare(pathB, 'fr');
+        if (pathCompare !== 0) return pathCompare;
+        return Number(a.levelNumber || 1) - Number(b.levelNumber || 1);
+      });
   }, [games, activeCategory, mode]);
 
   const handleStartGame = (game: CompanyGame) => {
@@ -601,9 +606,10 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                 )}
               </div>
               {game.learningPath && (
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-700 truncate">
-                  {game.learningPath} · {game.levelTitle || `Niveau ${game.levelNumber || 1}`}
-                </p>
+                <div className="rounded-xl bg-green-50 border border-green-100 px-3 py-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-green-700 truncate">{game.learningPath}</p>
+                  <p className="text-xs font-black text-slate-800 mt-0.5 truncate">Niveau {game.levelNumber || 1} — {game.levelTitle || 'Sans thème'}</p>
+                </div>
               )}
               <h3 className="text-xl font-black text-slate-800 truncate">{game.title}</h3>
               <p className="text-slate-500 text-sm line-clamp-2 italic">"{game.description}"</p>
@@ -646,7 +652,11 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                    </div>
                    <div className="text-left min-w-0">
                      <h2 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide sm:tracking-widest truncate">{playingGame.title}</h2>
-                     <p className="text-[10px] text-slate-400 font-bold uppercase">{playingGame.type === 'Pari' ? `Pronostics · ${playingGame.sportName || 'Sport'}` : playingGame.type}</p>
+                     <p className="text-[10px] text-slate-400 font-bold uppercase">
+                       {playingGame.learningPath
+                         ? `${playingGame.learningPath} · Niveau ${playingGame.levelNumber || 1} — ${playingGame.levelTitle || 'Sans thème'}`
+                         : (playingGame.type === 'Pari' ? `Pronostics · ${playingGame.sportName || 'Sport'}` : playingGame.type)}
+                     </p>
                    </div>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-4 shrink-0">

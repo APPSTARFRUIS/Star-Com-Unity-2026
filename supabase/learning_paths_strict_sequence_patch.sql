@@ -1,75 +1,7 @@
--- Star ComUnity — Parcours pédagogiques & niveaux
+-- Star ComUnity — correctif séquence stricte des niveaux
 -- À exécuter UNE FOIS dans Supabase > SQL Editor après le déploiement.
+-- Remplace uniquement complete_game() et ne supprime aucune donnée.
 
--- 1. Métadonnées de progression sur les jeux.
-alter table public.games
-  add column if not exists learning_path text null,
-  add column if not exists level_number integer not null default 1,
-  add column if not exists level_title text null,
-  add column if not exists passing_score integer not null default 0;
-
-alter table public.games drop constraint if exists games_level_number_check;
-alter table public.games
-  add constraint games_level_number_check check (level_number >= 1);
-
-alter table public.games drop constraint if exists games_passing_score_check;
-alter table public.games
-  add constraint games_passing_score_check check (passing_score between 0 and 100);
-
-create index if not exists idx_games_learning_path_level
-  on public.games(learning_path, level_number);
-
--- 2. Historique de progression par utilisateur.
-create table if not exists public.game_completions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  game_id uuid not null references public.games(id) on delete cascade,
-  best_score integer not null default 0 check (best_score between 0 and 100),
-  passed boolean not null default false,
-  completed_at timestamptz null,
-  last_played_at timestamptz not null default now(),
-  unique(user_id, game_id)
-);
-
-alter table public.game_completions enable row level security;
-
-drop policy if exists "Users view own game completions" on public.game_completions;
-create policy "Users view own game completions"
-  on public.game_completions for select to authenticated
-  using (user_id = auth.uid());
-
-drop policy if exists "Admins view all game completions" on public.game_completions;
-create policy "Admins view all game completions"
-  on public.game_completions for select to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'ADMIN'
-    )
-  );
-
--- Table d'attribution unique des points, créée également ici pour rendre
--- cette migration autonome si la migration de fiabilisation précédente n'a pas été jouée.
-create table if not exists public.game_point_awards (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
-  game_id uuid not null,
-  amount integer not null check (amount >= 0),
-  reason text not null,
-  awarded_at timestamptz not null default now(),
-  unique (user_id, game_id)
-);
-
-alter table public.game_point_awards enable row level security;
-drop policy if exists "Users view own game awards" on public.game_point_awards;
-create policy "Users view own game awards"
-  on public.game_point_awards for select to authenticated
-  using (user_id = auth.uid());
-
--- 3. Fin de partie atomique :
--- - mémorise le meilleur score ;
--- - valide le jeu seulement si le seuil est atteint ;
--- - n'attribue les points qu'une seule fois par utilisateur et par jeu.
 create or replace function public.complete_game(
   p_game_id uuid,
   p_score_percent integer,
@@ -170,6 +102,3 @@ $$;
 
 revoke all on function public.complete_game(uuid, integer, integer, text) from public;
 grant execute on function public.complete_game(uuid, integer, integer, text) to authenticated;
-
--- 4. Les utilisateurs ne doivent pas écrire eux-mêmes dans game_completions.
--- L'écriture passe exclusivement par complete_game() (SECURITY DEFINER).
