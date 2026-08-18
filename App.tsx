@@ -378,7 +378,9 @@ const App: React.FC = () => {
       outcomePoints: g.outcome_points ?? 5,
       matchDate: g.match_date,
       isProcessed: g.is_processed,
-      learningPath: g.learning_path || undefined,
+      learningPath:
+        g.learning_path?.trim() ||
+        ((Number(g.level_number || 1) > 1 || g.level_title) ? 'Parcours Star ComUnity' : undefined),
       levelNumber: Number(g.level_number || 1),
       levelTitle: g.level_title || undefined,
       passingScore: Number(g.passing_score || 0),
@@ -1916,33 +1918,91 @@ const App: React.FC = () => {
             onDeleteWellnessChallenge={async (id) => { await supabase.from('wellness_challenges').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             onToggleWellnessChallenge={async (id) => { const c = wellnessChallenges.find(x => x.id === id); if (c) { await supabase.from('wellness_challenges').update({ is_active: !c.isActive }).eq('id', id); void fetchViewData(currentViewRef.current, true); } }}
             onAddGame={async (g) => {
-              await supabase.from('games').insert({
-                title: g.title,
-                description: g.description,
-                type: g.type,
-                category: g.category,
-                difficulty: g.difficulty,
-                duration: g.duration,
-                status: g.status,
-                created_by: g.createdBy,
-                thumbnail: g.thumbnail,
-                reward_points: g.rewardPoints,
-                questions: g.questions,
-                memory_items: g.memoryItems,
-                timeline_items: g.timelineItems,
-                hidden_objects: g.hiddenObjects,
-                hidden_objects_image: g.hiddenObjectsImage,
-                sport_events: g.sportEvents || [],
-                sport_name: g.sportName || 'Football',
-                exact_score_points: g.exactScorePoints || g.rewardPoints || 10,
-                outcome_points: g.outcomePoints ?? 5,
-                learning_path: g.learningPath?.trim() || null,
-                level_number: Math.max(1, Number(g.levelNumber || 1)),
-                level_title: g.levelTitle?.trim() || null,
-                passing_score: Math.max(0, Math.min(100, Number(g.passingScore || 0)))
-              });
-              addToast("Jeu ajouté !");
-              void fetchViewData(currentViewRef.current, true);
+              const expectedPath = g.learningPath?.trim() || null;
+              const expectedLevel = Math.max(1, Number(g.levelNumber || 1));
+              const expectedTitle = g.levelTitle?.trim() || null;
+              const expectedPassingScore = Math.max(0, Math.min(100, Number(g.passingScore || 0)));
+
+              const { data: createdRows, error: createGameError } = await supabase
+                .from('games')
+                .insert({
+                  title: g.title,
+                  description: g.description,
+                  type: g.type,
+                  category: g.category,
+                  difficulty: g.difficulty,
+                  duration: g.duration,
+                  status: g.status,
+                  created_by: g.createdBy,
+                  thumbnail: g.thumbnail,
+                  reward_points: g.rewardPoints,
+                  questions: g.questions,
+                  memory_items: g.memoryItems,
+                  timeline_items: g.timelineItems,
+                  hidden_objects: g.hiddenObjects,
+                  hidden_objects_image: g.hiddenObjectsImage,
+                  sport_events: g.sportEvents || [],
+                  sport_name: g.sportName || 'Football',
+                  exact_score_points: g.exactScorePoints || g.rewardPoints || 10,
+                  outcome_points: g.outcomePoints ?? 5,
+                  learning_path: expectedPath,
+                  level_number: expectedLevel,
+                  level_title: expectedTitle,
+                  passing_score: expectedPassingScore
+                })
+                .select('id,learning_path,level_number,level_title,passing_score')
+                .limit(1);
+
+              if (createGameError) {
+                console.error('Erreur création jeu :', createGameError);
+                addToast(`Jeu non enregistré : ${createGameError.message}`, 'error');
+                throw createGameError;
+              }
+
+              const created = createdRows?.[0];
+              const savedPath = created?.learning_path?.trim() || null;
+              const savedLevel = Number(created?.level_number || 1);
+              const savedTitle = created?.level_title?.trim() || null;
+
+              if (
+                savedPath !== expectedPath ||
+                savedLevel !== expectedLevel ||
+                savedTitle !== expectedTitle
+              ) {
+                console.error('Progression jeu non persistée correctement', {
+                  expected: { expectedPath, expectedLevel, expectedTitle, expectedPassingScore },
+                  saved: created
+                });
+                addToast("Le jeu a été créé mais sa progression n'a pas été enregistrée correctement. Vérifiez la migration Supabase.", 'error');
+              } else {
+                addToast(`Jeu ajouté · Niveau ${savedLevel}${savedTitle ? ` — ${savedTitle}` : ''}`);
+              }
+
+              await fetchViewData(currentViewRef.current, true);
+            }}
+            onUpdateGameProgression={async (id, progression) => {
+              const path = progression.learningPath?.trim() || null;
+              const level = Math.max(1, Number(progression.levelNumber || 1));
+              const title = progression.levelTitle?.trim() || null;
+              const passingScore = Math.max(0, Math.min(100, Number(progression.passingScore || 0)));
+
+              const { error } = await supabase
+                .from('games')
+                .update({
+                  learning_path: path,
+                  level_number: level,
+                  level_title: title,
+                  passing_score: passingScore
+                })
+                .eq('id', id);
+
+              if (error) {
+                addToast(`Progression non modifiée : ${error.message}`, 'error');
+                throw error;
+              }
+
+              addToast('Progression du jeu mise à jour.');
+              await fetchViewData(currentViewRef.current, true);
             }}
             onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             onToggleGameStatus={async (id) => { const g = games.find(x => x.id === id); if (g) { await supabase.from('games').update({ status: g.status === 'Actif' ? 'Inactif' : 'Actif' }).eq('id', id); void fetchViewData(currentViewRef.current, true); } }}

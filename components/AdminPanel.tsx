@@ -31,6 +31,7 @@ interface AdminPanelProps {
   onToggleWellnessChallenge: (id: string) => void;
   games: CompanyGame[];
   onAddGame: (g: Omit<CompanyGame, 'id' | 'createdAt'>) => void;
+  onUpdateGameProgression: (id: string, progression: Pick<CompanyGame, 'learningPath' | 'levelNumber' | 'levelTitle' | 'passingScore'>) => Promise<void>;
   onDeleteGame: (id: string) => void;
   onToggleGameStatus: (id: string) => void;
   onSetGameResult: (gameId: string, result: 'A' | 'Nul' | 'B') => void;
@@ -93,7 +94,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   newsletters, onCreateNewsletter, onDeleteNewsletter,
   wellnessContents, onAddWellnessContent, onDeleteWellnessContent,
   wellnessChallenges, onAddWellnessChallenge, onDeleteWellnessChallenge, onToggleWellnessChallenge,
-  games, onAddGame, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult, predictions,
+  games, onAddGame, onUpdateGameProgression, onDeleteGame, onToggleGameStatus, onSetGameResult, onUpdateSportResult, predictions,
   rewards, onAddReward, onDeleteReward,
   appConfig, onUpdateConfig, onRenameGameCategory, onDeleteGameCategory, currentUser,
   transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner
@@ -267,6 +268,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // --- JEUX STATE ---
   const [showGameModal, setShowGameModal] = useState(false);
+  const [editingGameProgression, setEditingGameProgression] = useState<CompanyGame | null>(null);
   const [newGame, setNewGame] = useState<Omit<CompanyGame, 'id' | 'createdAt'>>({
     title: '', description: '', type: 'Quiz', category: 'Produits', difficulty: 'Moyen', duration: '5 min', status: 'Actif', createdBy: currentUser.id, rewardPoints: 100, thumbnail: '', 
     hiddenObjects: [], hiddenObjectsImage: '', questions: [], memoryItems: [], timelineItems: [], sportEvents: [], sportName: 'Football', exactScorePoints: 10, outcomePoints: 5,
@@ -475,6 +477,43 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewGame(prev => ({ ...prev, hiddenObjects: [...(prev.hiddenObjects || []), obj] }));
     setCurrentObjectName('');
     setCurrentObjectQuestion('');
+  };
+
+  const handleEditGameProgression = async (game: CompanyGame) => {
+    const path = window.prompt(
+      'Nom du parcours (identique pour tous les niveaux) :',
+      game.learningPath || 'Parcours Star ComUnity'
+    );
+    if (path === null) return;
+
+    const levelInput = window.prompt('Numéro du niveau :', String(game.levelNumber || 1));
+    if (levelInput === null) return;
+    const level = Math.max(1, Number(levelInput || 1));
+
+    const title = window.prompt(
+      'Thème / nom du niveau :',
+      game.levelTitle || game.title || 'Découverte'
+    );
+    if (title === null) return;
+
+    const scoreInput = window.prompt(
+      'Score minimum pour valider (0 à 100) :',
+      String(game.passingScore || 0)
+    );
+    if (scoreInput === null) return;
+    const passingScore = Math.max(0, Math.min(100, Number(scoreInput || 0)));
+
+    if (level > 1 && !path.trim()) {
+      alert('Un niveau supérieur à 1 doit obligatoirement appartenir à un parcours.');
+      return;
+    }
+
+    await onUpdateGameProgression(game.id, {
+      learningPath: path.trim() || undefined,
+      levelNumber: level,
+      levelTitle: title.trim() || undefined,
+      passingScore
+    });
   };
 
   const handleAddGameSubmit = (e: React.FormEvent) => {
@@ -1165,7 +1204,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">{g.type === 'Pari' ? 'Pronostics' : g.type} • {g.status}</p>
                       </div>
                    </div>
-                   <button onClick={() => onDeleteGame(g.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors shrink-0"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" /></svg></button>
+                   <button
+                          type="button"
+                          onClick={() => void handleEditGameProgression(g)}
+                          className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100"
+                          title="Modifier parcours, niveau, thème et score minimum"
+                        >
+                          Progression
+                        </button>
+                        <button onClick={() => onDeleteGame(g.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors shrink-0"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" /></svg></button>
                    {g.type === 'Pari' && (g.sportEvents || []).length > 0 && (
                      <div className="col-span-full w-full mt-4 pt-4 border-t border-slate-100 space-y-3">
                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Résultats et attribution des points</p>

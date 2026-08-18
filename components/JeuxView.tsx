@@ -172,21 +172,32 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   const isGamePassed = (gameId: string) => completionByGame.get(gameId)?.passed === true;
 
-  const isGameUnlocked = (game: CompanyGame) => {
-    const path = game.learningPath?.trim();
-    const level = Number(game.levelNumber || 1);
+  const normalizeLearningPath = (value?: string) =>
+    (value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('fr-FR');
 
-    if (!path || level <= 1) return true;
+  const isGameUnlocked = (game: CompanyGame) => {
+    const level = Number(game.levelNumber || 1);
+    const rawPath = game.learningPath?.trim();
+    const normalizedPath = normalizeLearningPath(rawPath);
+
+    if (level <= 1) return true;
+
+    // Sécurité par défaut : un niveau supérieur à 1 sans parcours n'est JAMAIS libre.
+    if (!normalizedPath) return false;
 
     const pathGames = games.filter(
-      item => item.type !== 'Pari' && item.status !== 'Inactif' && item.learningPath?.trim() === path
+      item =>
+        item.type !== 'Pari' &&
+        item.status !== 'Inactif' &&
+        normalizeLearningPath(item.learningPath) === normalizedPath
     );
 
     const previousLevel = level - 1;
-    const requiredGames = pathGames.filter(item => Number(item.levelNumber || 1) === previousLevel);
+    const requiredGames = pathGames.filter(
+      item => Number(item.levelNumber || 1) === previousLevel
+    );
 
-    // Séquence stricte : un niveau 4 ne peut pas contourner les niveaux 2 et 3.
-    // Si le niveau précédent n'existe pas, le niveau reste verrouillé.
+    // Niveau N => tous les jeux actifs du niveau N-1 doivent être validés.
     if (requiredGames.length === 0) return false;
 
     return requiredGames.every(item => isGamePassed(item.id));
@@ -594,7 +605,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{game.type}</span>
-                {game.learningPath && (
+                {(game.learningPath || Number(game.levelNumber || 1) > 1) && (
                   <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
                     isGamePassed(game.id)
                       ? 'bg-green-50 text-green-700'
