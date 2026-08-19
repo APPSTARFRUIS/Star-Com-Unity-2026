@@ -469,8 +469,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
             })}
           </div>
 
-          {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR) && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
               <h3 className="font-semibold text-slate-700">Ajouter un fichier</h3>
 
               <select
@@ -502,7 +501,6 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 {isUploading ? 'Téléversement...' : 'Téléverser'}
               </button>
             </div>
-          )}
         </div>
 
         <div className="flex-1 space-y-4">

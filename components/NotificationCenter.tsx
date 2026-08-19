@@ -20,6 +20,7 @@ const ICONS: Record<string, string> = {
   highlight: '⭐',
   points: '🏆',
   document: '📄',
+  idea: '💡',
   system: '🔔',
 };
 
@@ -27,10 +28,34 @@ const LABELS: Record<string, string> = {
   all: 'Toutes',
   unread: 'Non lues',
   message: 'Messages',
+  post: 'Social',
   event: 'Événements',
+  document: 'Documents',
+  poll: 'Sondages',
+  idea: 'Idées',
+  newsletter: 'Newsletter',
+  celebration: 'Célébrations',
+  game: 'Jeux',
   highlight: 'Temps forts',
   points: 'Points',
+  system: 'Système',
 };
+
+const FILTER_KEYS = [
+  'all',
+  'unread',
+  'message',
+  'post',
+  'event',
+  'document',
+  'poll',
+  'idea',
+  'newsletter',
+  'celebration',
+  'game',
+  'highlight',
+  'points',
+] as const;
 
 const NotificationCenter: React.FC<NotificationCenterProps> = ({
   notifications,
@@ -88,13 +113,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {['all', 'unread', 'message', 'event', 'highlight', 'points'].map(key => (
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-1 px-1">
+        {FILTER_KEYS.map(key => (
           <button
             type="button"
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 ${
               filter === key
                 ? 'bg-slate-900 text-white shadow'
                 : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-400'

@@ -29,7 +29,8 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedUserId, setSelectedUserId] = useState('');
 
-  const canManage = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
+  const canModerate = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
+  const canCreate = true;
 
   const currentMonth = new Date().getMonth() + 1;
   const currentDay = new Date().getDate();
@@ -104,7 +105,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Célébrations</h1>
           <p className="text-slate-500">Célébrez les anniversaires et les réussites de l'équipe.</p>
         </div>
-        {canManage && (
+        {canCreate && (
           <button 
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-6 py-3 bg-[#14532d] text-white rounded-2xl font-bold hover:bg-green-800 shadow-md transition-all active:scale-95"
@@ -176,7 +177,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                           {new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                       </div>
-                      {canManage && (
+                      {canModerate && (
                         <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 p-1" title="Supprimer">×</button>
                       )}
                     </div>
@@ -234,7 +235,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                         <p className="text-xs text-slate-400 mt-1 font-medium">{new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                       </div>
                     </div>
-                    {canManage && (
+                    {canModerate && (
                       <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" /></svg>
                       </button>
