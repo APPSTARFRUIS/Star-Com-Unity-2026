@@ -222,10 +222,25 @@ const PersonMiniCard = ({
 
 const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
   const [sub, setSub] = useState<SubView>('list');
-  const activeEntities = useMemo(
-    () => entities.filter(entity => entity.active).sort((a, b) => a.sortOrder - b.sortOrder),
-    [entities]
-  );
+
+  // Secours mobile : si org_entities tarde, on reconstruit temporairement les structures depuis les profils.
+  const fallbackEntities = useMemo<OrgEntity[]>(() => {
+    const companies = Array.from(new Set(users.map(user => (user.company || '').trim()).filter(Boolean)));
+    return companies.map((company, index) => ({
+      id: `fallback-${norm(company).replace(/[^a-z0-9]+/g, '-')}`,
+      name: company,
+      entityType: norm(company) === norm('Star Group') ? 'group' : 'subsidiary',
+      parentId: null,
+      logoUrl: null,
+      sortOrder: index,
+      active: true
+    }));
+  }, [users]);
+
+  const activeEntities = useMemo(() => {
+    const source = entities.some(entity => entity.active) ? entities : fallbackEntities;
+    return source.filter(entity => entity.active).sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [entities, fallbackEntities]);
   const group = activeEntities.find(entity => entity.entityType === 'group');
   const [selectedEntityId, setSelectedEntityId] = useState(group?.id || activeEntities[0]?.id || '');
   const [orgOverview, setOrgOverview] = useState(true);
@@ -244,14 +259,24 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     [users, selectedEntity?.name]
   );
 
-  const entityServices = useMemo(
-    () => selectedEntity
-      ? services
-          .filter(service => service.active && service.entityId === selectedEntity.id)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-      : [],
-    [services, selectedEntity?.id]
-  );
+  const entityServices = useMemo(() => {
+    if (!selectedEntity) return [];
+
+    const configured = services
+      .filter(service => service.active && service.entityId === selectedEntity.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    if (configured.length) return configured;
+
+    const departments = Array.from(new Set(entityUsers.map(user => (user.department || '').trim()).filter(Boolean)));
+    return departments.map((name, index) => ({
+      id: `fallback-service-${selectedEntity.id}-${index}`,
+      entityId: selectedEntity.id,
+      name,
+      sortOrder: index,
+      active: true
+    }));
+  }, [services, selectedEntity?.id, entityUsers]);
 
   const entityContacts = useMemo(
     () => selectedEntity
@@ -725,7 +750,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black">Annuaire & Équipe</h1>
-          <p className="text-slate-500">Star Group, filiales et actionnaires pépiniéristes.</p>
+          <p className="text-slate-500">Star Group, filiales et membres fondateurs.</p>
         </div>
         <div className="flex bg-white rounded-2xl border p-1 w-full md:w-auto overflow-x-auto">
           {[

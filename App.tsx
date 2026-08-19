@@ -609,16 +609,70 @@ const App: React.FC = () => {
     lastFullFetchAtRef.current = Date.now();
   }, [session, purgeExpiredReadNotifications]);
 
-  const fetchOrganization = useCallback(async () => {
-    if (!supabase) return;
-    const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
-      supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
-      supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
-      supabase.from('org_contacts').select('*').order('sort_order')
-    ]);
-    if (!entitiesResult.error && entitiesResult.data) setOrgEntities(entitiesResult.data.map((e:any)=>({ id:e.id, name:e.name, entityType:e.entity_type, parentId:e.parent_id, logoUrl:e.logo_url, sortOrder:Number(e.sort_order||0), active:e.active!==false })));
-    if (!servicesResult.error && servicesResult.data) setOrgServices(servicesResult.data.map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, sortOrder:Number(x.sort_order||0), active:x.active!==false })));
-    if (!contactsResult.error && contactsResult.data) setOrgContacts(contactsResult.data.map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, email:x.email, phone:x.phone, jobTitle:x.job_title, avatarUrl:x.avatar_url, about:x.about, sortOrder:Number(x.sort_order||0) })));
+  const getOrganizationCache = () => {
+    try {
+      const raw = localStorage.getItem('star_community_organization_cache');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.entities?.length) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const applyOrganizationData = (entitiesData: any[], servicesData: any[], contactsData: any[]) => {
+    const mappedEntities = (entitiesData || []).map((e:any)=>({ id:e.id, name:e.name, entityType:e.entity_type, parentId:e.parent_id, logoUrl:e.logo_url, sortOrder:Number(e.sort_order||0), active:e.active!==false }));
+    const mappedServices = (servicesData || []).map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, sortOrder:Number(x.sort_order||0), active:x.active!==false }));
+    const mappedContacts = (contactsData || []).map((x:any)=>({ id:x.id, entityId:x.entity_id, name:x.name, email:x.email, phone:x.phone, jobTitle:x.job_title, avatarUrl:x.avatar_url, jobDescription:x.job_description, personalNote:x.personal_note, about:x.about, sortOrder:Number(x.sort_order||0) }));
+
+    setOrgEntities(mappedEntities);
+    setOrgServices(mappedServices);
+    setOrgContacts(mappedContacts);
+
+    try {
+      localStorage.setItem('star_community_organization_cache', JSON.stringify({ entities: entitiesData || [], services: servicesData || [], contacts: contactsData || [], cachedAt: Date.now() }));
+    } catch {
+      // Cache local facultatif.
+    }
+  };
+
+  const fetchOrganization = useCallback(async (attempts = 4) => {
+    if (!supabase) return false;
+
+    const cached = getOrganizationCache();
+    if (cached?.entities?.length) {
+      applyOrganizationData(cached.entities, cached.services || [], cached.contacts || []);
+    }
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
+        supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
+        supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
+        supabase.from('org_contacts').select('*').order('sort_order')
+      ]);
+
+      const entitiesOk = !entitiesResult.error && Array.isArray(entitiesResult.data) && entitiesResult.data.length > 0;
+      const servicesOk = !servicesResult.error && Array.isArray(servicesResult.data);
+      const contactsOk = !contactsResult.error && Array.isArray(contactsResult.data);
+
+      if (entitiesOk && servicesOk && contactsOk) {
+        applyOrganizationData(entitiesResult.data || [], servicesResult.data || [], contactsResult.data || []);
+        return true;
+      }
+
+      console.warn(`Chargement organisation échoué (tentative ${attempt}/${attempts})`, {
+        entities: entitiesResult.error,
+        services: servicesResult.error,
+        contacts: contactsResult.error
+      });
+
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+      }
+    }
+
+    return Boolean(cached?.entities?.length);
   }, []);
 
   const fetchViewData = useCallback(async (targetView: ViewType, force = false) => {
@@ -689,8 +743,8 @@ const App: React.FC = () => {
             // Sur mobile, un appareil neuf peut arriver ici sans aucun cache.
             // On attend réellement organisation + profils. Si aucun profil ne remonte,
             // on déclenche un échec pour que la rubrique puisse être retentée au prochain passage.
-            const [, freshProfiles] = await Promise.all([
-              fetchOrganization(),
+            const [organizationLoaded, freshProfiles] = await Promise.all([
+              fetchOrganization(4),
               fetchProfilesWithRetry(4)
             ]);
 
@@ -703,6 +757,9 @@ const App: React.FC = () => {
               throw new Error('Annuaire Équipe : aucun profil récupéré, chargement à retenter.');
             }
 
+            if (!organizationLoaded) {
+              console.warn('Annuaire Équipe : organisation indisponible, affichage de secours depuis les profils.');
+            }
             setUsers(resolvedProfiles);
 
             // On charge uniquement les champs nécessaires aux badges publics.
