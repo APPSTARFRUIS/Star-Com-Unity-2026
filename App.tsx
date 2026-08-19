@@ -341,79 +341,42 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchProfilesWithRetry = async (attempts = 3): Promise<User[] | null> => {
+  const fetchProfilesWithRetry = async (attempts = 2): Promise<User[] | null> => {
     if (!supabase) return getCachedProfiles();
 
-    const richFields =
-      'id,email,name,role,avatar,department,company,birthday,points,phone,job_function,job_description,personal_note,notification_settings';
-    const safeFields =
-      'id,email,name,role,avatar,department,company,birthday,points,phone,job_function,notification_settings';
-
-    // Safari/WebKit : priorité absolue à l'annuaire visible.
-    // On charge d'abord la version légère avec un timeout explicite.
+    // Un seul appel profils à la fois. La V1.3.3 lançait une requête légère puis
+    // une seconde requête d'enrichissement pour chaque tentative : sous Safari
+    // cela pouvait multiplier les appels et laisser l'annuaire vide.
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         const result = await withRequestTimeout(
           supabase
             .from('profiles')
-            .select(safeFields)
+            .select('*')
             .order('name', { ascending: true }),
-          7000,
-          `profils essentiels ${attempt}/${attempts}`
+          10000,
+          `profils ${attempt}/${attempts}`
         ) as any;
 
-        if (!result?.error && Array.isArray(result?.data) && result.data.length) {
-          const essentialProfiles = result.data.map((profile: any) => ({
-            ...profile,
-            job_description: '',
-            personal_note: ''
-          })) as User[];
-
-          cacheProfiles(essentialProfiles);
-
-          // L'enrichissement n'est plus bloquant. S'il tarde dans Safari,
-          // l'annuaire reste tout de même immédiatement utilisable.
-          void (async () => {
-            try {
-              const richResult = await withRequestTimeout(
-                supabase
-                  .from('profiles')
-                  .select(richFields)
-                  .order('name', { ascending: true }),
-                9000,
-                'profils enrichis'
-              ) as any;
-
-              if (!richResult?.error && Array.isArray(richResult?.data) && richResult.data.length) {
-                cacheProfiles(richResult.data as User[]);
-              }
-            } catch (richError) {
-              console.warn('Enrichissement profils non bloquant indisponible', richError);
-            }
-          })();
-
-          return essentialProfiles;
+        if (!result?.error && Array.isArray(result?.data) && result.data.length > 0) {
+          const profiles = result.data as User[];
+          cacheProfiles(profiles);
+          return profiles;
         }
 
-        console.warn(
-          `Chargement profils essentiels échoué (tentative ${attempt}/${attempts})`,
-          result?.error
-        );
+        console.warn(`Chargement profils échoué (tentative ${attempt}/${attempts})`, result?.error);
       } catch (error) {
-        console.warn(
-          `Chargement profils essentiels interrompu (tentative ${attempt}/${attempts})`,
-          error
-        );
+        console.warn(`Chargement profils interrompu (tentative ${attempt}/${attempts})`, error);
       }
 
       if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 450 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 750));
       }
     }
 
     const cached = getCachedProfiles();
     if (cached?.length) {
-      console.warn('Utilisation du cache profils après échec réseau.');
+      setUsers(cached);
       return cached;
     }
 
@@ -803,7 +766,7 @@ const App: React.FC = () => {
             // on déclenche un échec pour que la rubrique puisse être retentée au prochain passage.
             const [organizationLoaded, freshProfiles] = await Promise.all([
               fetchOrganization(4),
-              fetchProfilesWithRetry(4)
+              fetchProfilesWithRetry(2)
             ]);
 
             const resolvedProfiles =
@@ -870,7 +833,7 @@ const App: React.FC = () => {
           case 'messages': {
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) setUsers(cachedProfiles);
-            const freshProfiles = await fetchProfilesWithRetry(3);
+            const freshProfiles = await fetchProfilesWithRetry(2);
             if (freshProfiles?.length) setUsers(freshProfiles);
 
             const messagesResult = await supabase
@@ -937,7 +900,7 @@ const App: React.FC = () => {
           case 'celebrations': {
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) setUsers(cachedProfiles);
-            const freshProfiles = await fetchProfilesWithRetry(3);
+            const freshProfiles = await fetchProfilesWithRetry(2);
             if (freshProfiles?.length) setUsers(freshProfiles);
 
             const celebrationsResult = await supabase
