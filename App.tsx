@@ -1409,6 +1409,41 @@ const App: React.FC = () => {
     void fetchViewData(view);
   }, [view, session, currentUser?.id, fetchViewData]);
 
+  // Équipe doit rester autonome : Safari/iOS peut laisser expirer une requête Supabase
+  // pendant la vague de chargement initiale. Tant que profils/structures ne sont pas là,
+  // on relance uniquement ces données, sans attendre une navigation vers Administration.
+  useEffect(() => {
+    if (view !== 'equipe' || (!session && !currentUser)) return;
+
+    let cancelled = false;
+    let timer: number | null = null;
+    let attempt = 0;
+
+    const ensureTeamData = async () => {
+      if (cancelled) return;
+      attempt += 1;
+
+      const tasks: Promise<any>[] = [];
+      if (users.length === 0) tasks.push(fetchProfilesWithRetry(2));
+      if (orgEntities.length === 0) tasks.push(fetchOrganization(2));
+
+      if (tasks.length) {
+        await Promise.allSettled(tasks);
+      }
+
+      if (!cancelled && attempt < 6 && (users.length === 0 || orgEntities.length === 0)) {
+        timer = window.setTimeout(ensureTeamData, 1800 * attempt);
+      }
+    };
+
+    void ensureTeamData();
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [view, session, currentUser?.id, users.length, orgEntities.length, fetchOrganization]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
 

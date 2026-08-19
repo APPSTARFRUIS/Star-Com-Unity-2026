@@ -36,6 +36,34 @@ const personNote = (person: Person) =>
   (!('role' in person) ? person.about : '') ||
   '';
 
+const ResilientImage = ({ src, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+  const [resolvedSrc, setResolvedSrc] = useState(src);
+  const [retried, setRetried] = useState(false);
+
+  useEffect(() => {
+    setResolvedSrc(src);
+    setRetried(false);
+  }, [src]);
+
+  if (!resolvedSrc) return null;
+
+  return (
+    <img
+      {...props}
+      src={resolvedSrc}
+      loading="eager"
+      decoding="async"
+      onError={(event) => {
+        props.onError?.(event);
+        if (retried || !src) return;
+        setRetried(true);
+        const separator = src.includes('?') ? '&' : '?';
+        setResolvedSrc(`${src}${separator}sc_retry=${Date.now()}`);
+      }}
+    />
+  );
+};
+
 const imageAsDataUrl = async (url?: string | null): Promise<string | null> => {
   if (!url) return null;
   if (url.startsWith('data:')) return url;
@@ -811,7 +839,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
             }`}
           >
             {entity.logoUrl && (
-              <img
+              <ResilientImage
                 src={entity.logoUrl}
                 alt=""
                 className="w-5 h-5 object-contain bg-white rounded"
@@ -916,7 +944,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
                     {activeEntities.filter(entity => entity.entityType === 'shareholder').map(entity => (
                       <button key={entity.id} type="button" onClick={() => choose(entity.id)} className="bg-white border border-slate-200 rounded-[22px] px-6 py-4 min-w-[190px] hover:border-green-500 hover:shadow-lg transition-all text-center">
                         <div className="h-14 flex items-center justify-center">
-                          {entity.logoUrl ? <img src={entity.logoUrl} alt="" className="max-h-12 max-w-[130px] object-contain" /> : <span className="text-slate-300 font-black">LOGO</span>}
+                          {entity.logoUrl ? <ResilientImage src={entity.logoUrl} alt="" className="max-h-12 max-w-[130px] object-contain" /> : <span className="text-slate-300 font-black">LOGO</span>}
                         </div>
                         <p className="font-black text-base mt-2">{entity.name}</p>
                       </button>
@@ -932,7 +960,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
                   className="bg-slate-950 text-white px-10 py-5 rounded-[24px] font-black flex items-center gap-4 shadow-xl hover:scale-[1.02] transition-transform"
                 >
                   {group?.logoUrl && (
-                    <img
+                    <ResilientImage
                       src={group.logoUrl}
                       alt=""
                       className="w-12 h-12 bg-white object-contain rounded-xl p-1"
@@ -953,7 +981,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
                     >
                       <div className="h-20 flex items-center justify-center">
                         {entity.logoUrl ? (
-                          <img
+                          <ResilientImage
                             src={entity.logoUrl}
                             alt=""
                             className="max-h-16 max-w-[160px] object-contain"
@@ -986,7 +1014,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
               <div className="flex justify-center">
                 <div className="bg-white border border-slate-200 rounded-[26px] px-10 py-5 text-center shadow-sm">
                   {selectedEntity?.logoUrl && (
-                    <img
+                    <ResilientImage
                       src={selectedEntity.logoUrl}
                       alt=""
                       className="h-16 max-w-[180px] mx-auto object-contain"
