@@ -288,6 +288,22 @@ const App: React.FC = () => {
     setIsLoading(false);
   };
 
+  const withRequestTimeout = async <T,>(
+    request: PromiseLike<T>,
+    timeoutMs = 8000,
+    label = 'requête'
+  ): Promise<T> => {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<T>((_, reject) => {
+        window.setTimeout(
+          () => reject(new Error(`${label} : délai dépassé après ${timeoutMs} ms`)),
+          timeoutMs
+        );
+      })
+    ]);
+  };
+
   const cacheProfiles = (profiles: User[]) => {
     // Une réponse vide ponctuelle de Supabase ne doit pas écraser un annuaire
     // précédemment chargé et valide.
@@ -333,57 +349,71 @@ const App: React.FC = () => {
     const safeFields =
       'id,email,name,role,avatar,department,company,birthday,points,phone,job_function,notification_settings';
 
-    // 1) Chargement complet. Les champs enrichis sont facultatifs pour l'annuaire :
-    // une indisponibilité ou un problème de schéma ne doit jamais faire disparaître tous les salariés.
+    // Safari/WebKit : priorité absolue à l'annuaire visible.
+    // On charge d'abord la version légère avec un timeout explicite.
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(richFields)
-        .order('name', { ascending: true });
+      try {
+        const result = await withRequestTimeout(
+          supabase
+            .from('profiles')
+            .select(safeFields)
+            .order('name', { ascending: true }),
+          7000,
+          `profils essentiels ${attempt}/${attempts}`
+        ) as any;
 
-      if (!error && data) {
-        const profiles = data as User[];
-        cacheProfiles(profiles);
-        return profiles;
+        if (!result?.error && Array.isArray(result?.data) && result.data.length) {
+          const essentialProfiles = result.data.map((profile: any) => ({
+            ...profile,
+            job_description: '',
+            personal_note: ''
+          })) as User[];
+
+          cacheProfiles(essentialProfiles);
+
+          // L'enrichissement n'est plus bloquant. S'il tarde dans Safari,
+          // l'annuaire reste tout de même immédiatement utilisable.
+          void (async () => {
+            try {
+              const richResult = await withRequestTimeout(
+                supabase
+                  .from('profiles')
+                  .select(richFields)
+                  .order('name', { ascending: true }),
+                9000,
+                'profils enrichis'
+              ) as any;
+
+              if (!richResult?.error && Array.isArray(richResult?.data) && richResult.data.length) {
+                cacheProfiles(richResult.data as User[]);
+              }
+            } catch (richError) {
+              console.warn('Enrichissement profils non bloquant indisponible', richError);
+            }
+          })();
+
+          return essentialProfiles;
+        }
+
+        console.warn(
+          `Chargement profils essentiels échoué (tentative ${attempt}/${attempts})`,
+          result?.error
+        );
+      } catch (error) {
+        console.warn(
+          `Chargement profils essentiels interrompu (tentative ${attempt}/${attempts})`,
+          error
+        );
       }
-
-      console.warn(`Chargement complet des profils échoué (tentative ${attempt}/${attempts})`, error);
 
       if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 450 * attempt));
       }
     }
 
-    // 2) Filet de sécurité : on recharge les champs essentiels sans job_description/personal_note.
-    // Ainsi l'équipe reste affichée même si une migration optionnelle n'est pas disponible
-    // ou si Supabase a momentanément rejeté la requête complète.
-    try {
-      const { data: safeData, error: safeError } = await supabase
-        .from('profiles')
-        .select(safeFields)
-        .order('name', { ascending: true });
-
-      if (!safeError && safeData) {
-        const profiles = safeData.map((profile: any) => ({
-          ...profile,
-          job_description: profile.job_description ?? '',
-          personal_note: profile.personal_note ?? ''
-        })) as User[];
-
-        console.warn('Annuaire chargé en mode de secours : champs de fiche enrichie temporairement indisponibles.');
-        cacheProfiles(profiles);
-        return profiles;
-      }
-
-      console.error('Chargement de secours des profils échoué', safeError);
-    } catch (safeException) {
-      console.error('Erreur pendant le chargement de secours des profils', safeException);
-    }
-
-    // 3) Dernier recours : ne jamais écraser l'annuaire avec une liste vide.
     const cached = getCachedProfiles();
     if (cached?.length) {
-      console.warn('Utilisation du cache local des profils pour conserver l’annuaire visible.');
+      console.warn('Utilisation du cache profils après échec réseau.');
       return cached;
     }
 
@@ -646,29 +676,57 @@ const App: React.FC = () => {
     }
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
-        supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
-        supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
-        supabase.from('org_contacts').select('*').order('sort_order')
-      ]);
+      try {
+        // Chaque requête a son propre timeout : une seule table lente ne peut plus
+        // bloquer indéfiniment tout le module Équipe dans Safari.
+        const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
+          withRequestTimeout(
+            supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
+            7000,
+            `structures ${attempt}/${attempts}`
+          ),
+          withRequestTimeout(
+            supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
+            7000,
+            `services ${attempt}/${attempts}`
+          ),
+          withRequestTimeout(
+            supabase.from('org_contacts').select('*').order('sort_order'),
+            7000,
+            `contacts ${attempt}/${attempts}`
+          )
+        ]) as any[];
 
-      const entitiesOk = !entitiesResult.error && Array.isArray(entitiesResult.data) && entitiesResult.data.length > 0;
-      const servicesOk = !servicesResult.error && Array.isArray(servicesResult.data);
-      const contactsOk = !contactsResult.error && Array.isArray(contactsResult.data);
+        const entitiesOk =
+          !entitiesResult?.error &&
+          Array.isArray(entitiesResult?.data) &&
+          entitiesResult.data.length > 0;
 
-      if (entitiesOk && servicesOk && contactsOk) {
-        applyOrganizationData(entitiesResult.data || [], servicesResult.data || [], contactsResult.data || []);
-        return true;
+        if (entitiesOk) {
+          // Services/contacts peuvent légitimement être vides.
+          // On ne bloque plus l'affichage pour cela.
+          applyOrganizationData(
+            entitiesResult.data || [],
+            !servicesResult?.error && Array.isArray(servicesResult?.data) ? servicesResult.data : [],
+            !contactsResult?.error && Array.isArray(contactsResult?.data) ? contactsResult.data : []
+          );
+          return true;
+        }
+
+        console.warn(`Chargement organisation incomplet (tentative ${attempt}/${attempts})`, {
+          entities: entitiesResult?.error,
+          services: servicesResult?.error,
+          contacts: contactsResult?.error
+        });
+      } catch (error) {
+        console.warn(
+          `Chargement organisation interrompu (tentative ${attempt}/${attempts})`,
+          error
+        );
       }
 
-      console.warn(`Chargement organisation échoué (tentative ${attempt}/${attempts})`, {
-        entities: entitiesResult.error,
-        services: servicesResult.error,
-        contacts: contactsResult.error
-      });
-
       if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 450 * attempt));
       }
     }
 
@@ -764,34 +822,47 @@ const App: React.FC = () => {
 
             // On charge uniquement les champs nécessaires aux badges publics.
             // Aucun historique détaillé, motif ou date n'est exposé dans l'annuaire.
-            const { data: publicTransactions, error: publicTransactionsError } = await supabase
-              .from('transactions')
-              .select('user_id,amount,type,reason')
-              .limit(2000);
+            // Les badges/gamification sont secondaires : leur chargement ne doit
+            // jamais retarder l'annuaire. On les enrichit en arrière-plan.
+            void (async () => {
+              try {
+                const publicTransactionsResult = await withRequestTimeout(
+                  supabase
+                    .from('transactions')
+                    .select('user_id,amount,type,reason')
+                    .limit(2000),
+                  7000,
+                  'statistiques publiques équipe'
+                ) as any;
 
-            if (!publicTransactionsError && publicTransactions) {
-              const stats = publicTransactions.reduce((acc: Record<string, { earned: number; purchases: number; gains: number }>, row: any) => {
-                const userId = String(row.user_id || '');
-                if (!userId) return acc;
+                const publicTransactions = publicTransactionsResult?.data;
+                if (!publicTransactionsResult?.error && Array.isArray(publicTransactions)) {
+                  const stats = publicTransactions.reduce((acc: Record<string, { earned: number; purchases: number; gains: number }>, row: any) => {
+                    const userId = String(row.user_id || '');
+                    if (!userId) return acc;
 
-                if (!acc[userId]) {
-                  acc[userId] = { earned: 0, purchases: 0, gains: 0 };
+                    if (!acc[userId]) {
+                      acc[userId] = { earned: 0, purchases: 0, gains: 0 };
+                    }
+
+                    if (row.type === 'earn') {
+                      acc[userId].earned += Math.abs(Number(row.amount || 0));
+                      acc[userId].gains += 1;
+                    }
+
+                    if (row.type === 'spend' && /^Achat\s*:/i.test(String(row.reason || ''))) {
+                      acc[userId].purchases += 1;
+                    }
+
+                    return acc;
+                  }, {});
+
+                  setPublicGamificationStats(stats);
                 }
-
-                if (row.type === 'earn') {
-                  acc[userId].earned += Math.abs(Number(row.amount || 0));
-                  acc[userId].gains += 1;
-                }
-
-                if (row.type === 'spend' && /^Achat\s*:/i.test(String(row.reason || ''))) {
-                  acc[userId].purchases += 1;
-                }
-
-                return acc;
-              }, {});
-
-              setPublicGamificationStats(stats);
-            }
+              } catch (error) {
+                console.warn('Statistiques publiques Équipe indisponibles sans bloquer l’annuaire', error);
+              }
+            })();
 
             break;
           }

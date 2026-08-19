@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { OrgContact, OrgEntity, OrgService, User } from '../types';
 
@@ -246,6 +246,20 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
   const [orgOverview, setOrgOverview] = useState(true);
   const [query, setQuery] = useState('');
   const [profile, setProfile] = useState<Person | null>(null);
+
+  // Safari peut fournir profils et structures à quelques secondes d'écart.
+  // Quand les vraies structures arrivent après le premier rendu, on recale
+  // automatiquement la sélection au lieu de rester sur un id de secours.
+  useEffect(() => {
+    if (!activeEntities.length) return;
+    const selectionStillExists = activeEntities.some(entity => entity.id === selectedEntityId);
+    if (!selectionStillExists) {
+      const preferred =
+        activeEntities.find(entity => entity.entityType === 'group') ||
+        activeEntities[0];
+      setSelectedEntityId(preferred.id);
+    }
+  }, [activeEntities, selectedEntityId]);
 
   const selectedEntity =
     activeEntities.find(entity => entity.id === selectedEntityId) ||
