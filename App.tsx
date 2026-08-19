@@ -289,6 +289,16 @@ const App: React.FC = () => {
   };
 
   const cacheProfiles = (profiles: User[]) => {
+    // Une réponse vide ponctuelle de Supabase ne doit pas écraser un annuaire
+    // précédemment chargé et valide.
+    if (!profiles.length) {
+      const cached = getCachedProfiles();
+      if (cached?.length) {
+        setUsers(cached);
+        return;
+      }
+    }
+
     setUsers(profiles);
 
     try {
@@ -318,10 +328,17 @@ const App: React.FC = () => {
   const fetchProfilesWithRetry = async (attempts = 3): Promise<User[] | null> => {
     if (!supabase) return getCachedProfiles();
 
+    const richFields =
+      'id,email,name,role,avatar,department,company,birthday,points,phone,job_function,job_description,personal_note,notification_settings';
+    const safeFields =
+      'id,email,name,role,avatar,department,company,birthday,points,phone,job_function,notification_settings';
+
+    // 1) Chargement complet. Les champs enrichis sont facultatifs pour l'annuaire :
+    // une indisponibilité ou un problème de schéma ne doit jamais faire disparaître tous les salariés.
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,email,name,role,avatar,department,company,birthday,points,phone,job_function,job_description,personal_note,notification_settings')
+        .select(richFields)
         .order('name', { ascending: true });
 
       if (!error && data) {
@@ -330,13 +347,47 @@ const App: React.FC = () => {
         return profiles;
       }
 
-      console.warn(`Chargement des profils échoué (tentative ${attempt}/${attempts})`, error);
+      console.warn(`Chargement complet des profils échoué (tentative ${attempt}/${attempts})`, error);
+
       if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 350 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
       }
     }
 
-    return getCachedProfiles();
+    // 2) Filet de sécurité : on recharge les champs essentiels sans job_description/personal_note.
+    // Ainsi l'équipe reste affichée même si une migration optionnelle n'est pas disponible
+    // ou si Supabase a momentanément rejeté la requête complète.
+    try {
+      const { data: safeData, error: safeError } = await supabase
+        .from('profiles')
+        .select(safeFields)
+        .order('name', { ascending: true });
+
+      if (!safeError && safeData) {
+        const profiles = safeData.map((profile: any) => ({
+          ...profile,
+          job_description: profile.job_description ?? '',
+          personal_note: profile.personal_note ?? ''
+        })) as User[];
+
+        console.warn('Annuaire chargé en mode de secours : champs de fiche enrichie temporairement indisponibles.');
+        cacheProfiles(profiles);
+        return profiles;
+      }
+
+      console.error('Chargement de secours des profils échoué', safeError);
+    } catch (safeException) {
+      console.error('Erreur pendant le chargement de secours des profils', safeException);
+    }
+
+    // 3) Dernier recours : ne jamais écraser l'annuaire avec une liste vide.
+    const cached = getCachedProfiles();
+    if (cached?.length) {
+      console.warn('Utilisation du cache local des profils pour conserver l’annuaire visible.');
+      return cached;
+    }
+
+    return null;
   };
 
 
