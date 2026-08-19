@@ -86,6 +86,7 @@ export type NotificationKind =
   | 'highlight'
   | 'points'
   | 'document'
+  | 'idea'
   | 'system';
 
 export interface AppNotification {
@@ -207,6 +208,7 @@ export interface Post {
   likes: number;
   comments: Comment[];
   createdAt: string;
+  audienceCompanies?: string[];
 }
 
 export interface Message {

@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, DocumentFile, UserRole, OrgEntity } from '../types';
+import AudienceSelector from './AudienceSelector';
+import { canViewAudience } from '../audience';
 import { uploadMediaToStorage } from '../storageUtils';
 
 interface DocumentsViewProps {
@@ -309,8 +311,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       .filter((doc) => {
         const matchesCategory = selectedCategory === 'Tous' || doc.category === selectedCategory;
         const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const audience = doc.audienceCompanies?.length ? doc.audienceCompanies : ['Star Fruits'];
-        const matchesAudience = audience.includes('ALL') || audience.some(company => company.toLocaleLowerCase('fr-FR') === (currentUser.company || '').trim().toLocaleLowerCase('fr-FR'));
+        const matchesAudience = canViewAudience(currentUser, doc.audienceCompanies);
         return matchesCategory && matchesSearch && matchesAudience;
       })
       .sort((a, b) => new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime());
@@ -482,10 +483,13 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 ))}
               </select>
 
-              <select value={uploadAudience} onChange={e=>setUploadAudience(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2">
-                <option value="ALL">Commun à tous</option>
-                {entities.filter(e=>e.active).map(e=><option key={e.id} value={e.name}>{e.name} uniquement</option>)}
-              </select>
+              <AudienceSelector
+                currentUser={currentUser}
+                entities={entities}
+                value={uploadAudience}
+                onChange={setUploadAudience}
+                label="Audience du document"
+              />
 
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
 

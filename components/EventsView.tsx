@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { CompanyEvent, User, UserRole } from '../types';
+import { canViewAudience } from '../audience';
 import EventCalendar from './EventCalendar';
 
 interface EventsViewProps {
@@ -21,10 +22,10 @@ const EventsView: React.FC<EventsViewProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const isAdmin = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
 
-  const visibleEvents = useMemo(() => events.filter(event => {
-    const audience = event.audienceCompanies?.length ? event.audienceCompanies : ['Star Fruits'];
-    return audience.includes('ALL') || audience.some(company => company.toLocaleLowerCase('fr-FR') === (currentUser.company || '').trim().toLocaleLowerCase('fr-FR'));
-  }), [events, currentUser.company]);
+  const visibleEvents = useMemo(
+    () => events.filter(event => canViewAudience(currentUser, event.audienceCompanies)),
+    [events, currentUser]
+  );
 
   const filteredEvents = useMemo(() => visibleEvents.filter(e => e.date === selectedDate), [visibleEvents, selectedDate]);
   const sortedAllEvents = useMemo(() => [...visibleEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [visibleEvents]);

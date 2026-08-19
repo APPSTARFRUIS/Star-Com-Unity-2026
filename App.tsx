@@ -417,6 +417,7 @@ const App: React.FC = () => {
       userName: i.user_name,
       userAvatar: i.user_avatar,
       createdAt: i.created_at,
+      audienceCompanies: i.audience_companies || ['Star Fruits'],
       comments: mapComments(commentRows).filter((c: any) => c.idea_id === i.id)
     }));
 
@@ -746,6 +747,7 @@ const App: React.FC = () => {
           }
 
           case 'idees': {
+            void fetchOrganization();
             const [ideasResult, commentsResult] = await Promise.all([
               supabase.from('ideas').select('*').order('created_at', { ascending: false }).limit(100),
               supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400)
@@ -2278,7 +2280,8 @@ const App: React.FC = () => {
           <IdeesView
             currentUser={currentUser}
             ideas={ideas}
-            onAddIdea={async (t, d, c) => {
+            entities={orgEntities}
+            onAddIdea={async (t, d, c, audienceCompanies) => {
               const { error } = await supabase.from('ideas').insert({
                 user_id: currentUser.id,
                 user_name: currentUser.name,
@@ -2286,6 +2289,7 @@ const App: React.FC = () => {
                 title: t,
                 description: d,
                 category: c,
+                audience_companies: audienceCompanies,
                 votes: [currentUser.id]
               });
               if (error) addToast("Erreur", "error");

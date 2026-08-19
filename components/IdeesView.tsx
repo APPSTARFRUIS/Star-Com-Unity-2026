@@ -4,7 +4,8 @@ import { User, Idea, IdeaStatus, Comment, UserRole } from '../types';
 interface IdeesViewProps {
   currentUser: User;
   ideas: Idea[];
-  onAddIdea: (title: string, description: string, category: string) => void;
+  entities: OrgEntity[];
+  onAddIdea: (title: string, description: string, category: string, audienceCompanies: string[]) => void;
   onToggleVote: (ideaId: string) => void;
   onUpdateStatus: (ideaId: string, status: IdeaStatus) => void;
   onAddComment: (ideaId: string, text: string) => void;
@@ -13,8 +14,9 @@ interface IdeesViewProps {
 const IDEA_CATEGORIES = ['Vie au bureau', 'Bien-être', 'Outils & Process', 'Innovation', 'Événements'];
 
 const IdeesView: React.FC<IdeesViewProps> = ({ 
-  currentUser, 
-  ideas, 
+  currentUser,
+  ideas,
+  entities,
   onAddIdea, 
   onToggleVote, 
   onUpdateStatus,
@@ -24,22 +26,25 @@ const IdeesView: React.FC<IdeesViewProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCat, setNewCat] = useState(IDEA_CATEGORIES[0]);
+  const [audienceCompany, setAudienceCompany] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState<IdeaStatus | 'Toutes'>('Toutes');
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
   const filteredIdeas = useMemo(() => {
     return ideas
+      .filter(idea => canViewAudience(currentUser, idea.audienceCompanies))
       .filter(idea => filterStatus === 'Toutes' || idea.status === filterStatus)
       .sort((a, b) => b.votes.length - a.votes.length);
-  }, [ideas, filterStatus]);
+  }, [ideas, filterStatus, currentUser]);
 
   const handleSubmitIdea = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newDesc.trim()) return;
-    onAddIdea(newTitle, newDesc, newCat);
+    onAddIdea(newTitle, newDesc, newCat, [audienceCompany]);
     setNewTitle('');
     setNewDesc('');
+    setAudienceCompany('ALL');
     setShowForm(false);
   };
 
@@ -103,6 +108,15 @@ const IdeesView: React.FC<IdeesViewProps> = ({
               </select>
             </div>
           </div>
+          <AudienceSelector
+            currentUser={currentUser}
+            entities={entities}
+            value={audienceCompany}
+            onChange={setAudienceCompany}
+            allowOwnCompanyOnly
+            label="Qui peut voir cette idée ?"
+          />
+
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description détaillée</label>
             <textarea 

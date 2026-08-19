@@ -1,5 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { User, Poll, Question, QuestionType, UserRole, PollResponse, Attachment, OrgEntity } from '../types';
+import AudienceSelector from './AudienceSelector';
+import { canViewAudience } from '../audience';
 import { uploadMediaToStorage } from '../storageUtils';
 
 interface PollsViewProps {
@@ -141,10 +143,10 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
 
   const canManage = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR;
 
-  const visiblePolls = useMemo(() => polls.filter(poll => {
-    const audience = poll.audienceCompanies?.length ? poll.audienceCompanies : ['Star Fruits'];
-    return audience.includes('ALL') || audience.some(company => company.toLocaleLowerCase('fr-FR') === (currentUser.company || '').trim().toLocaleLowerCase('fr-FR'));
-  }), [polls, currentUser.company]);
+  const visiblePolls = useMemo(
+    () => polls.filter(poll => canViewAudience(currentUser, poll.audienceCompanies)),
+    [polls, currentUser]
+  );
 
   const handleAddQuestion = () => {
     const newQ: Question = {

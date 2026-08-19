@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { CompanyEvent, EventType, User, OrgEntity } from '../types';
 import { DEPARTMENTS } from '../constants';
 import EventCalendar from './EventCalendar';
+import AudienceSelector from './AudienceSelector';
 
 interface EventCreatorModalProps {
   onClose: () => void;
@@ -83,7 +84,13 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Audience</label><select value={audienceCompany} onChange={e=>setAudienceCompany(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50"><option value="ALL">Commun à tous</option>{entities.filter(e=>e.active).map(e=><option key={e.id} value={e.name}>{e.name} uniquement</option>)}</select></div>
+          <AudienceSelector
+            currentUser={currentUser}
+            entities={entities}
+            value={audienceCompany}
+            onChange={setAudienceCompany}
+            label="Audience de l'événement"
+          />
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Type d'événement</label>
             <div className="relative">
