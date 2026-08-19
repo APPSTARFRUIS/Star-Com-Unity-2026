@@ -234,6 +234,7 @@ export interface Idea {
   votes: string[]; 
   comments: Comment[];
   createdAt: string;
+  audienceCompanies?: string[];
 }
 
 export interface DocumentFile {

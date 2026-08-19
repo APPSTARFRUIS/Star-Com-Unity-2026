@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { User, Idea, IdeaStatus, Comment, UserRole } from '../types';
+import { User, Idea, IdeaStatus, Comment, UserRole, OrgEntity } from '../types';
+import AudienceSelector from './AudienceSelector';
+import { canViewAudience } from '../audience';
 
 interface IdeesViewProps {
   currentUser: User;

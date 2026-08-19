@@ -520,6 +520,14 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm space-y-8">
                   <h3 className="text-xl font-bold text-slate-800">Paramètres du formulaire</h3>
+
+                  <AudienceSelector
+                    currentUser={currentUser}
+                    entities={entities}
+                    value={audienceCompany}
+                    onChange={setAudienceCompany}
+                    label="Audience du sondage"
+                  />
                   
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
