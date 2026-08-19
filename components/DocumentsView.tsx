@@ -450,7 +450,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     <div className="p-6 space-y-6">
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-64 space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
             {docCategoriesForFilter.map((category) => {
               const count = category === 'Tous' ? documents.length : documents.filter((d) => d.category === category).length;
 
@@ -517,7 +517,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-left text-sm text-slate-500 uppercase tracking-wide">
                 <tr>
                   <th className="px-6 py-4">Document</th>

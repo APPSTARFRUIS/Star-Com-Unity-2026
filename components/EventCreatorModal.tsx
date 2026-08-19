@@ -74,7 +74,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
         className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in duration-300"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-20">
+        <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-20">
           <h2 className="text-xl font-medium text-slate-800">Créer un nouvel événement</h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
           <AudienceSelector
             currentUser={currentUser}
             entities={entities}

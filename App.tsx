@@ -674,21 +674,27 @@ const App: React.FC = () => {
           }
 
           case 'evenements': {
-            void fetchOrganization();
+            await fetchOrganization();
             const { data } = await supabase.from('events').select('*').order('date', { ascending: true }).limit(100);
             if (data) setEvents(data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
             break;
           }
 
           case 'equipe': {
-            void fetchOrganization();
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) {
               setUsers(cachedProfiles);
             }
 
-            // Actualisation profils en arrière-plan.
-            void fetchProfilesWithRetry(2);
+            // Sur mobile ou après reconnexion, on ne valide plus la vue avant
+            // d'avoir réellement récupéré l'organisation et les profils.
+            const [, freshProfiles] = await Promise.all([
+              fetchOrganization(),
+              fetchProfilesWithRetry(3)
+            ]);
+            if (freshProfiles?.length) {
+              setUsers(freshProfiles);
+            }
 
             // On charge uniquement les champs nécessaires aux badges publics.
             // Aucun historique détaillé, motif ou date n'est exposé dans l'annuaire.
@@ -727,7 +733,8 @@ const App: React.FC = () => {
           case 'messages': {
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) setUsers(cachedProfiles);
-            void fetchProfilesWithRetry(2);
+            const freshProfiles = await fetchProfilesWithRetry(3);
+            if (freshProfiles?.length) setUsers(freshProfiles);
 
             const messagesResult = await supabase
               .from('messages')
@@ -747,7 +754,7 @@ const App: React.FC = () => {
           }
 
           case 'idees': {
-            void fetchOrganization();
+            await fetchOrganization();
             const [ideasResult, commentsResult] = await Promise.all([
               supabase.from('ideas').select('*').order('created_at', { ascending: false }).limit(100),
               supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400)
@@ -757,7 +764,7 @@ const App: React.FC = () => {
           }
 
           case 'documents': {
-            void fetchOrganization();
+            await fetchOrganization();
             const { data } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(100);
             if (data) setDocuments(data.map((d: any) => ({
               ...d,
@@ -770,7 +777,7 @@ const App: React.FC = () => {
           }
 
           case 'sondages': {
-            void fetchOrganization();
+            await fetchOrganization();
             const { data } = await supabase.from('polls').select('*').order('created_at', { ascending: false }).limit(100);
             if (data) setPolls(data.map((p: any) => ({
               ...p,
@@ -793,7 +800,8 @@ const App: React.FC = () => {
           case 'celebrations': {
             const cachedProfiles = getCachedProfiles();
             if (cachedProfiles?.length) setUsers(cachedProfiles);
-            void fetchProfilesWithRetry(2);
+            const freshProfiles = await fetchProfilesWithRetry(3);
+            if (freshProfiles?.length) setUsers(freshProfiles);
 
             const celebrationsResult = await supabase
               .from('celebrations')
@@ -2920,7 +2928,7 @@ const App: React.FC = () => {
             unreadNotifications={notifications.filter(item => !item.isRead).length}
           />
 
-          <main className="flex-1 md:ml-64 p-4 md:p-8 w-full max-w-full overflow-x-hidden">
+          <main className="flex-1 md:ml-64 p-3 sm:p-4 md:p-8 w-full max-w-full overflow-x-hidden">
             {renderContent()}
           </main>
 

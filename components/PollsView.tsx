@@ -40,7 +40,7 @@ const InlineCalendar: React.FC<{
     days.push(<button key={d} type="button" onClick={() => onSelect(dateStr)} className={`h-8 w-8 flex items-center justify-center rounded-full text-xs transition-all ${selectedDate === dateStr ? 'bg-green-700 text-white font-bold' : 'text-slate-700 hover:bg-green-50'}`}>{d}</button>);
   }
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-4 w-full max-w-[280px] shadow-sm">
+    <div className="bg-white rounded-2xl border border-slate-100 p-4 w-full sm:max-w-[280px] shadow-sm">
       <div className="flex items-center justify-between mb-4 px-1">
         <span className="text-sm font-bold text-slate-800 capitalize">{monthName}</span>
         <div className="flex gap-1">
@@ -312,7 +312,7 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
           )}
 
           {[QuestionType.RATING, QuestionType.LINEAR_SCALE].includes(q.type) && (
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-4 sm:gap-8 overflow-x-auto">
                <div className="text-center">
                  <div className="text-4xl font-black text-slate-800">
                    {(responses.reduce((a, b) => a + (Number(b) || 0), 0) / (responses.length || 1)).toFixed(1)}

@@ -21,6 +21,7 @@ const AudienceSelector: React.FC<Props> = ({
 }) => {
   const isAdmin = currentUser.role === UserRole.ADMIN;
   const activeEntities = entities.filter(entity => entity.active);
+  const organizationLoading = isAdmin && activeEntities.length === 0;
 
   return (
     <div className="space-y-2">
@@ -36,6 +37,10 @@ const AudienceSelector: React.FC<Props> = ({
           <option value={currentUser.company}>Mon entreprise — {currentUser.company}</option>
         )}
 
+        {organizationLoading && (
+          <option value="" disabled>Chargement des structures...</option>
+        )}
+
         {isAdmin && activeEntities.map(entity => (
           <option key={entity.id} value={entity.name}>{entity.name} uniquement</option>
         ))}
@@ -45,9 +50,11 @@ const AudienceSelector: React.FC<Props> = ({
         )}
       </select>
       <p className="text-[11px] text-slate-400">
-        {value === AUDIENCE_ALL
-          ? 'Visible par tous les utilisateurs de Star ComUnity.'
-          : `Visible uniquement par ${value}${isAdmin ? ' (et les administrateurs).' : '.'}`}
+        {organizationLoading
+          ? 'Chargement de la liste des structures…'
+          : value === AUDIENCE_ALL
+            ? 'Visible par tous les utilisateurs de Star ComUnity.'
+            : `Visible uniquement par ${value}${isAdmin ? ' (et les administrateurs).' : '.'}`}
       </p>
     </div>
   );

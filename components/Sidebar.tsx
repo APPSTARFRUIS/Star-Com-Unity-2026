@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      <div className={`fixed left-0 top-0 h-screen w-64 bg-white border-r border-slate-200 z-[100] flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <div className={`fixed left-0 top-0 h-screen w-[min(16rem,88vw)] md:w-64 bg-white border-r border-slate-200 z-[100] flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={appConfig.logoUrl} className="w-10 h-10 object-contain" alt="Logo" />

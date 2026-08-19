@@ -727,7 +727,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
           <h1 className="text-3xl font-black">Annuaire & Équipe</h1>
           <p className="text-slate-500">Star Group, filiales et actionnaires pépiniéristes.</p>
         </div>
-        <div className="flex bg-white rounded-2xl border p-1">
+        <div className="flex bg-white rounded-2xl border p-1 w-full md:w-auto overflow-x-auto">
           {[
             ['list', 'Liste'],
             ['department', 'Services'],
@@ -736,7 +736,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
             <button
               key={id}
               onClick={() => setSub(id as SubView)}
-              className={`px-5 py-2 rounded-xl font-bold ${
+              className={`px-5 py-2 rounded-xl font-bold shrink-0 ${
                 sub === id ? 'bg-[#14532d] text-white' : 'text-slate-500'
               }`}
             >
@@ -746,7 +746,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 bg-white border border-slate-200 rounded-2xl p-3">
+      <div className="flex gap-2 bg-white border border-slate-200 rounded-2xl p-3 overflow-x-auto md:flex-wrap">
         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 self-center mr-2">
           {sub === 'org' ? 'Organigramme' : 'Structure'}
         </span>
@@ -765,7 +765,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
           <button
             key={entity.id}
             onClick={() => choose(entity.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shrink-0 ${
               !orgOverview && selectedEntity?.id === entity.id
                 ? 'bg-slate-900 text-white'
                 : 'bg-slate-50 text-slate-600'
@@ -791,7 +791,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
             placeholder={`Rechercher dans ${selectedEntity?.name || ''}...`}
             className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3"
           />
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {filtered.map(user => (
               <PersonMiniCard
                 key={user.id}
