@@ -686,15 +686,24 @@ const App: React.FC = () => {
               setUsers(cachedProfiles);
             }
 
-            // Sur mobile ou après reconnexion, on ne valide plus la vue avant
-            // d'avoir réellement récupéré l'organisation et les profils.
+            // Sur mobile, un appareil neuf peut arriver ici sans aucun cache.
+            // On attend réellement organisation + profils. Si aucun profil ne remonte,
+            // on déclenche un échec pour que la rubrique puisse être retentée au prochain passage.
             const [, freshProfiles] = await Promise.all([
               fetchOrganization(),
-              fetchProfilesWithRetry(3)
+              fetchProfilesWithRetry(4)
             ]);
-            if (freshProfiles?.length) {
-              setUsers(freshProfiles);
+
+            const resolvedProfiles =
+              freshProfiles?.length ? freshProfiles :
+              cachedProfiles?.length ? cachedProfiles :
+              null;
+
+            if (!resolvedProfiles?.length) {
+              throw new Error('Annuaire Équipe : aucun profil récupéré, chargement à retenter.');
             }
+
+            setUsers(resolvedProfiles);
 
             // On charge uniquement les champs nécessaires aux badges publics.
             // Aucun historique détaillé, motif ou date n'est exposé dans l'annuaire.
@@ -936,6 +945,9 @@ const App: React.FC = () => {
 
         loadedViewsRef.current.add(targetView);
       } catch (error) {
+        // Ne jamais mémoriser une rubrique en échec comme déjà chargée.
+        // Important pour Équipe sur mobile : un retour dans la rubrique doit relancer les profils.
+        loadedViewsRef.current.delete(targetView);
         console.error(`Erreur de chargement de la rubrique ${targetView}:`, error);
       }
     })();
