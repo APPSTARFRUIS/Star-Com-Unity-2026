@@ -246,7 +246,8 @@ export interface DocumentFile {
   uploadedBy: string;
   uploadedByName: string;
   uploadedAt: string;
-  data: string;
+  data?: string;
+  storagePath?: string;
   audienceCompanies?: string[];
 }
 

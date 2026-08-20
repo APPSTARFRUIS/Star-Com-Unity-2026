@@ -239,7 +239,7 @@ const App: React.FC = () => {
 
     const { data: byId } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
       .eq('id', userId)
       .maybeSingle();
 
@@ -248,7 +248,7 @@ const App: React.FC = () => {
     if (!profile && profileId && profileId !== userId) {
       const { data: byProfileId } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
         .eq('id', profileId)
         .maybeSingle();
       profile = byProfileId;
@@ -257,7 +257,7 @@ const App: React.FC = () => {
     if (!profile && authEmail) {
       const { data: byEmail } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
         .ilike('email', authEmail)
         .maybeSingle();
       profile = byEmail;
@@ -352,7 +352,7 @@ const App: React.FC = () => {
         const result = await withRequestTimeout(
           supabase
             .from('profiles')
-            .select('*')
+            .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
             .order('name', { ascending: true }),
           10000,
           `profils ${attempt}/${attempts}`
@@ -630,7 +630,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchOrganization = useCallback(async (attempts = 4) => {
+  const fetchOrganization = useCallback(async (attempts = 2) => {
     if (!supabase) return false;
 
     const cached = getOrganizationCache();
@@ -644,17 +644,17 @@ const App: React.FC = () => {
         // bloquer indéfiniment tout le module Équipe dans Safari.
         const [entitiesResult, servicesResult, contactsResult] = await Promise.all([
           withRequestTimeout(
-            supabase.from('org_entities').select('*').eq('active', true).order('sort_order'),
+            supabase.from('org_entities').select('id,name,entity_type,parent_id,logo_url,sort_order,active').eq('active', true).order('sort_order'),
             7000,
             `structures ${attempt}/${attempts}`
           ),
           withRequestTimeout(
-            supabase.from('org_services').select('*').eq('active', true).order('sort_order'),
+            supabase.from('org_services').select('id,entity_id,name,sort_order,active').eq('active', true).order('sort_order'),
             7000,
             `services ${attempt}/${attempts}`
           ),
           withRequestTimeout(
-            supabase.from('org_contacts').select('*').order('sort_order'),
+            supabase.from('org_contacts').select('id,entity_id,name,email,phone,job_title,avatar_url,job_description,personal_note,about,sort_order').order('sort_order'),
             7000,
             `contacts ${attempt}/${attempts}`
           )
@@ -765,7 +765,7 @@ const App: React.FC = () => {
             // On attend réellement organisation + profils. Si aucun profil ne remonte,
             // on déclenche un échec pour que la rubrique puisse être retentée au prochain passage.
             const [organizationLoaded, freshProfiles] = await Promise.all([
-              fetchOrganization(4),
+              fetchOrganization(2),
               fetchProfilesWithRetry(2)
             ]);
 
@@ -865,12 +865,14 @@ const App: React.FC = () => {
 
           case 'documents': {
             await fetchOrganization();
-            const { data } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(100);
+            const { data } = await supabase.from('documents').select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies').order('uploaded_at', { ascending: false }).limit(100);
             if (data) setDocuments(data.map((d: any) => ({
               ...d,
               uploadedBy: d.uploaded_by,
               uploadedByName: d.uploaded_by_name,
               uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString(),
+              data: d.storage_path || '',
+              storagePath: d.storage_path || '',
               audienceCompanies: d.audience_companies || ['Star Fruits']
             })) as any);
             break;
@@ -1096,7 +1098,7 @@ const App: React.FC = () => {
         supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(60),
         supabase.from('events').select('*').order('date', { ascending: true }).limit(100),
         supabase.from('ideas').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(100),
+        supabase.from('documents').select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies').order('uploaded_at', { ascending: false }).limit(100),
         supabase.from('rewards').select('*').order('cost', { ascending: true }).limit(100),
         supabase.from('newsletters').select('*').order('published_at', { ascending: false }).limit(30),
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400),
@@ -1424,15 +1426,15 @@ const App: React.FC = () => {
       attempt += 1;
 
       const tasks: Promise<any>[] = [];
-      if (users.length === 0) tasks.push(fetchProfilesWithRetry(2));
-      if (orgEntities.length === 0) tasks.push(fetchOrganization(2));
+      if (users.length === 0) tasks.push(fetchProfilesWithRetry(1));
+      if (orgEntities.length === 0) tasks.push(fetchOrganization(1));
 
       if (tasks.length) {
         await Promise.allSettled(tasks);
       }
 
-      if (!cancelled && attempt < 6 && (users.length === 0 || orgEntities.length === 0)) {
-        timer = window.setTimeout(ensureTeamData, 1800 * attempt);
+      if (!cancelled && attempt < 3 && (users.length === 0 || orgEntities.length === 0)) {
+        timer = window.setTimeout(ensureTeamData, 2500 * attempt);
       }
     };
 
@@ -1531,7 +1533,7 @@ const App: React.FC = () => {
 
       const { data: profileByAuthId } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
         .eq('id', data.user.id)
         .maybeSingle();
 
@@ -1540,7 +1542,7 @@ const App: React.FC = () => {
       if (!profileData && profileId) {
         const { data: profileByMetadata } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
           .eq('id', profileId)
           .maybeSingle();
         profileData = profileByMetadata;
@@ -1549,7 +1551,7 @@ const App: React.FC = () => {
       if (!profileData) {
         const { data: profileByEmail } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
           .ilike('email', data.user.email || email)
           .maybeSingle();
         profileData = profileByEmail;
@@ -2461,7 +2463,7 @@ const App: React.FC = () => {
             categories={appConfig.documentCategories || []}
             entities={orgEntities}
             onUpload={async (n, t, size, c, d, audienceCompanies) => {
-              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d, audience_companies: audienceCompanies });
+              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d, storage_path: d, audience_companies: audienceCompanies });
               void fetchViewData(currentViewRef.current, true);
             }}
             onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}

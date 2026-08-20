@@ -3,6 +3,7 @@ import { User, DocumentFile, UserRole, OrgEntity } from '../types';
 import AudienceSelector from './AudienceSelector';
 import { canViewAudience } from '../audience';
 import { uploadMediaToStorage } from '../storageUtils';
+import { supabase } from '../supabaseClient';
 
 interface DocumentsViewProps {
   currentUser: User;
@@ -317,7 +318,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       .sort((a, b) => new Date(b.uploadedAt || '').getTime() - new Date(a.uploadedAt || '').getTime());
   }, [documents, selectedCategory, searchQuery, currentUser.company]);
 
-  const getDocumentUrl = (doc: DocumentFile) => doc.data || '';
+  const getDocumentUrl = (doc: DocumentFile) => doc.data || doc.storagePath || '';
   const isPdf = (doc: DocumentFile) => (doc.type || '').includes('pdf') || getDocumentUrl(doc).startsWith('data:application/pdf');
   const isImage = (doc: DocumentFile) => (doc.type || '').includes('image') || getDocumentUrl(doc).startsWith('data:image');
 
@@ -352,7 +353,20 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   }, [previewObjectUrl]);
 
   const loadDocumentBlob = async (doc: DocumentFile): Promise<string> => {
-    const url = getDocumentUrl(doc);
+    let url = getDocumentUrl(doc);
+
+    // Compatibilité anciens documents : leur base64 n'est plus téléchargé avec la liste.
+    // On le demande uniquement lorsque l'utilisateur ouvre réellement le document.
+    if (!url && supabase) {
+      const { data: legacy, error } = await supabase
+        .from('documents')
+        .select('data,storage_path')
+        .eq('id', doc.id)
+        .maybeSingle();
+      if (error) throw error;
+      url = legacy?.storage_path || legacy?.data || '';
+    }
+
     if (!url) throw new Error('URL du document introuvable.');
 
     if (url.startsWith('data:')) return url;
@@ -403,18 +417,23 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
-  const handleDownloadDocument = (doc: DocumentFile) => {
-    const url = getDocumentUrl(doc);
-    if (!url) return;
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = doc.name;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadDocument = async (doc: DocumentFile) => {
+    try {
+      const url = await loadDocumentBlob(doc);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      if (url.startsWith('blob:') && url !== previewObjectUrl) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (error: any) {
+      alert(error?.message || 'Impossible de télécharger le document.');
+    }
   };
 
   const formatSize = (bytes: number) => {
