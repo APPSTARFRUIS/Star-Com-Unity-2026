@@ -115,6 +115,8 @@ const App: React.FC = () => {
   const currentViewRef = useRef<ViewType>('accueil');
   const loadedViewsRef = useRef<Set<ViewType>>(new Set());
   const viewFetchesRef = useRef<Map<ViewType, Promise<void>>>(new Map());
+  const profilesFetchInFlightRef = useRef<Promise<User[] | null> | null>(null);
+  const currentProfileFetchRef = useRef<Map<string, Promise<User | null>>>(new Map());
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -201,91 +203,131 @@ const App: React.FC = () => {
       return;
     }
 
+    let disposed = false;
     const manualUserId = localStorage.getItem('star_community_user_id');
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        fetchUserProfile(session.user.id);
-      } else if (manualUserId) {
-        fetchUserProfile(manualUserId);
-      } else {
-        setIsLoading(false);
-      }
-    });
+    const bootstrapTimer = window.setTimeout(() => {
+      if (!disposed) setIsLoading(false);
+    }, 3000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        fetchUserProfile(session.user.id);
+    void (async () => {
+      try {
+        const sessionResult = await withRequestTimeout(
+          supabase.auth.getSession(),
+          3500,
+          'session initiale'
+        ) as any;
+
+        if (disposed) return;
+        const initialSession = sessionResult?.data?.session || null;
+        setSession(initialSession);
+
+        if (initialSession?.user) {
+          await fetchUserProfile(initialSession.user.id, initialSession.user);
+        } else if (manualUserId) {
+          await fetchUserProfile(manualUserId);
+        } else {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.warn('Session initiale indisponible : affichage connexion sans blocage.', error);
+        if (!disposed) setIsLoading(false);
+      } finally {
+        window.clearTimeout(bootstrapTimer);
+      }
+    })();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (disposed) return;
+      setSession(nextSession);
+      if (nextSession?.user) {
+        void fetchUserProfile(nextSession.user.id, nextSession.user);
       } else if (!manualUserId) {
         setCurrentUser(null);
         setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      disposed = true;
+      window.clearTimeout(bootstrapTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
-    if (!supabase) return;
+  const fetchUserProfile = async (userId: string, authUserOverride?: any): Promise<User | null> => {
+    if (!supabase) return null;
+    const existing = currentProfileFetchRef.current.get(userId);
+    if (existing) return existing;
 
-    const { data: authData } = await supabase.auth.getUser();
-    const authUser = authData.user;
-    const profileId = authUser?.user_metadata?.profile_id as string | undefined;
-    const authEmail = authUser?.email;
+    const request = (async (): Promise<User | null> => {
+      try {
+        const authUser = authUserOverride || session?.user || null;
+        const profileId = authUser?.user_metadata?.profile_id as string | undefined;
+        const authEmail = authUser?.email as string | undefined;
+        const profileColumns = 'id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at';
+        let profile: any = null;
 
-    let profile: any = null;
+        const byIdResult = await withRequestTimeout(
+          supabase.from('profiles').select(profileColumns).eq('id', userId).maybeSingle(),
+          6000,
+          'profil utilisateur'
+        ) as any;
+        if (!byIdResult?.error) profile = byIdResult?.data || null;
 
-    const { data: byId } = await supabase
-      .from('profiles')
-      .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-      .eq('id', userId)
-      .maybeSingle();
-
-    profile = byId;
-
-    if (!profile && profileId && profileId !== userId) {
-      const { data: byProfileId } = await supabase
-        .from('profiles')
-        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-        .eq('id', profileId)
-        .maybeSingle();
-      profile = byProfileId;
-    }
-
-    if (!profile && authEmail) {
-      const { data: byEmail } = await supabase
-        .from('profiles')
-        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-        .ilike('email', authEmail)
-        .maybeSingle();
-      profile = byEmail;
-    }
-
-    if (profile) {
-      localStorage.setItem('star_community_user_id', profile.id);
-      setCurrentUser({
-        ...profile,
-        notification_settings: profile.notification_settings || {
-          inApp: true,
-          email: true,
-          desktop: true,
-          mobile: true,
-          posts: true,
-          events: true,
-          messages: true,
-          birthdays: true,
-          polls: true,
-          newsletters: true,
-          celebrations: true,
-          highlights: true,
-          points: true
+        if (!profile && profileId && profileId !== userId) {
+          const r = await withRequestTimeout(
+            supabase.from('profiles').select(profileColumns).eq('id', profileId).maybeSingle(),
+            5000,
+            'profil metadata'
+          ) as any;
+          if (!r?.error) profile = r?.data || null;
         }
-      } as User);
-    }
 
-    setIsLoading(false);
+        if (!profile && authEmail) {
+          const r = await withRequestTimeout(
+            supabase.from('profiles').select(profileColumns).ilike('email', authEmail).maybeSingle(),
+            5000,
+            'profil email'
+          ) as any;
+          if (!r?.error) profile = r?.data || null;
+        }
+
+        if (!profile) {
+          console.warn('Profil utilisateur non récupéré', userId);
+          setIsLoading(false);
+          return null;
+        }
+
+        localStorage.setItem('star_community_user_id', profile.id);
+        const mappedUser = {
+          ...profile,
+          notification_settings: profile.notification_settings || {
+            inApp: true, email: true, desktop: true, mobile: true,
+            posts: true, events: true, messages: true, birthdays: true,
+            polls: true, newsletters: true, celebrations: true, highlights: true, points: true
+          }
+        } as User;
+
+        setCurrentUser(mappedUser);
+        setIsLoading(false);
+
+        window.setTimeout(() => {
+          void fetchProfilesWithRetry(1);
+          void fetchOrganization(1);
+        }, 250);
+
+        return mappedUser;
+      } catch (error) {
+        console.error('Erreur chargement profil utilisateur :', error);
+        setIsLoading(false);
+        return null;
+      }
+    })();
+
+    currentProfileFetchRef.current.set(userId, request);
+    try { return await request; }
+    finally { currentProfileFetchRef.current.delete(userId); }
   };
 
   const withRequestTimeout = async <T,>(
@@ -341,46 +383,42 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchProfilesWithRetry = async (attempts = 2): Promise<User[] | null> => {
+  const fetchProfilesWithRetry = async (attempts = 1): Promise<User[] | null> => {
     if (!supabase) return getCachedProfiles();
+    if (profilesFetchInFlightRef.current) return profilesFetchInFlightRef.current;
 
-    // Un seul appel profils à la fois. La V1.3.3 lançait une requête légère puis
-    // une seconde requête d'enrichissement pour chaque tentative : sous Safari
-    // cela pouvait multiplier les appels et laisser l'annuaire vide.
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      try {
-        const result = await withRequestTimeout(
-          supabase
-            .from('profiles')
-            .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-            .order('name', { ascending: true }),
-          10000,
-          `profils ${attempt}/${attempts}`
-        ) as any;
+    const request = (async (): Promise<User[] | null> => {
+      const cached = getCachedProfiles();
+      if (cached?.length) setUsers(cached);
 
-        if (!result?.error && Array.isArray(result?.data) && result.data.length > 0) {
-          const profiles = result.data as User[];
-          cacheProfiles(profiles);
-          return profiles;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const result = await withRequestTimeout(
+            supabase.from('profiles')
+              .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday')
+              .order('name', { ascending: true }),
+            7000,
+            `annuaire ${attempt}/${attempts}`
+          ) as any;
+
+          if (!result?.error && Array.isArray(result?.data) && result.data.length > 0) {
+            const profiles = result.data as User[];
+            cacheProfiles(profiles);
+            return profiles;
+          }
+          console.warn(`Chargement annuaire échoué (${attempt}/${attempts})`, result?.error);
+        } catch (error) {
+          console.warn(`Chargement annuaire interrompu (${attempt}/${attempts})`, error);
         }
-
-        console.warn(`Chargement profils échoué (tentative ${attempt}/${attempts})`, result?.error);
-      } catch (error) {
-        console.warn(`Chargement profils interrompu (tentative ${attempt}/${attempts})`, error);
+        if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 900));
       }
 
-      if (attempt < attempts) {
-        await new Promise(resolve => setTimeout(resolve, 750));
-      }
-    }
+      return cached?.length ? cached : null;
+    })();
 
-    const cached = getCachedProfiles();
-    if (cached?.length) {
-      setUsers(cached);
-      return cached;
-    }
-
-    return null;
+    profilesFetchInFlightRef.current = request;
+    try { return await request; }
+    finally { profilesFetchInFlightRef.current = null; }
   };
 
 
@@ -765,8 +803,8 @@ const App: React.FC = () => {
             // On attend réellement organisation + profils. Si aucun profil ne remonte,
             // on déclenche un échec pour que la rubrique puisse être retentée au prochain passage.
             const [organizationLoaded, freshProfiles] = await Promise.all([
-              fetchOrganization(2),
-              fetchProfilesWithRetry(2)
+              fetchOrganization(1),
+              fetchProfilesWithRetry(1)
             ]);
 
             const resolvedProfiles =
@@ -1433,8 +1471,8 @@ const App: React.FC = () => {
         await Promise.allSettled(tasks);
       }
 
-      if (!cancelled && attempt < 3 && (users.length === 0 || orgEntities.length === 0)) {
-        timer = window.setTimeout(ensureTeamData, 2500 * attempt);
+      if (!cancelled && attempt < 2 && (users.length === 0 || orgEntities.length === 0)) {
+        timer = window.setTimeout(ensureTeamData, 4000);
       }
     };
 
@@ -1516,72 +1554,26 @@ const App: React.FC = () => {
         return;
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      const signInResult = await withRequestTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        8000,
+        'connexion'
+      ) as any;
+      const data = signInResult?.data;
+      const error = signInResult?.error;
 
-      if (error || !data.user) {
+      if (error || !data?.user) {
         console.error(error);
         setLoginError(error?.message || "Identifiants incorrects.");
         return;
       }
 
-      const profileId = data.user.user_metadata?.profile_id as string | undefined;
-
-      let profileData: any = null;
-
-      const { data: profileByAuthId } = await supabase
-        .from('profiles')
-        .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      profileData = profileByAuthId;
-
-      if (!profileData && profileId) {
-        const { data: profileByMetadata } = await supabase
-          .from('profiles')
-          .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-          .eq('id', profileId)
-          .maybeSingle();
-        profileData = profileByMetadata;
-      }
-
+      setSession(data.session || null);
+      const profileData = await fetchUserProfile(data.user.id, data.user);
       if (!profileData) {
-        const { data: profileByEmail } = await supabase
-          .from('profiles')
-          .select('id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at')
-          .ilike('email', data.user.email || email)
-          .maybeSingle();
-        profileData = profileByEmail;
-      }
-
-      if (!profileData) {
-        setLoginError("Profil utilisateur introuvable.");
+        setLoginError("Connexion réussie, mais le profil met trop de temps à répondre. Réessayez.");
         return;
       }
-
-      localStorage.setItem('star_community_user_id', profileData.id);
-
-      setCurrentUser({
-        ...profileData,
-        notification_settings: profileData.notification_settings || {
-          inApp: true,
-          email: true,
-          desktop: true,
-          mobile: true,
-          posts: true,
-          events: true,
-          messages: true,
-          birthdays: true,
-          polls: true,
-          newsletters: true,
-          celebrations: true,
-          highlights: true,
-          points: true
-        }
-      } as User);
 
       addToast("Connexion réussie !");
     } catch (err) {
