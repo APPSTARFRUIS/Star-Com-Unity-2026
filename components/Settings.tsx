@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, NotificationSettings } from '../types';
 import { DEPARTMENTS } from '../constants';
 import { uploadMediaToStorage } from '../storageUtils';
+import { browserNotificationsSupported, isMobileDevice, requestBrowserNotificationPermission } from '../notificationUtils';
 
 interface SettingsProps {
   user: User;
@@ -35,7 +36,10 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
       newsletters: true,
       celebrations: true,
       highlights: true,
-      points: true
+      points: true,
+      documents: true,
+      ideas: true,
+      games: true
     }
   );
 
@@ -98,8 +102,19 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
     }
   };
 
-  const toggleNotification = (key: keyof NotificationSettings) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleNotification = async (key: keyof NotificationSettings) => {
+    const nextValue = !notifications[key];
+    if (nextValue && (key === 'desktop' || key === 'mobile')) {
+      const permission = await requestBrowserNotificationPermission();
+      if (permission !== 'granted') {
+        setSaveError(permission === 'unsupported'
+          ? 'Les notifications navigateur ne sont pas disponibles dans ce mode. Sur iPhone, ajoutez Star Com’Unity à l’écran d’accueil puis réessayez.'
+          : 'Autorisation de notifications refusée par le navigateur.');
+        return;
+      }
+    }
+    setSaveError('');
+    setNotifications(prev => ({ ...prev, [key]: nextValue }));
   };
 
   const togglePrivacy = (key: keyof typeof privacy) => {
@@ -217,9 +232,9 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
           {activeTab === 'notifications' && (
             <div className="space-y-10 animate-in fade-in duration-300">
               <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-4">
-                <p className="font-bold text-green-900">Vos préférences sont maintenant actives.</p>
+                <p className="font-bold text-green-900">Préférences de notifications</p>
                 <p className="text-xs text-green-800 mt-1">
-                  Les choix par type déterminent les notifications créées pour votre compte dans Star Com’Unity.
+                  Choisissez les informations à recevoir et les canaux disponibles sur cet appareil. Les notifications navigateur fonctionnent lorsque Star Com’Unity est active ; l’email reste une préférence préparée pour un futur service d’envoi.
                 </p>
               </div>
 
@@ -228,9 +243,9 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                 <div className="space-y-4">
                   {[
                     { id: 'inApp', label: 'Dans Star Com’Unity', sub: 'Centre de notifications et compteur de notifications non lues' },
-                    { id: 'email', label: 'Email', sub: 'Préférence enregistrée pour les futurs envois email' },
-                    { id: 'desktop', label: 'Notifications bureau', sub: 'Préférence enregistrée pour les futures notifications navigateur' },
-                    { id: 'mobile', label: 'Notifications mobiles', sub: 'Préférence enregistrée pour les futures notifications push' }
+                    { id: 'email', label: 'Email', sub: 'Préférence enregistrée — envoi email pas encore raccordé' },
+                    { id: 'desktop', label: 'Notifications bureau', sub: browserNotificationsSupported() && !isMobileDevice() ? 'Notifications navigateur disponibles sur cet appareil' : 'Canal destiné aux navigateurs sur ordinateur' },
+                    { id: 'mobile', label: 'Notifications mobiles', sub: browserNotificationsSupported() && isMobileDevice() ? 'Notifications navigateur disponibles sur cet appareil' : 'Sur iPhone : installer l’app sur l’écran d’accueil pour autoriser les notifications' }
                   ].map(channel => (
                     <div key={channel.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <div>
@@ -255,7 +270,10 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                     { id: 'newsletters', label: 'Newsletters' },
                     { id: 'celebrations', label: 'Célébrations' },
                     { id: 'highlights', label: 'Temps forts & animations' },
-                    { id: 'points', label: 'Points gagnés ou utilisés' }
+                    { id: 'points', label: 'Points gagnés ou utilisés' },
+                    { id: 'documents', label: 'Nouveaux documents' },
+                    { id: 'ideas', label: 'Nouvelles idées' },
+                    { id: 'games', label: 'Jeux & e-learning' }
                   ].map(type => (
                     <div key={type.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <span className="font-medium text-slate-700">{type.label}</span>

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   supabase,
   isSupabaseConfigured } from './supabaseClient';
+import { isMobileDevice, showBrowserNotification } from './notificationUtils';
 import { CATEGORIES,
   DEPARTMENTS,
   INITIAL_CONFIG } from './constants';
@@ -318,7 +319,7 @@ const App: React.FC = () => {
           notification_settings: profile.notification_settings || {
             inApp: true, email: true, desktop: true, mobile: true,
             posts: true, events: true, messages: true, birthdays: true,
-            polls: true, newsletters: true, celebrations: true, highlights: true, points: true
+            polls: true, newsletters: true, celebrations: true, highlights: true, points: true, documents: true, ideas: true, games: true
           }
         } as User;
 
@@ -1613,10 +1614,14 @@ const App: React.FC = () => {
               item,
               ...previous.filter(existing => existing.id !== item.id)
             ].slice(0, 100));
+            const channelEnabled = isMobileDevice()
+              ? currentUser?.notification_settings?.mobile
+              : currentUser?.notification_settings?.desktop;
+            if (channelEnabled) void showBrowserNotification(item.title, item.message);
           }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
-          if (currentUser && currentUser.notification_settings?.posts) {
+          if (currentUser && currentUser.notification_settings?.newsletters) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
           }
           scheduleRealtimeRefresh('newsletters');
@@ -1628,7 +1633,7 @@ const App: React.FC = () => {
           scheduleRealtimeRefresh('polls');
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.posts || currentUser.notification_settings?.birthdays)) {
+          if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.celebrations || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
           }
           scheduleRealtimeRefresh('celebrations');
@@ -1739,7 +1744,10 @@ const App: React.FC = () => {
           newsletters: true,
           celebrations: true,
           highlights: true,
-          points: true
+          points: true,
+          documents: true,
+          ideas: true,
+          games: true
         }
             });
 

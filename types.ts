@@ -54,6 +54,9 @@ export interface NotificationSettings {
   celebrations: boolean;
   highlights: boolean;
   points: boolean;
+  documents: boolean;
+  ideas: boolean;
+  games: boolean;
 }
 
 export interface User {
