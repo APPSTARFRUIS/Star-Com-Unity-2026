@@ -775,6 +775,8 @@ const App: React.FC = () => {
     }
 
     const request = (async () => {
+      let viewLoadedSuccessfully = false;
+
       try {
         switch (targetView) {
           case 'social': {
@@ -787,9 +789,51 @@ const App: React.FC = () => {
           }
 
           case 'evenements': {
-            await fetchOrganization();
-            const { data } = await supabase.from('events').select('*').order('date', { ascending: true }).limit(100);
-            if (data) setEvents(data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
+            // La liste des événements ne doit pas attendre les structures.
+            // Celles-ci servent uniquement au sélecteur d'audience du formulaire.
+            void fetchOrganization(1);
+
+            let eventsResult: any = null;
+            let lastEventsError: any = null;
+
+            for (let attempt = 1; attempt <= 2; attempt += 1) {
+              try {
+                eventsResult = await withRequestTimeout(
+                  supabase
+                    .from('events')
+                    .select('id,type,title,description,location,date,start_time,end_time,participants,attendees,created_by,created_at,audience_companies')
+                    .order('date', { ascending: true })
+                    .limit(100),
+                  7000,
+                  `liste événements ${attempt}/2`
+                ) as any;
+
+                if (!eventsResult?.error && Array.isArray(eventsResult?.data)) {
+                  break;
+                }
+
+                lastEventsError = eventsResult?.error;
+              } catch (error) {
+                lastEventsError = error;
+              }
+
+              if (attempt < 2) {
+                await new Promise(resolve => setTimeout(resolve, 900));
+              }
+            }
+
+            if (eventsResult?.error || !Array.isArray(eventsResult?.data)) {
+              throw lastEventsError || new Error('Impossible de charger les événements.');
+            }
+
+            setEvents(eventsResult.data.map((e: any) => ({
+              ...e,
+              startTime: e.start_time,
+              endTime: e.end_time,
+              createdBy: e.created_by,
+              audienceCompanies: e.audience_companies || ['Star Fruits']
+            })));
+
             break;
           }
 
@@ -902,33 +946,44 @@ const App: React.FC = () => {
           }
 
           case 'documents': {
-            // Les documents ne dépendent pas de l'organisation pour être listés.
-            // Avant, un org_entities lent bloquait totalement la rubrique Documents.
-            // On recharge les structures en arrière-plan uniquement pour le sélecteur d'audience.
+            // Documents et organisation sont totalement indépendants.
             void fetchOrganization(1);
 
             const documentColumns =
               'id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies';
 
             let docsResult: any = null;
+            let lastDocsError: any = null;
 
-            try {
-              docsResult = await withRequestTimeout(
-                supabase
-                  .from('documents')
-                  .select(documentColumns)
-                  .order('uploaded_at', { ascending: false })
-                  .limit(100),
-                7000,
-                'liste documents'
-              ) as any;
-            } catch (error) {
-              console.warn('Chargement liste documents interrompu', error);
+            // Deux tentatives maximum : suffisant pour Safari sans créer une rafale Supabase.
+            for (let attempt = 1; attempt <= 2; attempt += 1) {
+              try {
+                docsResult = await withRequestTimeout(
+                  supabase
+                    .from('documents')
+                    .select(documentColumns)
+                    .order('uploaded_at', { ascending: false })
+                    .limit(100),
+                  7000,
+                  `liste documents ${attempt}/2`
+                ) as any;
+
+                if (!docsResult?.error && Array.isArray(docsResult?.data)) {
+                  break;
+                }
+
+                lastDocsError = docsResult?.error;
+              } catch (error) {
+                lastDocsError = error;
+              }
+
+              if (attempt < 2) {
+                await new Promise(resolve => setTimeout(resolve, 900));
+              }
             }
 
-            // Compatibilité : si storage_path pose problème sur une ancienne ligne/schema,
-            // on retente avec les colonnes minimales sans télécharger le champ lourd `data`.
-            if (!docsResult || docsResult.error) {
+            // Compatibilité d'anciennes lignes sans storage_path, toujours sans récupérer `data`.
+            if (docsResult?.error || !Array.isArray(docsResult?.data)) {
               try {
                 docsResult = await withRequestTimeout(
                   supabase
@@ -940,26 +995,27 @@ const App: React.FC = () => {
                   'liste documents secours'
                 ) as any;
               } catch (fallbackError) {
-                console.error('Chargement documents de secours interrompu', fallbackError);
+                lastDocsError = fallbackError;
               }
             }
 
-            if (docsResult?.error) {
-              console.error('Erreur chargement documents :', docsResult.error);
-              break;
+            if (docsResult?.error || !Array.isArray(docsResult?.data)) {
+              // Important : on throw au lieu de faire un simple break.
+              // Sinon fetchViewData mémorise la vue comme « chargée » alors qu'elle a échoué,
+              // et Safari ne retente plus lors du prochain passage.
+              throw lastDocsError || docsResult?.error || new Error('Impossible de charger les documents.');
             }
 
-            if (Array.isArray(docsResult?.data)) {
-              setDocuments(docsResult.data.map((d: any) => ({
-                ...d,
-                uploadedBy: d.uploaded_by,
-                uploadedByName: d.uploaded_by_name,
-                uploadedAt: d.uploaded_at || new Date().toISOString(),
-                data: d.storage_path || '',
-                storagePath: d.storage_path || '',
-                audienceCompanies: d.audience_companies || ['Star Fruits']
-              })) as any);
-            }
+            setDocuments(docsResult.data.map((d: any) => ({
+              ...d,
+              uploadedBy: d.uploaded_by,
+              uploadedByName: d.uploaded_by_name,
+              uploadedAt: d.uploaded_at || new Date().toISOString(),
+              data: d.storage_path || '',
+              storagePath: d.storage_path || '',
+              audienceCompanies: d.audience_companies || ['Star Fruits']
+            })) as any);
+
             break;
           }
 
@@ -1121,10 +1177,14 @@ const App: React.FC = () => {
             break;
         }
 
-        loadedViewsRef.current.add(targetView);
+        viewLoadedSuccessfully = true;
+
+        if (viewLoadedSuccessfully) {
+          loadedViewsRef.current.add(targetView);
+        }
       } catch (error) {
-        // Ne jamais mémoriser une rubrique en échec comme déjà chargée.
-        // Important pour Équipe sur mobile : un retour dans la rubrique doit relancer les profils.
+        // Une rubrique en erreur n'est jamais considérée comme chargée.
+        // Un retour dessus relancera donc réellement la requête sur Safari/iPhone.
         loadedViewsRef.current.delete(targetView);
         console.error(`Erreur de chargement de la rubrique ${targetView}:`, error);
       }
