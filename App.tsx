@@ -902,17 +902,64 @@ const App: React.FC = () => {
           }
 
           case 'documents': {
-            await fetchOrganization();
-            const { data } = await supabase.from('documents').select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies').order('uploaded_at', { ascending: false }).limit(100);
-            if (data) setDocuments(data.map((d: any) => ({
-              ...d,
-              uploadedBy: d.uploaded_by,
-              uploadedByName: d.uploaded_by_name,
-              uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString(),
-              data: d.storage_path || '',
-              storagePath: d.storage_path || '',
-              audienceCompanies: d.audience_companies || ['Star Fruits']
-            })) as any);
+            // Les documents ne dépendent pas de l'organisation pour être listés.
+            // Avant, un org_entities lent bloquait totalement la rubrique Documents.
+            // On recharge les structures en arrière-plan uniquement pour le sélecteur d'audience.
+            void fetchOrganization(1);
+
+            const documentColumns =
+              'id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies';
+
+            let docsResult: any = null;
+
+            try {
+              docsResult = await withRequestTimeout(
+                supabase
+                  .from('documents')
+                  .select(documentColumns)
+                  .order('uploaded_at', { ascending: false })
+                  .limit(100),
+                7000,
+                'liste documents'
+              ) as any;
+            } catch (error) {
+              console.warn('Chargement liste documents interrompu', error);
+            }
+
+            // Compatibilité : si storage_path pose problème sur une ancienne ligne/schema,
+            // on retente avec les colonnes minimales sans télécharger le champ lourd `data`.
+            if (!docsResult || docsResult.error) {
+              try {
+                docsResult = await withRequestTimeout(
+                  supabase
+                    .from('documents')
+                    .select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,audience_companies')
+                    .order('uploaded_at', { ascending: false })
+                    .limit(100),
+                  7000,
+                  'liste documents secours'
+                ) as any;
+              } catch (fallbackError) {
+                console.error('Chargement documents de secours interrompu', fallbackError);
+              }
+            }
+
+            if (docsResult?.error) {
+              console.error('Erreur chargement documents :', docsResult.error);
+              break;
+            }
+
+            if (Array.isArray(docsResult?.data)) {
+              setDocuments(docsResult.data.map((d: any) => ({
+                ...d,
+                uploadedBy: d.uploaded_by,
+                uploadedByName: d.uploaded_by_name,
+                uploadedAt: d.uploaded_at || new Date().toISOString(),
+                data: d.storage_path || '',
+                storagePath: d.storage_path || '',
+                audienceCompanies: d.audience_companies || ['Star Fruits']
+              })) as any);
+            }
             break;
           }
 
@@ -2455,8 +2502,29 @@ const App: React.FC = () => {
             categories={appConfig.documentCategories || []}
             entities={orgEntities}
             onUpload={async (n, t, size, c, d, audienceCompanies) => {
-              if (supabase) await supabase.from('documents').insert({ name: n, type: t, size, category: c, uploaded_by: currentUser.id, uploaded_by_name: currentUser.name, uploaded_at: new Date().toISOString(), data: d, storage_path: d, audience_companies: audienceCompanies });
-              void fetchViewData(currentViewRef.current, true);
+              if (!supabase) return;
+
+              const { error } = await supabase.from('documents').insert({
+                name: n,
+                type: t,
+                size,
+                category: c,
+                uploaded_by: currentUser.id,
+                uploaded_by_name: currentUser.name,
+                uploaded_at: new Date().toISOString(),
+                data: d,
+                storage_path: d,
+                audience_companies: audienceCompanies
+              });
+
+              if (error) {
+                console.error('Erreur ajout document :', error);
+                addToast(`Erreur lors de l'ajout du document : ${error.message || ''}`, 'error');
+                return;
+              }
+
+              addToast('Document ajouté !');
+              void fetchViewData('documents', true);
             }}
             onDelete={async (id) => { if (supabase) await supabase.from('documents').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
           />
