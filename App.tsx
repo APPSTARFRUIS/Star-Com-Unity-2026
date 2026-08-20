@@ -126,6 +126,19 @@ const App: React.FC = () => {
     currentViewRef.current = view;
   }, [view]);
 
+  useEffect(() => {
+    if (!currentUser || !supabase) return;
+
+    const needsDocuments = view === 'documents' && documents.length === 0;
+    const needsEvents = view === 'evenements' && events.length === 0;
+    const needsNewsletter = view === 'newsletter' && newsletters.length === 0;
+
+    if (needsDocuments || needsEvents || needsNewsletter) {
+      loadedViewsRef.current.delete(view);
+      void fetchViewData(view, true);
+    }
+  }, [view, currentUser?.id]);
+
   // Administration > Boutique : charge toutes les commandes boutique.
   // 'admin' n'appartient pas au ViewType de fetchViewData, on le traite donc séparément.
   useEffect(() => {
@@ -315,7 +328,22 @@ const App: React.FC = () => {
         window.setTimeout(() => {
           void fetchProfilesWithRetry(1);
           void fetchOrganization(1);
-        }, 250);
+
+          // Hydratation mobile progressive : une seule rubrique légère à la fois.
+          // Cela évite l'écran vide sur Safari sans lancer une rafale de requêtes.
+          void (async () => {
+            const preloadViews: ViewType[] = ['documents', 'evenements', 'newsletter'];
+            for (const preloadView of preloadViews) {
+              if (currentViewRef.current === preloadView) continue;
+              try {
+                await fetchViewData(preloadView, false);
+              } catch (error) {
+                console.warn(`Préchargement ${preloadView} ignoré`, error);
+              }
+              await new Promise(resolve => setTimeout(resolve, 350));
+            }
+          })();
+        }, 400);
 
         return mappedUser;
       } catch (error) {
@@ -344,6 +372,31 @@ const App: React.FC = () => {
         );
       })
     ]);
+  };
+
+  const getViewCache = <T,>(key: string): T[] | null => {
+    try {
+      const raw = localStorage.getItem(`star_community_view_cache_${key}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const data = parsed?.data;
+      return Array.isArray(data) ? data as T[] : null;
+    } catch {
+      try { localStorage.removeItem(`star_community_view_cache_${key}`); } catch {}
+      return null;
+    }
+  };
+
+  const setViewCache = (key: string, data: any[]) => {
+    if (!Array.isArray(data)) return;
+    try {
+      localStorage.setItem(
+        `star_community_view_cache_${key}`,
+        JSON.stringify({ data, cachedAt: Date.now() })
+      );
+    } catch {
+      // Cache facultatif.
+    }
   };
 
   const cacheProfiles = (profiles: User[]) => {
@@ -789,8 +842,13 @@ const App: React.FC = () => {
           }
 
           case 'evenements': {
-            // La liste des événements ne doit pas attendre les structures.
-            // Celles-ci servent uniquement au sélecteur d'audience du formulaire.
+            // Affiche immédiatement le dernier cache local si Safari tarde.
+            const cachedEvents = getViewCache<any>('events');
+            if (cachedEvents?.length && events.length === 0) {
+              setEvents(cachedEvents as any);
+            }
+
+            // L'organisation ne bloque jamais la liste.
             void fetchOrganization(1);
 
             let eventsResult: any = null;
@@ -804,36 +862,39 @@ const App: React.FC = () => {
                     .select('id,type,title,description,location,date,start_time,end_time,participants,attendees,created_by,created_at,audience_companies')
                     .order('date', { ascending: true })
                     .limit(100),
-                  7000,
+                  6500,
                   `liste événements ${attempt}/2`
                 ) as any;
 
-                if (!eventsResult?.error && Array.isArray(eventsResult?.data)) {
-                  break;
-                }
-
+                if (!eventsResult?.error && Array.isArray(eventsResult?.data)) break;
                 lastEventsError = eventsResult?.error;
               } catch (error) {
                 lastEventsError = error;
               }
 
               if (attempt < 2) {
-                await new Promise(resolve => setTimeout(resolve, 900));
+                await new Promise(resolve => setTimeout(resolve, 1200));
               }
             }
 
             if (eventsResult?.error || !Array.isArray(eventsResult?.data)) {
+              if (cachedEvents?.length) {
+                console.warn('Événements réseau indisponibles : cache local conservé.', lastEventsError);
+                break;
+              }
               throw lastEventsError || new Error('Impossible de charger les événements.');
             }
 
-            setEvents(eventsResult.data.map((e: any) => ({
+            const mappedEvents = eventsResult.data.map((e: any) => ({
               ...e,
               startTime: e.start_time,
               endTime: e.end_time,
               createdBy: e.created_by,
               audienceCompanies: e.audience_companies || ['Star Fruits']
-            })));
+            }));
 
+            setEvents(mappedEvents);
+            setViewCache('events', mappedEvents);
             break;
           }
 
@@ -946,7 +1007,11 @@ const App: React.FC = () => {
           }
 
           case 'documents': {
-            // Documents et organisation sont totalement indépendants.
+            const cachedDocuments = getViewCache<any>('documents');
+            if (cachedDocuments?.length && documents.length === 0) {
+              setDocuments(cachedDocuments as any);
+            }
+
             void fetchOrganization(1);
 
             const documentColumns =
@@ -955,7 +1020,6 @@ const App: React.FC = () => {
             let docsResult: any = null;
             let lastDocsError: any = null;
 
-            // Deux tentatives maximum : suffisant pour Safari sans créer une rafale Supabase.
             for (let attempt = 1; attempt <= 2; attempt += 1) {
               try {
                 docsResult = await withRequestTimeout(
@@ -964,25 +1028,21 @@ const App: React.FC = () => {
                     .select(documentColumns)
                     .order('uploaded_at', { ascending: false })
                     .limit(100),
-                  7000,
+                  6500,
                   `liste documents ${attempt}/2`
                 ) as any;
 
-                if (!docsResult?.error && Array.isArray(docsResult?.data)) {
-                  break;
-                }
-
+                if (!docsResult?.error && Array.isArray(docsResult?.data)) break;
                 lastDocsError = docsResult?.error;
               } catch (error) {
                 lastDocsError = error;
               }
 
               if (attempt < 2) {
-                await new Promise(resolve => setTimeout(resolve, 900));
+                await new Promise(resolve => setTimeout(resolve, 1200));
               }
             }
 
-            // Compatibilité d'anciennes lignes sans storage_path, toujours sans récupérer `data`.
             if (docsResult?.error || !Array.isArray(docsResult?.data)) {
               try {
                 docsResult = await withRequestTimeout(
@@ -991,7 +1051,7 @@ const App: React.FC = () => {
                     .select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,audience_companies')
                     .order('uploaded_at', { ascending: false })
                     .limit(100),
-                  7000,
+                  6500,
                   'liste documents secours'
                 ) as any;
               } catch (fallbackError) {
@@ -1000,13 +1060,14 @@ const App: React.FC = () => {
             }
 
             if (docsResult?.error || !Array.isArray(docsResult?.data)) {
-              // Important : on throw au lieu de faire un simple break.
-              // Sinon fetchViewData mémorise la vue comme « chargée » alors qu'elle a échoué,
-              // et Safari ne retente plus lors du prochain passage.
+              if (cachedDocuments?.length) {
+                console.warn('Documents réseau indisponibles : cache local conservé.', lastDocsError);
+                break;
+              }
               throw lastDocsError || docsResult?.error || new Error('Impossible de charger les documents.');
             }
 
-            setDocuments(docsResult.data.map((d: any) => ({
+            const mappedDocuments = docsResult.data.map((d: any) => ({
               ...d,
               uploadedBy: d.uploaded_by,
               uploadedByName: d.uploaded_by_name,
@@ -1014,8 +1075,10 @@ const App: React.FC = () => {
               data: d.storage_path || '',
               storagePath: d.storage_path || '',
               audienceCompanies: d.audience_companies || ['Star Fruits']
-            })) as any);
+            }));
 
+            setDocuments(mappedDocuments as any);
+            setViewCache('documents', mappedDocuments);
             break;
           }
 
@@ -1057,15 +1120,46 @@ const App: React.FC = () => {
           }
 
           case 'newsletter': {
-            const { data } = await supabase.from('newsletters').select('*').order('published_at', { ascending: false }).limit(30);
-            if (data) setNewsletters(data.map((n: any) => ({
+            const cachedNewsletters = getViewCache<any>('newsletters');
+            if (cachedNewsletters?.length && newsletters.length === 0) {
+              setNewsletters(cachedNewsletters as any);
+            }
+
+            let newsletterResult: any = null;
+            try {
+              newsletterResult = await withRequestTimeout(
+                supabase
+                  .from('newsletters')
+                  .select('id,title,summary,cover_image,articles,published_at,author_name,read_count')
+                  .order('published_at', { ascending: false })
+                  .limit(30),
+                6500,
+                'liste newsletters'
+              ) as any;
+            } catch (error) {
+              if (!cachedNewsletters?.length) throw error;
+              console.warn('Newsletters réseau indisponibles : cache local conservé.', error);
+              break;
+            }
+
+            if (newsletterResult?.error || !Array.isArray(newsletterResult?.data)) {
+              if (!cachedNewsletters?.length) {
+                throw newsletterResult?.error || new Error('Impossible de charger les newsletters.');
+              }
+              break;
+            }
+
+            const mappedNewsletters = newsletterResult.data.map((n: any) => ({
               ...n,
               coverImage: n.cover_image,
               publishedAt: n.published_at,
               authorName: n.author_name,
               readCount: n.read_count,
               articles: n.articles
-            })));
+            }));
+
+            setNewsletters(mappedNewsletters);
+            setViewCache('newsletters', mappedNewsletters);
             break;
           }
 
