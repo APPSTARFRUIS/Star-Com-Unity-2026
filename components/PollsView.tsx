@@ -223,6 +223,7 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
     setQuestions([]);
     setFormTitle('Formulaire sans titre');
     setFormDesc('');
+    setAudienceCompany('ALL');
     setSettings({
       collectEmail: false,
       limitOneResponse: true,
@@ -485,7 +486,7 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
       ) : (
         <div className="flex items-center justify-between mb-8">
           <div><h1 className="text-3xl font-bold text-slate-800 tracking-tight">Sondages & Formulaires</h1><p className="text-slate-500">Recueillez les avis de l'équipe.</p></div>
-          {canCreate && (<button onClick={() => { setActiveTab('create'); setCreateSubTab('questions'); setFormTitle('Formulaire sans titre'); setQuestions([]); }} className="flex items-center gap-2 px-6 py-3 bg-[#14532d] text-white rounded-2xl font-bold hover:bg-green-800 shadow-md transition-all active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>Nouveau formulaire</button>)}
+          {canCreate && (<button onClick={() => { setActiveTab('create'); setCreateSubTab('questions'); setFormTitle('Formulaire sans titre'); setFormDesc(''); setQuestions([]); setAudienceCompany('ALL'); }} className="flex items-center gap-2 px-6 py-3 bg-[#14532d] text-white rounded-2xl font-bold hover:bg-green-800 shadow-md transition-all active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>Nouveau formulaire</button>)}
         </div>
       )}
 
@@ -499,6 +500,13 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
                   {canModerate && <button onClick={() => onDeletePoll(poll.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" /></svg></button>}
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2 line-clamp-1">{poll.title}</h3>
+                <div className="mb-3">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider">
+                    {poll.audienceCompanies?.includes('ALL')
+                      ? 'Tous les utilisateurs'
+                      : (poll.audienceCompanies?.length ? poll.audienceCompanies.join(' · ') : 'Tous les utilisateurs')}
+                  </span>
+                </div>
                 <p className="text-sm text-slate-500 mb-6 line-clamp-2">{poll.description || "Aucune description."}</p>
                 <div className="flex items-center gap-2 mt-auto">
                   <button onClick={() => { setSelectedPoll(poll); setActiveTab('vote'); setIsSubmitted(false); setAnswers({}); }} className="flex-1 py-3 bg-slate-50 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition-colors border border-slate-100">Participer</button>
@@ -601,9 +609,21 @@ const PollsView: React.FC<PollsViewProps> = ({ currentUser, polls, entities, onC
               </div>
             ) : createSubTab === 'questions' ? (
               <>
-                <div className="bg-white rounded-xl border-t-8 border-t-blue-600 border border-slate-200 p-6 shadow-sm mb-6">
-                  <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} className="w-full text-3xl font-bold text-slate-900 border-b border-transparent focus:border-slate-200 focus:outline-none mb-4 pb-2" placeholder="Titre du formulaire" />
-                  <input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full text-sm text-slate-500 border-b border-transparent focus:border-slate-200 focus:outline-none" placeholder="Description du formulaire" />
+                <div className="bg-white rounded-xl border-t-8 border-t-blue-600 border border-slate-200 p-6 shadow-sm mb-6 space-y-6">
+                  <div>
+                    <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} className="w-full text-3xl font-bold text-slate-900 border-b border-transparent focus:border-slate-200 focus:outline-none mb-4 pb-2" placeholder="Titre du formulaire" />
+                    <input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full text-sm text-slate-500 border-b border-transparent focus:border-slate-200 focus:outline-none" placeholder="Description du formulaire" />
+                  </div>
+
+                  <div className="pt-5 border-t border-slate-100">
+                    <AudienceSelector
+                      currentUser={currentUser}
+                      entities={entities}
+                      value={audienceCompany}
+                      onChange={setAudienceCompany}
+                      label="Qui peut voir ce sondage ?"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-4">
                   {(selectedPoll ? selectedPoll.questions : questions).map((q, idx) => (
