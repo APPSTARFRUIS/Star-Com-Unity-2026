@@ -92,6 +92,21 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
 
   const isImage = (file: Attachment) => file.type.startsWith('image/');
 
+  const dayKey = (dateValue: string) => {
+    const d = new Date(dateValue);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+
+  const formatConversationDate = (dateValue: string) => {
+    const d = new Date(dateValue);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (dayKey(dateValue) === dayKey(today.toISOString())) return "Aujourd’hui";
+    if (dayKey(dateValue) === dayKey(yesterday.toISOString())) return 'Hier';
+    return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+  };
+
   return (
     <div className="max-w-6xl mx-auto h-[calc(100vh-160px)] flex bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in duration-500">
       {/* Contacts Sidebar */}
@@ -179,14 +194,6 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                </button>
-                <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                </button>
-              </div>
             </div>
 
             {/* Messages Content */}
@@ -200,10 +207,22 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                 </span>
               </div>
 
-              {conversation.map(message => {
+              {conversation.map((message, index) => {
                 const isMine = message.senderId === currentUser.id;
+                const previous = index > 0 ? conversation[index - 1] : null;
+                const showDate = !previous || dayKey(previous.createdAt) !== dayKey(message.createdAt);
                 return (
-                  <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  <React.Fragment key={message.id}>
+                    {showDate && (
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="h-px bg-slate-200 flex-1" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-white border border-slate-100 rounded-full px-3 py-1">
+                          {formatConversationDate(message.createdAt)}
+                        </span>
+                        <div className="h-px bg-slate-200 flex-1" />
+                      </div>
+                    )}
+                    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                       <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
                         isMine 
@@ -236,7 +255,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                         {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
-                  </div>
+                    </div>
+                  </React.Fragment>
                 );
               })}
             </div>

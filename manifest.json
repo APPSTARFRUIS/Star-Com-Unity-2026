@@ -1,0 +1,22 @@
+
+{
+  "name": "PlanEat - Budget & Menus",
+  "short_name": "PlanEat",
+  "description": "Planification de menus économiques et listes de courses automatiques.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

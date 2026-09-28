@@ -25,7 +25,7 @@ interface EngagementViewProps {
   onEarnPoints: (userId: string, amount: number, reason: string) => void;
 }
 
-type Tab = 'general' | 'month' | 'contributors' | 'animations';
+type Tab = 'general' | 'contributors' | 'animations';
 
 const typeLabels: Record<EngagementType, string> = {
   countdown: 'Compte à rebours', raffle: 'Tirage au sort', contest: 'Jeu concours', advent: "Calendrier de l'Avent", mission: 'Mission ponctuelle', season: 'Saison', predictions: 'Pronostics'
@@ -59,14 +59,7 @@ const EngagementView: React.FC<EngagementViewProps> = ({
 
   const getOpening = (animationId: string, dayNumber: number) =>
     allAdventOpenings.find(opening => opening.animationId === animationId && Number(opening.dayNumber) === Number(dayNumber));
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-
   const generalRanking = useMemo(() => [...users].sort((a, b) => (b.points || 0) - (a.points || 0)), [users]);
-  const monthRanking = useMemo(() => {
-    const scores = new Map<string, number>(); users.forEach(u => scores.set(u.id, 0));
-    transactions.forEach(t => { if (new Date(t.date) >= monthStart) { const sign = t.type === 'spend' ? -1 : 1; scores.set(t.userId, (scores.get(t.userId) || 0) + sign * Math.abs(t.amount)); } });
-    return users.map(u => ({ ...u, points: scores.get(u.id) || 0 })).sort((a, b) => b.points - a.points);
-  }, [users, transactions]);
   const visibleAnimations = useMemo(() => animations.filter(animation => animation.status === 'active'), [animations]);
 
   const contributors = useMemo(() => users.map(user => {
@@ -194,12 +187,11 @@ const EngagementView: React.FC<EngagementViewProps> = ({
     <div className="mb-8">
       <p className="text-xs font-black uppercase tracking-[0.2em] text-green-700">Engagement</p>
       <h1 className="text-3xl md:text-4xl font-black text-slate-900">{section === 'rankings' ? 'Classements' : 'Temps forts'}</h1>
-      <p className="text-slate-500 mt-2">{section === 'rankings' ? 'Podiums, progression mensuelle et contributions.' : 'Calendriers, tirages au sort, concours, missions et saisons en cours.'}</p>
+      <p className="text-slate-500 mt-2">{section === 'rankings' ? 'Podiums et contributions.' : 'Calendriers, tirages au sort, concours, missions et saisons en cours.'}</p>
     </div>
     {section === 'rankings' && <>
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6">{[['general','Classement général'],['month','Ce mois'],['contributors','Top contributeurs']].map(([id,label]) => <button key={id} onClick={() => setTab(id as Exclude<Tab, 'animations'>)} className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-black ${tab === id ? 'bg-[#14532d] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>)}</div>
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-6">{[['general','Classement général'],['contributors','Top contributeurs']].map(([id,label]) => <button key={id} onClick={() => setTab(id as Exclude<Tab, 'animations'>)} className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-black ${tab === id ? 'bg-[#14532d] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>)}</div>
       {tab === 'general' && renderRanking(generalRanking)}
-      {tab === 'month' && renderRanking(monthRanking)}
       {tab === 'contributors' && <div className="space-y-3"><div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-4 text-sm">Score automatique : publication 5 pts, idée 4 pts, commentaire 2 pts, réponse à un sondage 2 pts.</div>{contributors.map((entry, index) => <div key={entry.user.id} className={`bg-white border rounded-2xl p-4 flex items-center gap-4 ${entry.user.id === currentUser.id ? 'border-green-500' : 'border-slate-100'}`}><div className="w-9 text-center font-black text-slate-400">#{index + 1}</div><img src={entry.user.avatar} alt="" className="w-11 h-11 rounded-full" /><div className="flex-1 min-w-0"><p className="font-black truncate">{entry.user.name}</p><p className="text-xs text-slate-500">{entry.userPosts} publications · {entry.comments} commentaires · {entry.userIdeas} idées · {entry.pollAnswers} sondages</p></div><div className="font-black text-xl text-blue-700">{entry.score}</div></div>)}</div>}
     </>}
     {section === 'highlights' && <>

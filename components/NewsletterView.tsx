@@ -270,7 +270,18 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-article {
-            padding: 72px;
+            padding: 56px 64px 48px;
+            min-height: 1122px;
+            max-height: 1122px;
+            overflow: hidden;
+            page-break-before: always;
+            break-before: page;
+            page-break-after: always;
+            break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            display: flex;
+            flex-direction: column;
           }
 
           .pdf-article-header {
@@ -279,7 +290,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
             align-items: center;
             border-bottom: 2px solid #f1f5f9;
             padding-bottom: 18px;
-            margin-bottom: 38px;
+            margin-bottom: 24px;
           }
 
           .pdf-category {
@@ -297,9 +308,9 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-article h2 {
-            font-size: 46px;
+            font-size: 38px;
             line-height: 1.08;
-            margin: 0 0 34px;
+            margin: 0 0 16px;
             font-weight: 900;
             letter-spacing: -1.5px;
             text-transform: uppercase;
@@ -308,30 +319,30 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
 
           .pdf-main-image {
             width: 100%;
-            height: 320px;
+            height: 250px;
             object-fit: cover;
             border-radius: 22px;
             display: block;
-            margin: 0 0 34px;
+            margin: 0 0 24px;
             page-break-inside: avoid;
           }
 
           .pdf-article-summary {
             background: #f8fafc;
             border-left: 12px solid #16a34a;
-            padding: 28px 32px;
+            padding: 20px 24px;
             font-style: italic;
-            font-size: 21px;
+            font-size: 17px;
             color: #334155;
-            margin-bottom: 34px;
+            margin-bottom: 22px;
             border-radius: 0 22px 22px 0;
             line-height: 1.45;
             page-break-inside: avoid;
           }
 
           .pdf-blocks {
-            font-size: 17px;
-            line-height: 1.75;
+            font-size: 15px;
+            line-height: 1.55;
             color: #1e293b;
           }
 
@@ -342,13 +353,13 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-media-block {
-            margin: 28px 0;
+            margin: 18px 0;
             page-break-inside: avoid;
           }
 
           .pdf-media-block img {
             width: 100%;
-            max-height: 520px;
+            max-height: 330px;
             object-fit: contain;
             border-radius: 20px;
             display: block;
@@ -360,7 +371,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
             padding: 44px 32px;
             text-align: center;
             border-radius: 26px;
-            margin: 30px 0;
+            margin: 18px 0;
             page-break-inside: avoid;
           }
 
@@ -397,7 +408,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-button-block {
-            margin: 30px 0;
+            margin: 18px 0;
             text-align: center;
             page-break-inside: avoid;
           }
@@ -406,7 +417,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
-            margin: 30px 0;
+            margin: 18px 0;
             page-break-inside: avoid;
           }
 
@@ -419,7 +430,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-footer {
-            margin-top: 56px;
+            margin-top: auto;
             border-top: 2px solid #f1f5f9;
             padding-top: 28px;
             text-align: center;
@@ -503,7 +514,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
         scrollX: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['css'] }
+      pagebreak: { mode: ['css', 'legacy'], before: '.pdf-article', after: ['.pdf-cover', '.pdf-summary', '.pdf-article'], avoid: ['.pdf-article-header', '.pdf-main-image', '.pdf-article-summary', '.pdf-media-block', '.pdf-video-block', '.pdf-button-block', '.pdf-gallery-block', '.pdf-footer'] }
     };
 
     try {

@@ -352,6 +352,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
   const exportPdf = async () => {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    pdf.setDisplayMode('fullwidth', 'single', 'UseNone');
     pdf.setProperties({
       title: 'Organigramme Star Group',
       subject: 'Organigramme interactif Star Group',
@@ -614,11 +615,11 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
           const col = serviceIndex % serviceCols;
           const row = Math.floor(serviceIndex / serviceCols);
           const x = margin + col * (serviceW + serviceGap);
-          const y = cursorY + row * 77;
+          const y = cursorY + row * 58;
 
           pdf.setFillColor(241, 245, 249);
           pdf.setDrawColor(203, 213, 225);
-          pdf.roundedRect(x, y, serviceW, 70, 5, 5, 'FD');
+          pdf.roundedRect(x, y, serviceW, 53, 5, 5, 'FD');
 
           pdf.setFont('helvetica', 'bold');
           pdf.setFontSize(9);
@@ -628,24 +629,24 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
           const members = eu.filter(user => user.department === service.name);
           let memberY = y + 16;
-          for (const user of members.slice(0, 2)) {
+          for (const user of members.slice(0, 1)) {
             await drawPersonPdfCard(user, service.name, x + 4, memberY, serviceW - 8, `user-${user.id}`);
             memberY += 31;
           }
 
-          if (members.length > 2) {
+          if (members.length > 1) {
             pdf.setFontSize(7);
             pdf.setTextColor(100, 116, 139);
-            pdf.text(`+ ${members.length - 2} autre(s) collaborateur(s)`, x + 5, y + 66);
+            pdf.text(`+ ${members.length - 1} autre(s) collaborateur(s)`, x + 5, y + 49);
           }
 
           serviceIndex += 1;
         }
 
-        cursorY += Math.ceil(es.length / serviceCols) * 77;
+        cursorY += Math.ceil(es.length / serviceCols) * 58;
       }
 
-      if (ec.length && cursorY < 175) {
+      if (ec.length && cursorY < 160) {
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10);
         pdf.setTextColor(15, 23, 42);
@@ -674,7 +675,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       const leftX = margin;
       const leftY = 38;
       const leftW = 92;
-      const leftH = 150;
+      const leftH = 146;
 
       pdf.setFillColor(15, 23, 42);
       pdf.roundedRect(leftX, leftY, leftW, leftH, 7, 7, 'F');
@@ -757,7 +758,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
       pdf.text('À propos', rightX, 143);
       pdf.setFillColor(255, 255, 255);
       pdf.setDrawColor(203, 213, 225);
-      pdf.roundedRect(rightX, 150, rightW, 38, 4, 4, 'D');
+      pdf.roundedRect(rightX, 150, rightW, 34, 4, 4, 'D');
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(10);
       pdf.setTextColor(51, 65, 85);
@@ -765,7 +766,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         personNote(item.person) || 'Anecdote / information personnelle à renseigner.',
         rightW - 10
       );
-      pdf.text(noteLines.slice(0, 8), rightX + 5, 159);
+      pdf.text(noteLines.slice(0, 6), rightX + 5, 159);
 
       const entityPage = companyPage.get(item.entity.id);
       if (entityPage) {
