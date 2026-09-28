@@ -352,7 +352,7 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
 
   const exportPdf = async () => {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    pdf.setDisplayMode('fullwidth', 'single', 'UseNone');
+    pdf.setDisplayMode('fullwidth', 'single');
     pdf.setProperties({
       title: 'Organigramme Star Group',
       subject: 'Organigramme interactif Star Group',
@@ -372,11 +372,6 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     const companyPage = new Map<string, number>();
     const personPage = new Map<string, number>();
 
-    let nextPage = 2;
-    structurePages.forEach(entity => {
-      companyPage.set(entity.id, nextPage++);
-    });
-
     const people: Array<{ key: string; person: Person; entity: OrgEntity; serviceName?: string }> = [];
     structurePages.forEach(entity => {
       users
@@ -392,6 +387,29 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         });
     });
 
+    // Each entity can span several real PDF pages. We pre-compute the exact
+    // number of pages so every internal link keeps pointing to the right page.
+    const entityPageCount = new Map<string, number>();
+    structurePages.forEach(entity => {
+      const eu = users.filter(user => norm(user.company) === norm(entity.name));
+      const es = services
+        .filter(service => service.active && service.entityId === entity.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const ec = contacts.filter(contact => contact.entityId === entity.id);
+      let chunks = 0;
+      es.forEach(service => {
+        const memberCount = eu.filter(user => user.department === service.name).length;
+        chunks += Math.max(1, Math.ceil(memberCount / 3));
+      });
+      chunks += Math.ceil(ec.length / 3);
+      entityPageCount.set(entity.id, Math.max(1, Math.ceil(chunks / 3)));
+    });
+
+    let nextPage = 2;
+    structurePages.forEach(entity => {
+      companyPage.set(entity.id, nextPage);
+      nextPage += entityPageCount.get(entity.id) || 1;
+    });
     people.forEach(item => {
       personPage.set(item.key, nextPage++);
     });
@@ -541,130 +559,126 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
     }
     addFooter();
 
-    // COMPANY / ENTITY PAGES
+    // COMPANY / ENTITY PAGES — true pagination, never split a person card.
     for (const entity of structurePages) {
-      pdf.addPage('a4', 'landscape');
-      addHeader(entity.name, entity.entityType === 'shareholder' ? 'Actionnaire pépiniériste' : 'Organigramme entreprise');
-
-      if (entity.logoUrl) {
-        await addImageSafe(entity.logoUrl, margin, 38, 32, 22);
-      }
-
-      addBackButton('RETOUR VUE GENERALE', 1);
-
       const eu = users.filter(user => norm(user.company) === norm(entity.name));
       const es = services
         .filter(service => service.active && service.entityId === entity.id)
         .sort((a, b) => a.sortOrder - b.sortOrder);
       const ec = contacts.filter(contact => contact.entityId === entity.id);
 
-      const serviceCols = 3;
-      const serviceGap = 6;
-      const serviceW = (contentWidth - serviceGap * (serviceCols - 1)) / serviceCols;
-      let cursorY = 66;
-      let serviceIndex = 0;
+      type EntityChunk = { title: string; people: Array<{ person: Person; key: string }>; continuation?: boolean };
+      const chunks: EntityChunk[] = [];
+
+      es.forEach(service => {
+        const members = eu.filter(user => user.department === service.name);
+        if (!members.length) {
+          chunks.push({ title: service.name, people: [] });
+          return;
+        }
+        for (let i = 0; i < members.length; i += 3) {
+          chunks.push({
+            title: service.name,
+            continuation: i > 0,
+            people: members.slice(i, i + 3).map(user => ({ person: user, key: `user-${user.id}` }))
+          });
+        }
+      });
+
+      for (let i = 0; i < ec.length; i += 3) {
+        chunks.push({
+          title: 'Membres / contacts',
+          continuation: i > 0,
+          people: ec.slice(i, i + 3).map(contact => ({ person: contact, key: `contact-${contact.id}` }))
+        });
+      }
+
+      if (!chunks.length) chunks.push({ title: 'Organisation', people: [] });
+
+      const pages: EntityChunk[][] = [];
+      for (let i = 0; i < chunks.length; i += 3) pages.push(chunks.slice(i, i + 3));
 
       const drawPersonPdfCard = async (
         person: Person,
-        serviceName: string | undefined,
         x: number,
         y: number,
         w: number,
         key: string
       ) => {
-        const h = 29;
+        const h = 31;
         pdf.setFillColor(255, 255, 255);
         pdf.setDrawColor(226, 232, 240);
         pdf.roundedRect(x, y, w, h, 4, 4, 'FD');
 
         const avatar = await imageAsDataUrl(personAvatar(person));
         if (avatar) {
-          try {
-            pdf.addImage(avatar, 'JPEG', x + 3, y + 4, 19, 19, undefined, 'FAST');
-          } catch {
-            try { pdf.addImage(avatar, 'PNG', x + 3, y + 4, 19, 19, undefined, 'FAST'); } catch {}
-          }
+          try { pdf.addImage(avatar, 'JPEG', x + 3, y + 4, 19, 19, undefined, 'FAST'); }
+          catch { try { pdf.addImage(avatar, 'PNG', x + 3, y + 4, 19, 19, undefined, 'FAST'); } catch {} }
         }
 
         const textX = x + 25;
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(9.5);
+        pdf.setFontSize(9.2);
         pdf.setTextColor(15, 23, 42);
-        pdf.text(person.name, textX, y + 8);
-
-        pdf.setFontSize(7.3);
+        pdf.text(person.name, textX, y + 8, { maxWidth: w - 29 });
+        pdf.setFontSize(7.1);
         pdf.setTextColor(22, 101, 52);
-        pdf.text((personJob(person) || serviceName || 'Poste à renseigner').slice(0, 40), textX, y + 14);
-
+        pdf.text((personJob(person) || 'Poste à renseigner').slice(0, 42), textX, y + 14);
         pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(6.7);
+        pdf.setFontSize(6.5);
         pdf.setTextColor(100, 116, 139);
-        pdf.text((personEmail(person) || 'Email non renseigné').slice(0, 48), textX, y + 20);
-        pdf.text((personPhone(person) || 'Téléphone non renseigné').slice(0, 34), textX, y + 25);
+        pdf.text((personEmail(person) || 'Email non renseigné').slice(0, 50), textX, y + 20);
+        pdf.text((personPhone(person) || 'Téléphone non renseigné').slice(0, 36), textX, y + 26);
 
         const target = personPage.get(key);
-        if (target) {
-          pdf.link(x, y, w, h, { pageNumber: target, top: 0 });
-        }
-
-        return h;
+        if (target) pdf.link(x, y, w, h, { pageNumber: target, top: 0 });
       };
 
-      if (es.length) {
-        for (const service of es) {
-          const col = serviceIndex % serviceCols;
-          const row = Math.floor(serviceIndex / serviceCols);
-          const x = margin + col * (serviceW + serviceGap);
-          const y = cursorY + row * 58;
+      for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+        pdf.addPage('a4', 'landscape');
+        const pageChunks = pages[pageIndex];
+        const totalPages = pages.length;
+        addHeader(
+          entity.name,
+          `${entity.entityType === 'shareholder' ? 'Actionnaire pépiniériste' : 'Organigramme entreprise'}${totalPages > 1 ? ` · ${pageIndex + 1}/${totalPages}` : ''}`
+        );
+        if (entity.logoUrl) await addImageSafe(entity.logoUrl, margin, 36, 30, 20);
+        addBackButton('RETOUR VUE GENERALE', 1);
+
+        const cols = 3;
+        const gap = 7;
+        const colW = (contentWidth - gap * (cols - 1)) / cols;
+        const topY = 64;
+
+        for (let col = 0; col < pageChunks.length; col += 1) {
+          const chunk = pageChunks[col];
+          const x = margin + col * (colW + gap);
+          const title = `${chunk.title}${chunk.continuation ? ' · suite' : ''}`;
+          const cardH = Math.max(48, 18 + Math.max(1, chunk.people.length) * 34);
 
           pdf.setFillColor(241, 245, 249);
           pdf.setDrawColor(203, 213, 225);
-          pdf.roundedRect(x, y, serviceW, 53, 5, 5, 'FD');
-
+          pdf.roundedRect(x, topY, colW, cardH, 5, 5, 'FD');
           pdf.setFont('helvetica', 'bold');
           pdf.setFontSize(9);
           pdf.setTextColor(71, 85, 105);
-          const titleLines = pdf.splitTextToSize(service.name.toUpperCase(), serviceW - 8);
-          pdf.text(titleLines, x + 4, y + 7);
+          pdf.text(pdf.splitTextToSize(title.toUpperCase(), colW - 8), x + 4, topY + 7);
 
-          const members = eu.filter(user => user.department === service.name);
-          let memberY = y + 16;
-          for (const user of members.slice(0, 1)) {
-            await drawPersonPdfCard(user, service.name, x + 4, memberY, serviceW - 8, `user-${user.id}`);
-            memberY += 31;
-          }
-
-          if (members.length > 1) {
-            pdf.setFontSize(7);
-            pdf.setTextColor(100, 116, 139);
-            pdf.text(`+ ${members.length - 1} autre(s) collaborateur(s)`, x + 5, y + 49);
-          }
-
-          serviceIndex += 1;
-        }
-
-        cursorY += Math.ceil(es.length / serviceCols) * 58;
-      }
-
-      if (ec.length && cursorY < 160) {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(10);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text('Membres / contacts', margin, cursorY + 2);
-        let x = margin;
-        let y = cursorY + 7;
-
-        for (const contact of ec) {
-          await drawPersonPdfCard(contact, undefined, x, y, 84, `contact-${contact.id}`);
-          x += 90;
-          if (x + 84 > pageWidth - margin) {
-            x = margin;
-            y += 34;
+          if (!chunk.people.length) {
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text('Aucun collaborateur rattaché', x + 4, topY + 23);
+          } else {
+            let personY = topY + 16;
+            for (const item of chunk.people) {
+              await drawPersonPdfCard(item.person, x + 4, personY, colW - 8, item.key);
+              personY += 34;
+            }
           }
         }
+        addFooter();
       }
-
-      addFooter();
     }
 
     // PERSON PAGES
