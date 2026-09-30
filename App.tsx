@@ -2474,7 +2474,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             appConfig={appConfig}
             onUpdateConfig={async (cfg) => {
-              await supabase.from('app_config').update({
+              const { data: savedConfig, error } = await supabase.from('app_config').update({
                 app_name: cfg.appName,
                 app_slogan: cfg.appSlogan,
                 logo_url: cfg.logoUrl,
@@ -2483,8 +2483,17 @@ const App: React.FC = () => {
                 document_categories: cfg.documentCategories,
                 game_categories: cfg.gameCategories,
                 external_tools: cfg.externalTools
-              }).eq('id', 1);
-              setAppConfig(cfg);
+              }).eq('id', 1).select('external_tools').single();
+              if (error) {
+                addToast(`Configuration non enregistrée : ${error.message}`, 'error');
+                throw error;
+              }
+              if (!savedConfig) {
+                const saveError = new Error('Aucune configuration retournée après enregistrement.');
+                addToast(saveError.message, 'error');
+                throw saveError;
+              }
+              setAppConfig({ ...cfg, externalTools: savedConfig.external_tools ?? cfg.externalTools });
               addToast("Configuration mise à jour.");
             }}
             onRenameGameCategory={async (oldCategory, newCategory) => {
