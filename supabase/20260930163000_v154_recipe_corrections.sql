@@ -17,10 +17,9 @@ CREATE POLICY "Anyone can update comments" ON public.comments FOR UPDATE TO auth
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS profile_visibility jsonb DEFAULT '{"email":true,"phone":true}'::jsonb;
 UPDATE public.profiles SET profile_visibility = '{"email":true,"phone":true}'::jsonb WHERE profile_visibility IS NULL;
 
--- Le bucket média existe déjà. On aligne sa limite sur celle de l'application (100 Mo) si autorisé par le plan Supabase.
-UPDATE storage.buckets SET file_size_limit = 104857600 WHERE id = 'star-community-media';
-
--- V1.5.4 : médias du mur social — autoriser les vidéos jusqu'à 500 Mo dans le bucket existant.
-update storage.buckets
-set file_size_limit = 524288000
-where id = 'star-community-media';
+-- V1.5.5 : plafond du bucket média à 600 Mo.
+-- IMPORTANT : le plafond GLOBAL Storage du projet doit lui aussi être >= 600 Mo.
+-- Ce réglage global se fait dans Supabase Dashboard > Storage > Settings.
+UPDATE storage.buckets
+SET file_size_limit = 629145600
+WHERE id = 'star-community-media';

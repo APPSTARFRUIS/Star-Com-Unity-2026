@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import * as tus from 'tus-js-client';
 
 export const MEDIA_BUCKET = 'star-community-media';
 
@@ -57,7 +58,7 @@ const optimizeImageForUpload = async (file: File): Promise<File> => {
   }
 };
 
-export const uploadMediaToStorage = async (file: File, folder = 'uploads'): Promise<string> => {
+export const uploadMediaToStorage = async (file: File, folder = 'uploads', onProgress?: (percent: number) => void): Promise<string> => {
   if (!supabase) throw new Error('Supabase n’est pas configuré.');
 
   // Ne pas imposer de plafond artificiel côté interface : la limite réelle est
@@ -69,6 +70,49 @@ export const uploadMediaToStorage = async (file: File, folder = 'uploads'): Prom
     .replace(/[^a-zA-Z0-9-_/]+/g, '-') || 'uploads';
   const safeName = sanitizeFileName(preparedFile.name);
   const filePath = `${safeFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+
+  // Les gros fichiers (notamment les vidéos) passent par TUS : upload par morceaux,
+  // reprise après coupure et progression réelle. Supabase le recommande au-delà de 6 Mo.
+  if (preparedFile.size > 6 * 1024 * 1024) {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token) throw new Error('Session Supabase indisponible. Reconnectez-vous puis réessayez.');
+
+    const configuredUrl = String((import.meta as any).env.VITE_SUPABASE_URL || '');
+    const projectId = configuredUrl.match(/^https:\/\/([^.]+)\.supabase\.co/i)?.[1];
+    if (!projectId) throw new Error('URL Supabase invalide : impossible de préparer l’upload vidéo.');
+
+    await new Promise<void>((resolve, reject) => {
+      const upload = new tus.Upload(preparedFile, {
+        endpoint: `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          'x-upsert': 'false',
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: MEDIA_BUCKET,
+          objectName: filePath,
+          contentType: preparedFile.type || 'application/octet-stream',
+          cacheControl: '3600',
+        },
+        chunkSize: 6 * 1024 * 1024,
+        onError: (error) => reject(error),
+        onProgress: (bytesUploaded, bytesTotal) => {
+          onProgress?.(Math.min(100, Math.round((bytesUploaded / bytesTotal) * 100)));
+        },
+        onSuccess: () => { onProgress?.(100); resolve(); },
+      });
+      upload.findPreviousUploads().then(previous => {
+        if (previous.length) upload.resumeFromPreviousUpload(previous[0]);
+        upload.start();
+      }).catch(reject);
+    });
+
+    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(filePath);
+    return data.publicUrl;
+  }
 
   let lastError: any = null;
   for (let attempt = 1; attempt <= 3; attempt += 1) {

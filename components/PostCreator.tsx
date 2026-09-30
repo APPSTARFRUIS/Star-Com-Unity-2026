@@ -17,6 +17,8 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showFullCreator, setShowFullCreator] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadingFileName, setUploadingFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!currentUser) return null;
@@ -39,7 +41,9 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
-        const url = await uploadMediaToStorage(file, 'posts');
+        setUploadingFileName(file.name);
+        setUploadProgress(0);
+        const url = await uploadMediaToStorage(file, 'posts', percent => setUploadProgress(percent));
         newAttachments.push({
           name: file.name,
           type: file.type,
@@ -47,6 +51,9 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
         });
       } catch (error: any) {
         alert(error?.message || `Erreur lors de l’upload du fichier ${file.name}.`);
+      } finally {
+        setUploadProgress(null);
+        setUploadingFileName('');
       }
     }
     
@@ -136,6 +143,19 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
               </button>
             </div>
 
+            {uploadProgress !== null && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <div className="flex items-center justify-between gap-3 text-sm font-bold text-green-800">
+                  <span className="truncate">Téléversement : {uploadingFileName}</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-green-100">
+                  <div className="h-full bg-green-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-green-700">Vous pouvez laisser cette fenêtre ouverte pendant l’envoi de la vidéo.</p>
+              </div>
+            )}
+
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-3 py-2">
                 {attachments.map((file, idx) => (
@@ -185,6 +205,7 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadProgress !== null}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -197,6 +218,7 @@ const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated })
           <div className="flex justify-end pt-2">
             <button
               type="submit"
+              disabled={uploadProgress !== null}
               className="bg-blue-600 text-white px-8 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
             >
               Publier
