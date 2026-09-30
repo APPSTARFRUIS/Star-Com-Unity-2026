@@ -274,8 +274,6 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
             min-height: 1122px;
             max-height: 1122px;
             overflow: hidden;
-            page-break-before: always;
-            break-before: page;
             page-break-after: always;
             break-after: page;
             page-break-inside: avoid;
@@ -514,7 +512,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
         scrollX: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['css', 'legacy'], before: '.pdf-article', after: ['.pdf-cover', '.pdf-summary', '.pdf-article'], avoid: ['.pdf-article-header', '.pdf-main-image', '.pdf-article-summary', '.pdf-media-block', '.pdf-video-block', '.pdf-button-block', '.pdf-gallery-block', '.pdf-footer'] }
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-article-header', '.pdf-main-image', '.pdf-article-summary', '.pdf-media-block', '.pdf-video-block', '.pdf-button-block', '.pdf-gallery-block', '.pdf-footer'] }
     };
 
     try {

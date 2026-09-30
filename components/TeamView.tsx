@@ -353,444 +353,159 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
   const exportPdf = async () => {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     pdf.setDisplayMode('fullwidth', 'single');
-    pdf.setProperties({
-      title: 'Organigramme Star Group',
-      subject: 'Organigramme interactif Star Group',
-      author: 'Star ComUnity'
-    });
+    pdf.setProperties({ title: 'Organigramme Star Group', subject: 'Organigramme interactif Star Group', author: 'Star ComUnity' });
 
     const pageWidth = 297;
     const pageHeight = 210;
     const margin = 12;
     const contentWidth = pageWidth - margin * 2;
-
     const children = activeEntities.filter(entity => entity.entityType !== 'group');
     const founders = children.filter(entity => entity.entityType === 'shareholder');
     const companies = children.filter(entity => entity.entityType !== 'shareholder');
     const structurePages = [group, ...children].filter(Boolean) as OrgEntity[];
+    const isStarFruits = (entity: OrgEntity) => norm(entity.name) === 'star fruits';
 
     const companyPage = new Map<string, number>();
+    const servicePage = new Map<string, number>();
     const personPage = new Map<string, number>();
-
+    const personReturnPage = new Map<string, number>();
     const people: Array<{ key: string; person: Person; entity: OrgEntity; serviceName?: string }> = [];
-    structurePages.forEach(entity => {
-      users
-        .filter(user => norm(user.company) === norm(entity.name))
-        .forEach(user => {
-          people.push({ key: `user-${user.id}`, person: user, entity, serviceName: user.department });
-        });
 
-      contacts
-        .filter(contact => contact.entityId === entity.id)
-        .forEach(contact => {
-          people.push({ key: `contact-${contact.id}`, person: contact, entity });
-        });
+    structurePages.forEach(entity => {
+      users.filter(user => norm(user.company) === norm(entity.name)).forEach(user =>
+        people.push({ key: `user-${user.id}`, person: user, entity, serviceName: user.department })
+      );
+      contacts.filter(contact => contact.entityId === entity.id).forEach(contact =>
+        people.push({ key: `contact-${contact.id}`, person: contact, entity })
+      );
     });
 
-    // Each entity can span several real PDF pages. We pre-compute the exact
-    // number of pages so every internal link keeps pointing to the right page.
-    const entityPageCount = new Map<string, number>();
-    structurePages.forEach(entity => {
+    const normalEntityPageCount = (entity: OrgEntity) => {
       const eu = users.filter(user => norm(user.company) === norm(entity.name));
-      const es = services
-        .filter(service => service.active && service.entityId === entity.id)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const es = services.filter(service => service.active && service.entityId === entity.id).sort((a, b) => a.sortOrder - b.sortOrder);
       const ec = contacts.filter(contact => contact.entityId === entity.id);
       let chunks = 0;
-      es.forEach(service => {
-        const memberCount = eu.filter(user => user.department === service.name).length;
-        chunks += Math.max(1, Math.ceil(memberCount / 3));
-      });
+      es.forEach(service => { chunks += Math.max(1, Math.ceil(eu.filter(user => user.department === service.name).length / 3)); });
       chunks += Math.ceil(ec.length / 3);
-      entityPageCount.set(entity.id, Math.max(1, Math.ceil(chunks / 3)));
-    });
+      return Math.max(1, Math.ceil(chunks / 3));
+    };
 
+    // Exact page map: page 1 is always the general view.
     let nextPage = 2;
     structurePages.forEach(entity => {
       companyPage.set(entity.id, nextPage);
-      nextPage += entityPageCount.get(entity.id) || 1;
+      if (isStarFruits(entity)) {
+        nextPage += 1; // Star Fruits services overview
+        const es = services.filter(service => service.active && service.entityId === entity.id).sort((a, b) => a.sortOrder - b.sortOrder);
+        es.forEach(service => { servicePage.set(service.id, nextPage++); });
+        if (contacts.some(contact => contact.entityId === entity.id)) servicePage.set(`${entity.id}-contacts`, nextPage++);
+      } else {
+        nextPage += normalEntityPageCount(entity);
+      }
     });
-    people.forEach(item => {
-      personPage.set(item.key, nextPage++);
-    });
+    people.forEach(item => personPage.set(item.key, nextPage++));
 
     const addHeader = (title: string, subtitle?: string) => {
-      pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(margin, 10, contentWidth, 20, 5, 5, 'F');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.text(title, margin + 8, 22);
-      if (subtitle) {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(9);
-        pdf.text(subtitle, pageWidth - margin - 8, 22, { align: 'right' });
-      }
+      pdf.setFillColor(15, 23, 42); pdf.roundedRect(margin, 10, contentWidth, 20, 5, 5, 'F');
+      pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(18); pdf.text(title, margin + 8, 22);
+      if (subtitle) { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.text(subtitle, pageWidth - margin - 8, 22, { align: 'right' }); }
       pdf.setTextColor(15, 23, 42);
     };
-
     const addFooter = () => {
-      pdf.setDrawColor(226, 232, 240);
-      pdf.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text('Star ComUnity · Organigramme', margin, pageHeight - 5);
-      pdf.text(`${pdf.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 5, { align: 'right' });
+      pdf.setDrawColor(226, 232, 240); pdf.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(100, 116, 139);
+      pdf.text('Star ComUnity · Organigramme', margin, pageHeight - 6);
+      pdf.text(`${pdf.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 6, { align: 'right' });
     };
-
     const addBackButton = (label: string, targetPage: number) => {
-      const buttonW = 62;
-      const buttonH = 11;
-      const x = pageWidth - margin - buttonW;
-      const y = 35;
-
-      pdf.setFillColor(22, 101, 52);
-      pdf.roundedRect(x, y, buttonW, buttonH, 3, 3, 'F');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7.3);
-      pdf.setTextColor(255, 255, 255);
+      const buttonW = 62, buttonH = 11, x = pageWidth - margin - buttonW, y = 35;
+      pdf.setFillColor(22, 101, 52); pdf.roundedRect(x, y, buttonW, buttonH, 3, 3, 'F');
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.3); pdf.setTextColor(255, 255, 255);
       pdf.text(label, x + buttonW / 2, y + 7.1, { align: 'center' });
-      pdf.link(x, y, buttonW, buttonH, { pageNumber: targetPage, top: 0 });
-      pdf.setTextColor(15, 23, 42);
+      pdf.link(x, y, buttonW, buttonH, { pageNumber: targetPage, top: 0 }); pdf.setTextColor(15, 23, 42);
     };
-
-    const addImageSafe = async (
-      url: string | null | undefined,
-      x: number,
-      y: number,
-      w: number,
-      h: number
-    ) => {
-      const data = await imageAsHighResPng(url, 1200, 800);
-      if (!data) return false;
-
-      try {
-        const props = pdf.getImageProperties(data);
-        const ratio = props.width / props.height;
-        const boxRatio = w / h;
-        const drawW = ratio > boxRatio ? w : h * ratio;
-        const drawH = ratio > boxRatio ? w / ratio : h;
-        const drawX = x + (w - drawW) / 2;
-        const drawY = y + (h - drawH) / 2;
-        pdf.addImage(data, 'PNG', drawX, drawY, drawW, drawH, undefined, 'SLOW');
-        return true;
-      } catch {
-        return false;
-      }
+    const addImageSafe = async (url: string | null | undefined, x: number, y: number, w: number, h: number) => {
+      const data = await imageAsHighResPng(url, 1200, 800); if (!data) return false;
+      try { const props = pdf.getImageProperties(data); const ratio = props.width / props.height; const boxRatio = w / h;
+        const drawW = ratio > boxRatio ? w : h * ratio; const drawH = ratio > boxRatio ? w / ratio : h;
+        pdf.addImage(data, 'PNG', x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH, undefined, 'SLOW'); return true;
+      } catch { return false; }
+    };
+    const drawPersonPdfCard = async (person: Person, x: number, y: number, w: number, key: string) => {
+      const h = 31; pdf.setFillColor(255, 255, 255); pdf.setDrawColor(226, 232, 240); pdf.roundedRect(x, y, w, h, 4, 4, 'FD');
+      const avatar = await imageAsDataUrl(personAvatar(person)); if (avatar) { try { pdf.addImage(avatar, 'JPEG', x + 3, y + 4, 19, 19, undefined, 'FAST'); } catch { try { pdf.addImage(avatar, 'PNG', x + 3, y + 4, 19, 19, undefined, 'FAST'); } catch {} } }
+      const textX = x + 25; pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9.2); pdf.setTextColor(15, 23, 42); pdf.text(person.name, textX, y + 8, { maxWidth: w - 29 });
+      pdf.setFontSize(7.1); pdf.setTextColor(22, 101, 52); pdf.text((personJob(person) || 'Poste à renseigner').slice(0, 42), textX, y + 14);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(100, 116, 139); pdf.text((personEmail(person) || 'Email non renseigné').slice(0, 50), textX, y + 20); pdf.text((personPhone(person) || 'Téléphone non renseigné').slice(0, 36), textX, y + 26);
+      const target = personPage.get(key); if (target) pdf.link(x, y, w, h, { pageNumber: target, top: 0 });
     };
 
     // PAGE 1 — GENERAL OVERVIEW
     addHeader(group?.name || 'Star Group', 'Vue d’ensemble · cliquez sur une structure');
-
-    // Membres fondateurs : rangée distincte au-dessus de Star Group, sans lien hiérarchique.
     let groupY = 46;
     if (founders.length) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(9);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text('MEMBRES FONDATEURS', margin, 39);
-
-      const founderCols = Math.min(4, Math.max(1, founders.length));
-      const founderGap = 6;
-      const founderW = Math.min(62, (contentWidth - founderGap * (founderCols - 1)) / founderCols);
-      const founderH = 25;
-      const totalW = founderCols * founderW + (founderCols - 1) * founderGap;
-      const founderStartX = margin + (contentWidth - totalW) / 2;
-
-      for (let index = 0; index < founders.length; index += 1) {
-        const entity = founders[index];
-        const row = Math.floor(index / founderCols);
-        const col = index % founderCols;
-        const x = founderStartX + col * (founderW + founderGap);
-        const y = 43 + row * (founderH + 5);
-        pdf.setFillColor(255, 255, 255);
-        pdf.setDrawColor(203, 213, 225);
-        pdf.roundedRect(x, y, founderW, founderH, 4, 4, 'FD');
-        if (entity.logoUrl) await addImageSafe(entity.logoUrl, x + 4, y + 4, 16, 10);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(9);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(entity.name, x + 4, y + 19, { maxWidth: founderW - 8 });
-        const targetPage = companyPage.get(entity.id);
-        if (targetPage) pdf.link(x, y, founderW, founderH, { pageNumber: targetPage, top: 0 });
-      }
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(100, 116, 139); pdf.text('MEMBRES FONDATEURS', margin, 39);
+      const founderCols = Math.min(4, Math.max(1, founders.length)), founderGap = 6;
+      const founderW = Math.min(62, (contentWidth - founderGap * (founderCols - 1)) / founderCols), founderH = 25;
+      const founderStartX = margin + (contentWidth - (founderCols * founderW + (founderCols - 1) * founderGap)) / 2;
+      for (let index = 0; index < founders.length; index++) { const entity = founders[index], row = Math.floor(index / founderCols), col = index % founderCols;
+        const x = founderStartX + col * (founderW + founderGap), y = 43 + row * (founderH + 5);
+        pdf.setFillColor(255,255,255); pdf.setDrawColor(203,213,225); pdf.roundedRect(x,y,founderW,founderH,4,4,'FD');
+        if (entity.logoUrl) await addImageSafe(entity.logoUrl,x+4,y+4,16,10); pdf.setFont('helvetica','bold'); pdf.setFontSize(9); pdf.setTextColor(15,23,42); pdf.text(entity.name,x+4,y+19,{maxWidth:founderW-8});
+        const target=companyPage.get(entity.id); if(target) pdf.link(x,y,founderW,founderH,{pageNumber:target,top:0}); }
       groupY = 43 + Math.ceil(founders.length / founderCols) * (founderH + 5) + 8;
     }
-
-    if (group) {
-      const groupCardW = 82;
-      const groupCardH = 32;
-      const groupX = (pageWidth - groupCardW) / 2;
-      pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(groupX, groupY, groupCardW, groupCardH, 6, 6, 'F');
-      if (group.logoUrl) await addImageSafe(group.logoUrl, groupX + 6, groupY + 5, 22, 22);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(15);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(group.name, groupX + 34, groupY + 20);
-      const groupTargetPage = companyPage.get(group.id);
-      if (groupTargetPage) pdf.link(groupX, groupY, groupCardW, groupCardH, { pageNumber: groupTargetPage, top: 0 });
-    }
-
-    const cols = 3;
-    const gap = 7;
-    const cardW = (contentWidth - gap * (cols - 1)) / cols;
-    const cardH = 52;
-    const companiesY = groupY + 43;
-    for (let index = 0; index < companies.length; index += 1) {
-      const entity = companies[index];
-      const row = Math.floor(index / cols);
-      const col = index % cols;
-      const x = margin + col * (cardW + gap);
-      const y = companiesY + row * (cardH + gap);
-      pdf.setFillColor(248, 250, 252);
-      pdf.setDrawColor(203, 213, 225);
-      pdf.roundedRect(x, y, cardW, cardH, 5, 5, 'FD');
-      if (entity.logoUrl) await addImageSafe(entity.logoUrl, x + 6, y + 7, 26, 18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(13);
-      pdf.setTextColor(15, 23, 42);
-      pdf.text(entity.name, x + 6, y + 33);
-      pdf.setFontSize(8);
-      pdf.setTextColor(22, 101, 52);
-      pdf.text('FILIALE / ENTREPRISE', x + 6, y + 41);
-      const targetPage = companyPage.get(entity.id);
-      if (targetPage) pdf.link(x, y, cardW, cardH, { pageNumber: targetPage, top: 0 });
-    }
+    if (group) { const w=82,h=32,x=(pageWidth-w)/2; pdf.setFillColor(15,23,42); pdf.roundedRect(x,groupY,w,h,6,6,'F'); if(group.logoUrl) await addImageSafe(group.logoUrl,x+6,groupY+5,22,22);
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(15); pdf.setTextColor(255,255,255); pdf.text(group.name,x+34,groupY+20); const target=companyPage.get(group.id); if(target) pdf.link(x,groupY,w,h,{pageNumber:target,top:0}); }
+    const cols=3,gap=7,cardW=(contentWidth-gap*(cols-1))/cols,cardH=52,companiesY=groupY+43;
+    for(let index=0;index<companies.length;index++){const entity=companies[index],row=Math.floor(index/cols),col=index%cols,x=margin+col*(cardW+gap),y=companiesY+row*(cardH+gap);
+      pdf.setFillColor(248,250,252);pdf.setDrawColor(203,213,225);pdf.roundedRect(x,y,cardW,cardH,5,5,'FD');if(entity.logoUrl) await addImageSafe(entity.logoUrl,x+6,y+7,26,18);
+      pdf.setFont('helvetica','bold');pdf.setFontSize(13);pdf.setTextColor(15,23,42);pdf.text(entity.name,x+6,y+33);pdf.setFontSize(8);pdf.setTextColor(22,101,52);pdf.text('FILIALE / ENTREPRISE',x+6,y+41);
+      const target=companyPage.get(entity.id);if(target)pdf.link(x,y,cardW,cardH,{pageNumber:target,top:0});}
     addFooter();
 
-    // COMPANY / ENTITY PAGES — true pagination, never split a person card.
     for (const entity of structurePages) {
       const eu = users.filter(user => norm(user.company) === norm(entity.name));
-      const es = services
-        .filter(service => service.active && service.entityId === entity.id)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const es = services.filter(service => service.active && service.entityId === entity.id).sort((a,b)=>a.sortOrder-b.sortOrder);
       const ec = contacts.filter(contact => contact.entityId === entity.id);
 
-      type EntityChunk = { title: string; people: Array<{ person: Person; key: string }>; continuation?: boolean };
-      const chunks: EntityChunk[] = [];
+      if (isStarFruits(entity)) {
+        // STAR FRUITS — intermediate services page.
+        pdf.addPage('a4','landscape'); addHeader(entity.name, 'Services · cliquez sur un service'); if(entity.logoUrl) await addImageSafe(entity.logoUrl,margin,36,30,20); addBackButton('RETOUR VUE GENERALE',1);
+        const entries: Array<{id:string;name:string;count:number}> = es.map(s=>({id:s.id,name:s.name,count:eu.filter(u=>u.department===s.name).length}));
+        if(ec.length) entries.push({id:`${entity.id}-contacts`,name:'Membres / contacts',count:ec.length});
+        const c=3,g=8,w=(contentWidth-g*(c-1))/c,h=38,startY=64;
+        entries.forEach((entry,index)=>{const row=Math.floor(index/c),col=index%c,x=margin+col*(w+g),y=startY+row*(h+g);pdf.setFillColor(248,250,252);pdf.setDrawColor(203,213,225);pdf.roundedRect(x,y,w,h,5,5,'FD');pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(15,23,42);pdf.text(entry.name,x+6,y+15,{maxWidth:w-12});pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor(100,116,139);pdf.text(`${entry.count} collaborateur${entry.count>1?'s':''}`,x+6,y+27);const target=servicePage.get(entry.id);if(target)pdf.link(x,y,w,h,{pageNumber:target,top:0});}); addFooter();
 
-      es.forEach(service => {
-        const members = eu.filter(user => user.department === service.name);
-        if (!members.length) {
-          chunks.push({ title: service.name, people: [] });
-          return;
+        for (const service of es) {
+          pdf.addPage('a4','landscape'); addHeader(service.name, `${entity.name} · collaborateurs`); addBackButton('RETOUR SERVICES', companyPage.get(entity.id)!);
+          const members=eu.filter(user=>user.department===service.name); const c=3,g=7,w=(contentWidth-g*(c-1))/c,startY=64;
+          if(!members.length){pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.setTextColor(148,163,184);pdf.text('Aucun collaborateur rattaché à ce service.',margin,startY+10);}
+          for(let i=0;i<members.length;i++){const row=Math.floor(i/c),col=i%c,key=`user-${members[i].id}`;personReturnPage.set(key,servicePage.get(service.id)!);await drawPersonPdfCard(members[i],margin+col*(w+g),startY+row*36,w,key);} addFooter();
         }
-        for (let i = 0; i < members.length; i += 3) {
-          chunks.push({
-            title: service.name,
-            continuation: i > 0,
-            people: members.slice(i, i + 3).map(user => ({ person: user, key: `user-${user.id}` }))
-          });
-        }
-      });
-
-      for (let i = 0; i < ec.length; i += 3) {
-        chunks.push({
-          title: 'Membres / contacts',
-          continuation: i > 0,
-          people: ec.slice(i, i + 3).map(contact => ({ person: contact, key: `contact-${contact.id}` }))
-        });
+        if(ec.length){pdf.addPage('a4','landscape');addHeader('Membres / contacts',`${entity.name} · collaborateurs`);addBackButton('RETOUR SERVICES',companyPage.get(entity.id)!);const c=3,g=7,w=(contentWidth-g*(c-1))/c,startY=64;
+          for(let i=0;i<ec.length;i++){const row=Math.floor(i/c),col=i%c,key=`contact-${ec[i].id}`;personReturnPage.set(key,servicePage.get(`${entity.id}-contacts`)!);await drawPersonPdfCard(ec[i],margin+col*(w+g),startY+row*36,w,key);}addFooter();}
+        continue;
       }
 
-      if (!chunks.length) chunks.push({ title: 'Organisation', people: [] });
-
-      const pages: EntityChunk[][] = [];
-      for (let i = 0; i < chunks.length; i += 3) pages.push(chunks.slice(i, i + 3));
-
-      const drawPersonPdfCard = async (
-        person: Person,
-        x: number,
-        y: number,
-        w: number,
-        key: string
-      ) => {
-        const h = 31;
-        pdf.setFillColor(255, 255, 255);
-        pdf.setDrawColor(226, 232, 240);
-        pdf.roundedRect(x, y, w, h, 4, 4, 'FD');
-
-        const avatar = await imageAsDataUrl(personAvatar(person));
-        if (avatar) {
-          try { pdf.addImage(avatar, 'JPEG', x + 3, y + 4, 19, 19, undefined, 'FAST'); }
-          catch { try { pdf.addImage(avatar, 'PNG', x + 3, y + 4, 19, 19, undefined, 'FAST'); } catch {} }
-        }
-
-        const textX = x + 25;
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(9.2);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(person.name, textX, y + 8, { maxWidth: w - 29 });
-        pdf.setFontSize(7.1);
-        pdf.setTextColor(22, 101, 52);
-        pdf.text((personJob(person) || 'Poste à renseigner').slice(0, 42), textX, y + 14);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(6.5);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text((personEmail(person) || 'Email non renseigné').slice(0, 50), textX, y + 20);
-        pdf.text((personPhone(person) || 'Téléphone non renseigné').slice(0, 36), textX, y + 26);
-
-        const target = personPage.get(key);
-        if (target) pdf.link(x, y, w, h, { pageNumber: target, top: 0 });
-      };
-
-      for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
-        pdf.addPage('a4', 'landscape');
-        const pageChunks = pages[pageIndex];
-        const totalPages = pages.length;
-        addHeader(
-          entity.name,
-          `${entity.entityType === 'shareholder' ? 'Actionnaire pépiniériste' : 'Organigramme entreprise'}${totalPages > 1 ? ` · ${pageIndex + 1}/${totalPages}` : ''}`
-        );
-        if (entity.logoUrl) await addImageSafe(entity.logoUrl, margin, 36, 30, 20);
-        addBackButton('RETOUR VUE GENERALE', 1);
-
-        const cols = 3;
-        const gap = 7;
-        const colW = (contentWidth - gap * (cols - 1)) / cols;
-        const topY = 64;
-
-        for (let col = 0; col < pageChunks.length; col += 1) {
-          const chunk = pageChunks[col];
-          const x = margin + col * (colW + gap);
-          const title = `${chunk.title}${chunk.continuation ? ' · suite' : ''}`;
-          const cardH = Math.max(48, 18 + Math.max(1, chunk.people.length) * 34);
-
-          pdf.setFillColor(241, 245, 249);
-          pdf.setDrawColor(203, 213, 225);
-          pdf.roundedRect(x, topY, colW, cardH, 5, 5, 'FD');
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(9);
-          pdf.setTextColor(71, 85, 105);
-          pdf.text(pdf.splitTextToSize(title.toUpperCase(), colW - 8), x + 4, topY + 7);
-
-          if (!chunk.people.length) {
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(7.5);
-            pdf.setTextColor(148, 163, 184);
-            pdf.text('Aucun collaborateur rattaché', x + 4, topY + 23);
-          } else {
-            let personY = topY + 16;
-            for (const item of chunk.people) {
-              await drawPersonPdfCard(item.person, x + 4, personY, colW - 8, item.key);
-              personY += 34;
-            }
-          }
-        }
-        addFooter();
-      }
+      // Other entities keep their existing direct company -> collaborators flow.
+      type EntityChunk={title:string;people:Array<{person:Person;key:string}>;continuation?:boolean}; const chunks:EntityChunk[]=[];
+      es.forEach(service=>{const members=eu.filter(user=>user.department===service.name);if(!members.length){chunks.push({title:service.name,people:[]});return;}for(let i=0;i<members.length;i+=3)chunks.push({title:service.name,continuation:i>0,people:members.slice(i,i+3).map(user=>({person:user,key:`user-${user.id}`}))});});
+      for(let i=0;i<ec.length;i+=3)chunks.push({title:'Membres / contacts',continuation:i>0,people:ec.slice(i,i+3).map(contact=>({person:contact,key:`contact-${contact.id}`}))}); if(!chunks.length)chunks.push({title:'Organisation',people:[]});
+      const pages:EntityChunk[][]=[];for(let i=0;i<chunks.length;i+=3)pages.push(chunks.slice(i,i+3));
+      for(let pageIndex=0;pageIndex<pages.length;pageIndex++){pdf.addPage('a4','landscape');addHeader(entity.name,`${entity.entityType==='shareholder'?'Actionnaire pépiniériste':'Organigramme entreprise'}${pages.length>1?` · ${pageIndex+1}/${pages.length}`:''}`);if(entity.logoUrl)await addImageSafe(entity.logoUrl,margin,36,30,20);addBackButton('RETOUR VUE GENERALE',1);
+        const c=3,g=7,w=(contentWidth-g*(c-1))/c,topY=64;for(let col=0;col<pages[pageIndex].length;col++){const chunk=pages[pageIndex][col],x=margin+col*(w+g),title=`${chunk.title}${chunk.continuation?' · suite':''}`,h=Math.max(48,18+Math.max(1,chunk.people.length)*34);pdf.setFillColor(241,245,249);pdf.setDrawColor(203,213,225);pdf.roundedRect(x,topY,w,h,5,5,'FD');pdf.setFont('helvetica','bold');pdf.setFontSize(9);pdf.setTextColor(71,85,105);pdf.text(pdf.splitTextToSize(title.toUpperCase(),w-8),x+4,topY+7);
+          if(!chunk.people.length){pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);pdf.setTextColor(148,163,184);pdf.text('Aucun collaborateur rattaché',x+4,topY+23);}else{let personY=topY+16;for(const p of chunk.people){personReturnPage.set(p.key,companyPage.get(entity.id)!);await drawPersonPdfCard(p.person,x+4,personY,w-8,p.key);personY+=34;}}}addFooter();}
     }
 
     // PERSON PAGES
-    for (const item of people) {
-      pdf.addPage('a4', 'landscape');
-      addHeader(item.person.name, `${item.entity.name}${item.serviceName ? ` · ${item.serviceName}` : ''}`);
+    for(const item of people){pdf.addPage('a4','landscape');addHeader(item.person.name,`${item.entity.name}${item.serviceName?` · ${item.serviceName}`:''}`);const leftX=margin,leftY=38,leftW=92,leftH=146;pdf.setFillColor(15,23,42);pdf.roundedRect(leftX,leftY,leftW,leftH,7,7,'F');const avatarData=await imageAsDataUrl(personAvatar(item.person));if(avatarData){try{pdf.addImage(avatarData,'JPEG',leftX+10,leftY+10,48,48,undefined,'FAST');}catch{try{pdf.addImage(avatarData,'PNG',leftX+10,leftY+10,48,48,undefined,'FAST');}catch{}}}
+      pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(18);pdf.text(pdf.splitTextToSize(item.person.name,leftW-18),leftX+9,leftY+70);pdf.setFont('helvetica','italic');pdf.setFontSize(11);pdf.setTextColor(203,213,225);pdf.text(pdf.splitTextToSize(personJob(item.person)||'Fonction non renseignée',leftW-18),leftX+9,leftY+86);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor(226,232,240);pdf.text('TÉLÉPHONE',leftX+9,leftY+112);pdf.setFontSize(9);pdf.text(pdf.splitTextToSize(personPhone(item.person)||'—',leftW-18),leftX+9,leftY+120);pdf.setFontSize(8);pdf.text('EMAIL',leftX+9,leftY+135);pdf.setFontSize(9);pdf.text(pdf.splitTextToSize(personEmail(item.person)||'—',leftW-18),leftX+9,leftY+143);
+      const rightX=leftX+leftW+10,rightW=pageWidth-rightX-margin;pdf.setTextColor(15,23,42);pdf.setFont('helvetica','bold');pdf.setFontSize(20);pdf.text((item.serviceName||item.entity.name).toUpperCase(),rightX,52);pdf.setDrawColor(6,78,59);pdf.setLineWidth(.8);pdf.line(rightX,58,rightX+rightW,58);pdf.setFontSize(17);pdf.text('Métier',rightX,75);pdf.setFillColor(248,250,252);pdf.setDrawColor(203,213,225);pdf.roundedRect(rightX,82,rightW,45,4,4,'FD');pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(51,65,85);pdf.text(pdf.splitTextToSize(personJobDescription(item.person)||'Métier / missions à renseigner.',rightW-10).slice(0,10),rightX+5,91);pdf.setFont('helvetica','bold');pdf.setFontSize(17);pdf.setTextColor(15,23,42);pdf.text('À propos',rightX,143);pdf.setFillColor(255,255,255);pdf.setDrawColor(203,213,225);pdf.roundedRect(rightX,150,rightW,34,4,4,'D');pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(51,65,85);pdf.text(pdf.splitTextToSize(personNote(item.person)||'Anecdote / information personnelle à renseigner.',rightW-10).slice(0,6),rightX+5,159);
+      const returnPage=personReturnPage.get(item.key)||companyPage.get(item.entity.id);if(returnPage)addBackButton(isStarFruits(item.entity)?'RETOUR SERVICE':'RETOUR ENTREPRISE',returnPage);addFooter();}
 
-      const leftX = margin;
-      const leftY = 38;
-      const leftW = 92;
-      const leftH = 146;
-
-      pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(leftX, leftY, leftW, leftH, 7, 7, 'F');
-
-      const avatarData = await imageAsDataUrl(personAvatar(item.person));
-      if (avatarData) {
-        try {
-          pdf.addImage(avatarData, 'JPEG', leftX + 10, leftY + 10, 48, 48, undefined, 'FAST');
-        } catch {
-          try { pdf.addImage(avatarData, 'PNG', leftX + 10, leftY + 10, 48, 48, undefined, 'FAST'); } catch {}
-        }
-      }
-
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.text(
-        pdf.splitTextToSize(item.person.name, leftW - 18),
-        leftX + 9,
-        leftY + 70
-      );
-
-      pdf.setFont('helvetica', 'italic');
-      pdf.setFontSize(11);
-      pdf.setTextColor(203, 213, 225);
-      pdf.text(
-        pdf.splitTextToSize(personJob(item.person) || 'Fonction non renseignée', leftW - 18),
-        leftX + 9,
-        leftY + 86
-      );
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
-      pdf.setTextColor(226, 232, 240);
-      pdf.text('TÉLÉPHONE', leftX + 9, leftY + 112);
-      pdf.setFontSize(9);
-      pdf.text(
-        pdf.splitTextToSize(personPhone(item.person) || '—', leftW - 18),
-        leftX + 9,
-        leftY + 120
-      );
-
-      pdf.setFontSize(8);
-      pdf.text('EMAIL', leftX + 9, leftY + 135);
-      pdf.setFontSize(9);
-      pdf.text(
-        pdf.splitTextToSize(personEmail(item.person) || '—', leftW - 18),
-        leftX + 9,
-        leftY + 143
-      );
-
-      const rightX = leftX + leftW + 10;
-      const rightW = pageWidth - rightX - margin;
-
-      pdf.setTextColor(15, 23, 42);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(20);
-      pdf.text((item.serviceName || item.entity.name).toUpperCase(), rightX, 52);
-      pdf.setDrawColor(6, 78, 59);
-      pdf.setLineWidth(0.8);
-      pdf.line(rightX, 58, rightX + rightW, 58);
-
-      pdf.setFontSize(17);
-      pdf.text('Métier', rightX, 75);
-      pdf.setFillColor(248, 250, 252);
-      pdf.setDrawColor(203, 213, 225);
-      pdf.roundedRect(rightX, 82, rightW, 45, 4, 4, 'FD');
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.setTextColor(51, 65, 85);
-      const missionLines = pdf.splitTextToSize(
-        personJobDescription(item.person) || 'Métier / missions à renseigner.',
-        rightW - 10
-      );
-      pdf.text(missionLines.slice(0, 10), rightX + 5, 91);
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(17);
-      pdf.setTextColor(15, 23, 42);
-      pdf.text('À propos', rightX, 143);
-      pdf.setFillColor(255, 255, 255);
-      pdf.setDrawColor(203, 213, 225);
-      pdf.roundedRect(rightX, 150, rightW, 34, 4, 4, 'D');
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.setTextColor(51, 65, 85);
-      const noteLines = pdf.splitTextToSize(
-        personNote(item.person) || 'Anecdote / information personnelle à renseigner.',
-        rightW - 10
-      );
-      pdf.text(noteLines.slice(0, 6), rightX + 5, 159);
-
-      const entityPage = companyPage.get(item.entity.id);
-      if (entityPage) {
-        addBackButton('RETOUR ENTREPRISE', entityPage);
-      }
-
-      addFooter();
-    }
-
-    pdf.save(`Organigramme-Star-Group-${new Date().toISOString().slice(0, 10)}.pdf`);
+    pdf.setPage(1);
+    pdf.save(`Organigramme-Star-Group-${new Date().toISOString().slice(0,10)}.pdf`);
   };
 
   return (
