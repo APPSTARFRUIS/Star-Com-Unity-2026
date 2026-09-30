@@ -60,9 +60,9 @@ const optimizeImageForUpload = async (file: File): Promise<File> => {
 export const uploadMediaToStorage = async (file: File, folder = 'uploads'): Promise<string> => {
   if (!supabase) throw new Error('Supabase n’est pas configuré.');
 
-  const maxSize = 100 * 1024 * 1024;
-  if (file.size > maxSize) throw new Error('Fichier trop lourd. Limite : 100 Mo.');
-
+  // Ne pas imposer de plafond artificiel côté interface : la limite réelle est
+  // celle configurée sur le bucket Supabase. Les vidéos sont donc envoyées au
+  // Storage au lieu d'être rejetées arbitrairement à 100 Mo.
   const preparedFile = await optimizeImageForUpload(file);
   const safeFolder = folder
     .replace(/^\/+|\/+$/g, '')

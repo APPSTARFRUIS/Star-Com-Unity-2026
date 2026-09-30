@@ -519,13 +519,13 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   return (
     <div className={`max-w-7xl mx-auto animate-in fade-in duration-500 text-left ${mode === 'predictions' ? 'space-y-5 pb-4' : 'space-y-10 pb-20'}`}>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className={mode === 'predictions' ? "bg-white border border-slate-100 rounded-3xl shadow-sm p-6 flex items-center justify-between gap-4" : "flex flex-col md:flex-row md:items-center justify-between gap-6"}>
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center shadow-sm">
              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z" /></svg>
           </div>
           <div>
-            <h1 className="text-4xl font-black text-slate-800 tracking-tight">{mode === 'predictions' ? 'Pronostics' : 'Jeux'}</h1>
+            <h1 className={`${mode === 'predictions' ? 'text-2xl' : 'text-4xl'} font-black text-slate-800 tracking-tight`}>{mode === 'predictions' ? 'Pronostics' : 'Jeux'}</h1>
             <p className="text-slate-500 font-medium mt-1">{mode === 'predictions' ? 'Pronostiquez les grands rendez-vous et grimpez au classement.' : 'Divertissez-vous et gagnez des points !'}</p>
           </div>
         </div>
