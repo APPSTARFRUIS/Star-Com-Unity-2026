@@ -25,8 +25,8 @@ const personAvatar = (person: Person) =>
 const personJob = (person: Person) =>
   ('role' in person ? person.job_function : person.jobTitle) || '';
 
-const personEmail = (person: Person) => person.email || '';
-const personPhone = (person: Person) => person.phone || '';
+const personEmail = (person: Person) => ('role' in person && person.profile_visibility?.email === false) ? '' : (person.email || '');
+const personPhone = (person: Person) => ('role' in person && person.profile_visibility?.phone === false) ? '' : (person.phone || '');
 
 const personJobDescription = (person: Person) =>
   ('role' in person ? person.job_description : person.jobDescription) || '';
@@ -249,7 +249,7 @@ const PersonMiniCard = ({
 );
 
 const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
-  const [sub, setSub] = useState<SubView>('list');
+  const [sub, setSub] = useState<SubView>('org');
 
   // Secours mobile : si org_entities tarde, on reconstruit temporairement les structures depuis les profils.
   const fallbackEntities = useMemo<OrgEntity[]>(() => {
@@ -526,9 +526,9 @@ const TeamView: React.FC<Props> = ({ users, entities, services, contacts }) => {
         </div>
         <div className="flex bg-white rounded-2xl border p-1 w-full md:w-auto overflow-x-auto">
           {[
-            ['list', 'Liste'],
+            ['org', 'Organigramme'],
             ['department', 'Services'],
-            ['org', 'Organigramme']
+            ['list', 'Liste']
           ].map(([id, label]) => (
             <button
               key={id}

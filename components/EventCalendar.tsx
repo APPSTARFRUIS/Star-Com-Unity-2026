@@ -46,7 +46,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({ events, selectedDate, onS
   for (let d = 1; d <= numDays; d++) {
     const currentIterDate = `${year}-${(month + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
     const isSelected = selectedDate === currentIterDate;
-    const hasEvent = events.some(e => e.date === currentIterDate);
+    const hasEvent = events.some(e => currentIterDate >= e.date && currentIterDate <= (e.endDate || e.date));
     
     // Pour le style de la capture, le 13 est mis en avant si c'est aujourd'hui (simulé)
     const isTodaySimulated = d === 13 && month === 0 && year === 2026;

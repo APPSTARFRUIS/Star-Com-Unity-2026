@@ -8,13 +8,17 @@ interface MessagesViewProps {
   users: User[];
   messages: Message[];
   onSendMessage: (receiverId: string, text: string, attachments?: Attachment[]) => void;
+  onEditMessage: (messageId: string, text: string) => Promise<void>;
+  onDeleteMessage: (messageId: string) => Promise<void>;
 }
 
-const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, messages, onSendMessage }) => {
+const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, messages, onSendMessage, onEditMessage, onDeleteMessage }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -229,9 +233,9 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                           ? 'bg-[#14532d] text-white rounded-br-none' 
                           : 'bg-white text-slate-700 border border-slate-200 rounded-bl-none'
                       }`}>
-                        {message.text}
+                        {message.deletedAt ? <span className="italic opacity-70">Message supprimé</span> : message.text}
                         
-                        {message.attachments && message.attachments.length > 0 && (
+                        {!message.deletedAt && message.attachments && message.attachments.length > 0 && (
                           <div className={`mt-2 flex flex-col gap-2`}>
                             {message.attachments.map((att, i) => (
                               <div key={i} className="max-w-xs overflow-hidden rounded-lg border border-white/20">
@@ -252,8 +256,21 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                         )}
                       </div>
                       <p className={`text-[10px] mt-1 font-medium text-slate-400`}>
-                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{message.editedAt && !message.deletedAt ? ' · modifié' : ''}
                       </p>
+                      {isMine && !message.deletedAt && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 text-[10px]">
+                          <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingText(message.text); }} className="text-slate-400 hover:text-green-700">Modifier</button>
+                          <button type="button" onClick={async () => { if (confirm('Supprimer ce message ?')) await onDeleteMessage(message.id); }} className="text-slate-400 hover:text-red-600">Supprimer</button>
+                        </div>
+                      )}
+                      {editingMessageId === message.id && (
+                        <div className="mt-2 flex gap-2">
+                          <input value={editingText} onChange={e => setEditingText(e.target.value)} className="px-3 py-2 rounded-xl border text-slate-800 bg-white" />
+                          <button type="button" onClick={async () => { if (editingText.trim()) { await onEditMessage(message.id, editingText.trim()); setEditingMessageId(null); } }} className="px-3 py-2 bg-green-700 text-white rounded-xl">OK</button>
+                          <button type="button" onClick={() => setEditingMessageId(null)} className="px-2 text-slate-400">×</button>
+                        </div>
+                      )}
                     </div>
                     </div>
                   </React.Fragment>

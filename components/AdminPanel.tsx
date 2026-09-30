@@ -927,6 +927,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                      </div>
 
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Date d’anniversaire</label>
+                           <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all" value={userForm.birthday || ''} onChange={e => updateUserFormField({ birthday: e.target.value })} />
+                           <p className="text-[10px] text-slate-400">Utilisée automatiquement dans Célébrations.</p>
+                        </div>
+                     </div>
+
                      <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1">
                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Métier / missions</label>

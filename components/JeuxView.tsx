@@ -518,7 +518,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   const currentObjToFind = playingGame?.hiddenObjects?.find(o => !foundObjectIds.includes(o.id));
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20 text-left">
+    <div className={`max-w-7xl mx-auto animate-in fade-in duration-500 text-left ${mode === 'predictions' ? 'space-y-5 pb-4' : 'space-y-10 pb-20'}`}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center shadow-sm">
@@ -593,7 +593,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className={`grid grid-cols-1 ${mode === 'predictions' ? 'md:grid-cols-2 gap-5' : 'md:grid-cols-2 lg:grid-cols-3 gap-8'}`}>
         {filteredGames.map(game => (
           <div key={game.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm hover:shadow-xl transition-all group">
             <div className="h-48 bg-slate-100 relative overflow-hidden">

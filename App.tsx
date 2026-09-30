@@ -280,7 +280,7 @@ const App: React.FC = () => {
         const authUser = authUserOverride || session?.user || null;
         const profileId = authUser?.user_metadata?.profile_id as string | undefined;
         const authEmail = authUser?.email as string | undefined;
-        const profileColumns = 'id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,created_at,updated_at';
+        const profileColumns = 'id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,profile_visibility,created_at,updated_at';
         let profile: any = null;
 
         const byIdResult = await withRequestTimeout(
@@ -483,7 +483,9 @@ const App: React.FC = () => {
       userId: c.user_id,
       userName: c.user_name,
       userAvatar: c.user_avatar,
-      createdAt: c.created_at
+      createdAt: c.created_at,
+      attachment: c.attachment || undefined,
+      editedAt: c.edited_at || undefined
     }));
 
   const mapPosts = (rows: any[] | null | undefined, commentRows: any[] | null | undefined) =>
@@ -687,7 +689,7 @@ const App: React.FC = () => {
     }
 
     if (postsResult.data) setPosts(mapPosts(postsResult.data, commentsResult.data));
-    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
+    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
     if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
     if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
     if (notificationsResult.data) setNotifications(mapNotifications(notificationsResult.data));
@@ -890,6 +892,7 @@ const App: React.FC = () => {
 
             const mappedEvents = eventsResult.data.map((e: any) => ({
               ...e,
+              endDate: e.end_date || e.date,
               startTime: e.start_time,
               endTime: e.end_time,
               createdBy: e.created_by,
@@ -993,7 +996,9 @@ const App: React.FC = () => {
                 ...m,
                 senderId: m.sender_id,
                 receiverId: m.receiver_id,
-                createdAt: m.created_at
+                createdAt: m.created_at,
+                editedAt: m.edited_at,
+                deletedAt: m.deleted_at
               })));
             }
             break;
@@ -1102,7 +1107,7 @@ const App: React.FC = () => {
 
           case 'humeur': {
             const { data } = await supabase.from('moods').select('*').order('created_at', { ascending: false }).limit(120);
-            if (data) setMoods(data.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
+            if (data) setMoods(data.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at })));
             break;
           }
 
@@ -1388,7 +1393,7 @@ const App: React.FC = () => {
                   userId: c.user_id,
                   userName: c.user_name,
                   userAvatar: c.user_avatar,
-                  createdAt: c.created_at
+                  createdAt: c.created_at, attachment: c.attachment || undefined, editedAt: c.edited_at || undefined
                 }))
             : []
         })));
@@ -1404,7 +1409,7 @@ const App: React.FC = () => {
       } else {
         console.error('Impossible de rafraîchir les profils après plusieurs tentatives : conservation de la liste déjà affichée.');
       }
-      if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
+      if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by })));
       if (ideasData) setIdeas(ideasData.map((i: any) => ({
         ...i,
         userId: i.user_id,
@@ -1425,13 +1430,13 @@ const App: React.FC = () => {
       })) as any);
       if (rewardsData) setRewards(rewardsData as any);
       if (newsData) setNewsletters(newsData.map((n: any) => ({ ...n, coverImage: n.cover_image, publishedAt: n.published_at, authorName: n.author_name, readCount: n.read_count, articles: n.articles })));
-      if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at })));
+      if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at })));
       if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
       if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
       if (messagesData) setMessages(
         [...messagesData]
           .reverse()
-          .map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at }))
+          .map((m: any) => ({ ...m, senderId: m.sender_id, receiverId: m.receiver_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at }))
       );
       // En Administration, les commandes sont chargées par l'API sécurisée list_orders.
       // Ne jamais les écraser avec la requête navigateur sur transactions (soumise à la RLS).
@@ -1978,7 +1983,8 @@ const App: React.FC = () => {
         job_function: user.job_function || null,
         job_description: user.job_description || null,
         personal_note: user.personal_note || null,
-        notification_settings: user.notification_settings || null
+        notification_settings: user.notification_settings || null,
+        profile_visibility: user.profile_visibility || { email: true, phone: true }
       };
 
       const { data, error } = await supabase
@@ -2118,7 +2124,7 @@ const App: React.FC = () => {
 
   const renderDashboard = () => {
     const today = new Date();
-    const monthlyBirthdays = users.filter(u => u.birthday?.startsWith((today.getMonth() + 1).toString().padStart(2, '0')));
+    const monthlyBirthdays = users.filter(u => { if (!u.birthday) return false; const parts=u.birthday.split('-'); const month=parts.length===3?parts[1]:parts[0]; return month === (today.getMonth()+1).toString().padStart(2,'0'); });
     const welcomeTitle = (appConfig.welcomeTitle || INITIAL_CONFIG.welcomeTitle).replace('{name}', currentUser?.name ? currentUser.name.split(' ')[0] : '');
     const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
     const now = Date.now();
@@ -2632,6 +2638,16 @@ const App: React.FC = () => {
             currentUser={currentUser}
             users={users}
             messages={messages}
+            onEditMessage={async (messageId, text) => {
+              const { error } = await supabase.from('messages').update({ text, edited_at: new Date().toISOString() }).eq('id', messageId).eq('sender_id', currentUser.id);
+              if (error) { addToast(error.message, 'error'); return; }
+              void fetchViewData(currentViewRef.current, true);
+            }}
+            onDeleteMessage={async (messageId) => {
+              const { error } = await supabase.from('messages').update({ text: '', attachments: [], deleted_at: new Date().toISOString() }).eq('id', messageId).eq('sender_id', currentUser.id);
+              if (error) { addToast(error.message, 'error'); return; }
+              void fetchViewData(currentViewRef.current, true);
+            }}
             onSendMessage={async (rid, text, att) => {
               await supabase.from('messages').insert({ sender_id: currentUser.id, receiver_id: rid, text, attachments: att || [] });
               void fetchViewData(currentViewRef.current, true);
@@ -3196,7 +3212,9 @@ const App: React.FC = () => {
                     const p = posts.find(x => x.id === id);
                     if (supabase) { await supabase.from('posts').update({ likes: (p?.likes || 0) + 1 }).eq('id', id); void fetchViewData(currentViewRef.current, true); }
                   }}
-                  onAddComment={async (id, text) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text }); void fetchViewData(currentViewRef.current, true); } }}
+                  onAddComment={async (id, text, attachment) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text, attachment: attachment || null }); void fetchViewData(currentViewRef.current, true); } }}
+                  onEditComment={async (commentId, text) => { if (supabase) { const {error}=await supabase.from('comments').update({text, edited_at:new Date().toISOString()}).eq('id',commentId).eq('user_id',currentUser.id); if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
+                  onDeleteComment={async (commentId) => { if (supabase) { const q=supabase.from('comments').delete().eq('id',commentId); if(currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.MODERATOR) q.eq('user_id',currentUser.id); const {error}=await q; if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
                 />
               ))}
             </div>
@@ -3320,6 +3338,7 @@ const App: React.FC = () => {
                     description: e.description,
                     location: e.location,
                     date: e.date,
+                    end_date: e.endDate || e.date,
                     start_time: e.startTime,
                     end_time: e.endTime,
                     participants: e.participants,

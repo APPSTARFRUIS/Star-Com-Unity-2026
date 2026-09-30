@@ -10,13 +10,11 @@ interface SettingsProps {
   onSave: (updatedUser: User) => Promise<void> | void;
 }
 
-type SettingsTab = 'profil' | 'notifications' | 'confidentialite' | 'theme';
+type SettingsTab = 'profil' | 'notifications' | 'confidentialite';
 
 const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profil');
   const [formData, setFormData] = useState<User>({ ...user });
-  const [theme, setTheme] = useState<'clair' | 'sombre'>('clair');
-  const [textSize, setTextSize] = useState<'petit' | 'moyen' | 'grand'>('moyen');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -44,14 +42,14 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
   );
 
   const [privacy, setPrivacy] = useState({
-    email: true,
-    phone: false,
-    birthday: true
+    email: user.profile_visibility?.email ?? true,
+    phone: user.profile_visibility?.phone ?? true,
   });
 
   useEffect(() => {
     setFormData({ ...user, password: undefined });
     setNotifications(user.notification_settings || notifications);
+    setPrivacy({ email: user.profile_visibility?.email ?? true, phone: user.profile_visibility?.phone ?? true });
   }, [user.id, user.avatar, user.name, user.email, user.department, user.phone, user.job_function]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -93,7 +91,8 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
     try {
       await onSave({
         ...formData,
-        notification_settings: notifications
+        notification_settings: notifications,
+        profile_visibility: privacy
       });
     } catch (error: any) {
       setSaveError(error?.message || 'Impossible d’enregistrer les modifications.');
@@ -141,7 +140,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-100 px-6">
-          {(['profil', 'notifications', 'confidentialite', 'theme'] as SettingsTab[]).map(tab => (
+          {(['profil', 'notifications', 'confidentialite'] as SettingsTab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -153,7 +152,6 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                 {tab === 'profil' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
                 {tab === 'notifications' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
                 {tab === 'confidentialite' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
-                {tab === 'theme' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>}
                 {tab}
               </div>
               {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600" />}
@@ -195,7 +193,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nouveau Mot de passe</label>
-                        <input type="text" name="password" value={formData.password || ''} onChange={handleInputChange} placeholder="Saisir nouveau mot de passe" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold" />
+                        <input type="password" name="password" value={formData.password || ''} onChange={handleInputChange} placeholder="Saisir nouveau mot de passe" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold" />
                       </div>
                    </div>
                 </div>
@@ -292,8 +290,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
                 <div className="space-y-6">
                   {[
                     { id: 'email', label: 'Adresse email', sub: 'Visible par les autres membres de l\'équipe' },
-                    { id: 'phone', label: 'Numéro de téléphone', sub: 'Visible par les autres membres de l\'équipe' },
-                    { id: 'birthday', label: 'Date d\'anniversaire', sub: 'Visible dans les célébrations' }
+                    { id: 'phone', label: 'Numéro de téléphone', sub: 'Visible par les autres membres de l\'équipe' }
                   ].map(item => (
                     <div key={item.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <div>
@@ -318,53 +315,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
             </div>
           )}
 
-          {activeTab === 'theme' && (
-            <div className="space-y-10 animate-in fade-in duration-300">
-              <section className="space-y-6">
-                <h3 className="text-lg font-bold text-slate-800">Thème</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    type="button"
-                    onClick={() => setTheme('clair')}
-                    className={`flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all ${theme === 'clair' ? 'border-green-500 bg-green-50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <svg className={`w-8 h-8 ${theme === 'clair' ? 'text-green-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
-                    <span className={`font-bold ${theme === 'clair' ? 'text-green-800' : 'text-slate-600'}`}>Clair</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setTheme('sombre')}
-                    className={`flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all ${theme === 'sombre' ? 'border-green-500 bg-green-50' : 'border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <svg className={`w-8 h-8 ${theme === 'sombre' ? 'text-green-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                    <span className={`font-bold ${theme === 'sombre' ? 'text-green-800' : 'text-slate-600'}`}>Sombre</span>
-                  </button>
-                </div>
-              </section>
-
-              <section className="space-y-6">
-                <h3 className="text-lg font-bold text-slate-800">Taille du texte</h3>
-                <div className="space-y-3">
-                  {[
-                    { id: 'petit', label: 'Petit', sub: 'Aa' },
-                    { id: 'moyen', label: 'Moyen', sub: 'Aa' },
-                    { id: 'grand', label: 'Grand', sub: 'Aa' }
-                  ].map(size => (
-                    <button 
-                      key={size.id}
-                      type="button"
-                      onClick={() => setTextSize(size.id as any)}
-                      className={`w-full flex items-center justify-between px-6 py-4 rounded-xl border-2 transition-all ${textSize === size.id ? 'border-green-500 bg-green-50' : 'border-slate-100 hover:border-slate-200'}`}
-                    >
-                      <span className="font-medium text-slate-700">{size.label}</span>
-                      <span className={`text-slate-400 font-bold ${size.id === 'petit' ? 'text-xs' : size.id === 'grand' ? 'text-xl' : 'text-base'}`}>{size.sub}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
-          )}
-        </div>
+       </div>
 
         {/* Footer Actions */}
         <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-4">

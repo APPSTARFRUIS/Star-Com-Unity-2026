@@ -75,6 +75,7 @@ export interface User {
   job_description?: string;
   personal_note?: string;
   notification_settings?: NotificationSettings;
+  profile_visibility?: { email?: boolean; phone?: boolean };
 }
 
 
@@ -208,6 +209,8 @@ export interface Comment {
   userAvatar: string;
   text: string;
   createdAt: string;
+  attachment?: Attachment;
+  editedAt?: string;
 }
 
 export interface Post {
@@ -233,6 +236,8 @@ export interface Message {
   text: string;
   attachments?: Attachment[];
   createdAt: string;
+  editedAt?: string;
+  deletedAt?: string;
 }
 
 export type IdeaStatus = 'Suggestion' | 'À l\'étude' | 'Planifiée' | 'Réalisée' | 'Refusée';
@@ -275,6 +280,7 @@ export interface CompanyEvent {
   description: string;
   location: string;
   date: string;
+  endDate?: string;
   startTime: string;
   endTime: string;
   participants: string[];

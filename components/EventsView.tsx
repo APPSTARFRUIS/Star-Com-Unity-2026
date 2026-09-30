@@ -28,7 +28,7 @@ const EventsView: React.FC<EventsViewProps> = ({
     [events, currentUser]
   );
 
-  const filteredEvents = useMemo(() => visibleEvents.filter(e => e.date === selectedDate), [visibleEvents, selectedDate]);
+  const filteredEvents = useMemo(() => visibleEvents.filter(e => selectedDate >= e.date && selectedDate <= (e.endDate || e.date)), [visibleEvents, selectedDate]);
   const sortedAllEvents = useMemo(() => [...visibleEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), [visibleEvents]);
 
   return (
@@ -103,7 +103,7 @@ const EventsView: React.FC<EventsViewProps> = ({
                           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                             <span className="flex items-center gap-1.5">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" /></svg>
-                              {event.startTime} - {event.endTime}
+                              {event.endDate && event.endDate !== event.date ? `${new Date(event.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} ${event.startTime} → ${new Date(event.endDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} ${event.endTime}` : `${event.startTime} - ${event.endTime}`}
                             </span>
                             <span className="flex items-center gap-1.5">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" strokeWidth="2" /></svg>

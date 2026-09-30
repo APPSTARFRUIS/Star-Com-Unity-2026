@@ -39,7 +39,8 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
     return users
       .filter(u => u.birthday)
       .map(u => {
-        const [m, d] = u.birthday!.split('-').map(Number);
+        const parts = u.birthday!.split('-').map(Number);
+        const [m, d] = parts.length === 3 ? [parts[1], parts[2]] : [parts[0], parts[1]];
         let isToday = m === currentMonth && d === currentDay;
         return { ...u, birthMonth: m, birthDay: d, isToday };
       })
@@ -58,7 +59,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   );
 
   const feedCelebrations = useMemo(
-    () => celebrations.filter(c => !isBirthdayCelebration(c.type)),
+    () => celebrations.filter(c => !isBirthdayCelebration(c.type)).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6),
     [celebrations]
   );
 

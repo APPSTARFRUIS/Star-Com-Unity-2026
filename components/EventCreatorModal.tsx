@@ -17,7 +17,9 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [date, setDate] = useState('2026-01-13');
+  const todayIso = new Date().toISOString().split('T')[0];
+  const [date, setDate] = useState(todayIso);
+  const [endDate, setEndDate] = useState(todayIso);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [participants, setParticipants] = useState<string[]>(['Toute l\'équipe']);
@@ -25,6 +27,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (new Date(`${endDate}T${endTime}`) < new Date(`${date}T${startTime}`)) { alert('La fin de l’événement ne peut pas être antérieure au début.'); return; }
     if (participants.length === 0) {
       alert('Veuillez sélectionner au moins un participant ou service.');
       return;
@@ -35,6 +38,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
       description,
       location,
       date,
+      endDate,
       startTime,
       endTime,
       participants,
@@ -154,10 +158,14 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date : {date}</label>
-              <EventCalendar events={[]} selectedDate={date} onSelectDate={setDate} />
+              <EventCalendar events={[]} selectedDate={date} onSelectDate={(nextDate) => { setDate(nextDate); if (endDate < nextDate) setEndDate(nextDate); }} />
             </div>
 
             <div className="space-y-6">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date de fin</label>
+                <input type="date" min={date} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-green-500 outline-none transition-all" />
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Heure de début</label>
                 <div className="relative">

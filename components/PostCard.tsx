@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { uploadMediaToStorage } from '../storageUtils';
 import { Post, UserRole, Attachment } from '../types';
 
 interface PostCardProps {
@@ -8,18 +9,25 @@ interface PostCardProps {
   currentUserId: string;
   onDelete: (id: string) => void;
   onLike: (id: string) => void;
-  onAddComment: (postId: string, text: string) => void;
+  onAddComment: (postId: string, text: string, attachment?: Attachment) => void;
+  onEditComment: (commentId: string, text: string) => Promise<void>;
+  onDeleteComment: (commentId: string) => Promise<void>;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserId, onDelete, onLike, onAddComment }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserId, onDelete, onLike, onAddComment, onEditComment, onDeleteComment }) => {
   const [commentText, setCommentText] = useState('');
+  const [commentAttachment, setCommentAttachment] = useState<Attachment | undefined>();
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const commentFileRef = useRef<HTMLInputElement>(null);
   const canDelete = currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.MODERATOR || post.userId === currentUserId;
 
   const handleSubmitComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
-    onAddComment(post.id, commentText);
+    if (!commentText.trim() && !commentAttachment) return;
+    onAddComment(post.id, commentText, commentAttachment);
     setCommentText('');
+    setCommentAttachment(undefined);
   };
 
   const isImage = (file: Attachment) => {
@@ -135,7 +143,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserI
                   <span className="font-bold text-xs text-slate-900">{comment.userName}</span>
                   <span className="text-[10px] text-slate-400 font-medium">{new Date(comment.createdAt).toLocaleTimeString('fr-FR')}</span>
                 </div>
-                <p className="text-sm text-slate-700">{comment.text}</p>
+                {editingCommentId === comment.id ? <div className="flex gap-2"><input className="flex-1 border rounded-lg px-2 py-1" value={editingCommentText} onChange={e=>setEditingCommentText(e.target.value)} /><button type="button" className="text-green-700 font-bold" onClick={async()=>{ if(editingCommentText.trim()){ await onEditComment(comment.id, editingCommentText.trim()); setEditingCommentId(null); }}}>OK</button></div> : <p className="text-sm text-slate-700">{comment.text}</p>}
+                {comment.attachment && <img src={comment.attachment.data} alt={comment.attachment.name} className="mt-2 max-h-64 rounded-xl object-contain cursor-pointer" onClick={()=>window.open(comment.attachment!.data,'_blank')} />}
+                {(comment.userId === currentUserId || currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.MODERATOR) && <div className="mt-2 flex gap-3 text-[10px]">{comment.userId === currentUserId && <button type="button" className="text-slate-400 hover:text-green-700" onClick={()=>{setEditingCommentId(comment.id);setEditingCommentText(comment.text)}}>Modifier</button>}<button type="button" className="text-slate-400 hover:text-red-600" onClick={async()=>{if(confirm('Supprimer ce commentaire ?')) await onDeleteComment(comment.id)}}>Supprimer</button></div>}
               </div>
             </div>
           ))}
@@ -143,7 +153,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserI
       )}
 
       {/* New Comment Input */}
-      <form onSubmit={handleSubmitComment} className="p-4 border-t border-slate-100 flex gap-2 bg-white">
+      <form onSubmit={handleSubmitComment} className="p-4 border-t border-slate-100 bg-white">
+        {commentAttachment && <div className="mb-2 inline-flex items-center gap-2 bg-slate-50 border rounded-xl p-2 text-xs"><span>{commentAttachment.name}</span><button type="button" onClick={()=>setCommentAttachment(undefined)}>×</button></div>}
+        <div className="flex gap-2 items-center">
+        <button type="button" onClick={()=>setCommentText(v=>v+' 😊')} className="p-2 text-xl" title="Ajouter un emoji">😊</button>
+        <input ref={commentFileRef} type="file" accept="image/*,.gif" className="hidden" onChange={async e=>{const f=e.target.files?.[0]; if(!f)return; try{const url=await uploadMediaToStorage(f,'comments'); setCommentAttachment({name:f.name,type:f.type,data:url});}catch(err:any){alert(err?.message||'Upload impossible');} e.target.value='';}} />
+        <button type="button" onClick={()=>commentFileRef.current?.click()} className="p-2 text-slate-500" title="Ajouter une image ou un GIF">📎</button>
         <input
           type="text"
           value={commentText}
@@ -153,13 +168,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserI
         />
         <button 
           type="submit"
-          disabled={!commentText.trim()}
+          disabled={!commentText.trim() && !commentAttachment}
           className="bg-blue-600 text-white rounded-full p-2.5 disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-sm active:scale-95 flex-shrink-0"
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
           </svg>
         </button>
+        </div>
       </form>
     </div>
   );
