@@ -5,6 +5,7 @@ import { DEPARTMENTS } from '../constants';
 import OrganizationAdmin from './OrganizationAdmin';
 import { uploadMediaToStorage } from '../storageUtils';
 import EngagementAdmin from './EngagementAdmin';
+import ExternalToolsAdmin from './ExternalToolsAdmin';
 
 interface AdminPanelProps {
   users: User[];
@@ -76,6 +77,7 @@ const TRIVIAL_CATEGORIES = [
 
 const ADMIN_TABS = [
   { id: 'users', label: 'Utilisateurs', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  { id: 'tools', label: 'Mes outils', icon: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-6-4L20 4m0 0h-6m6 0v6' },
   { id: 'organization', label: 'Organisation', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6' },
   { id: 'rewards', label: 'Boutique', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
   { id: 'jeux', label: 'Jeux', icon: 'M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z' },
@@ -991,6 +993,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
              </div>
            )}
         </div>
+      )}
+
+      {activeTab === 'tools' && (
+        <ExternalToolsAdmin appConfig={appConfig} orgEntities={orgEntities} onUpdateConfig={onUpdateConfig} />
       )}
 
       {activeTab === 'organization' && (

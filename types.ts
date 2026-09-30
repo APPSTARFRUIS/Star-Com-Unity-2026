@@ -105,6 +105,17 @@ export interface AppNotification {
   createdAt: string;
 }
 
+export interface ExternalTool {
+  id: string;
+  name: string;
+  description?: string;
+  logoUrl?: string;
+  url: string;
+  audienceCompanies: string[];
+  sortOrder: number;
+  enabled: boolean;
+}
+
 export interface AppConfig {
   appName: string;
   appSlogan: string;
@@ -113,6 +124,7 @@ export interface AppConfig {
   welcomeSubtitle: string;
   documentCategories: string[];
   gameCategories: string[];
+  externalTools: ExternalTool[];
 }
 
 export enum QuestionType {

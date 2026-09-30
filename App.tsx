@@ -41,6 +41,7 @@ import {
   OrgContact
 } from './types';
 import Sidebar, { ViewType } from './components/Sidebar';
+import ExternalToolsView from './components/ExternalToolsView';
 import PostCard from './components/PostCard';
 import PostCreator from './components/PostCreator';
 import AdminPanel from './components/AdminPanel';
@@ -681,6 +682,7 @@ const App: React.FC = () => {
         welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
         documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
+        externalTools: config.external_tools ?? INITIAL_CONFIG.externalTools,
       });
     }
 
@@ -1007,7 +1009,7 @@ const App: React.FC = () => {
             break;
           }
 
-          case 'documents': {
+      case 'documents': {
             const cachedDocuments = getViewCache<any>('documents');
             if (cachedDocuments?.length && documents.length === 0) {
               setDocuments(cachedDocuments as any);
@@ -1367,6 +1369,7 @@ const App: React.FC = () => {
           welcomeSubtitle: config.welcome_subtitle ?? INITIAL_CONFIG.welcomeSubtitle,
           documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
+        externalTools: config.external_tools ?? INITIAL_CONFIG.externalTools,
         });
       }
 
@@ -2478,7 +2481,8 @@ const App: React.FC = () => {
                 welcome_title: cfg.welcomeTitle,
                 welcome_subtitle: cfg.welcomeSubtitle,
                 document_categories: cfg.documentCategories,
-                game_categories: cfg.gameCategories
+                game_categories: cfg.gameCategories,
+                external_tools: cfg.externalTools
               }).eq('id', 1);
               setAppConfig(cfg);
               addToast("Configuration mise à jour.");
@@ -2599,6 +2603,8 @@ const App: React.FC = () => {
             }}
           />
         );
+
+      case 'outils': return <ExternalToolsView currentUser={currentUser} appConfig={appConfig} />;
 
       case 'equipe':
         return (

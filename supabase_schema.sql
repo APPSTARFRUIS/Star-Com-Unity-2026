@@ -64,3 +64,6 @@ grant select, insert, update, delete on table public.polls to authenticated;
 -- Migration paris sportifs multi-rencontres
 ALTER TABLE public.games
 ADD COLUMN IF NOT EXISTS sport_events jsonb DEFAULT '[]'::jsonb;
+
+-- V1.5 external tools
+ALTER TABLE public.app_config ADD COLUMN IF NOT EXISTS external_tools jsonb NOT NULL DEFAULT '[]'::jsonb;

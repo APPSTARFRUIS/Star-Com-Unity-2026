@@ -7,7 +7,8 @@ export const INITIAL_CONFIG: AppConfig = {
   welcomeTitle: 'Bonjour, {name} !',
   welcomeSubtitle: 'Voici les dernières actualités de la matinée.',
   documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique'],
-  gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus']
+  gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus'],
+  externalTools: [{ id: 'payfit', name: 'PayFit', description: 'Mon espace RH', url: 'https://app.payfit.com/', audienceCompanies: ['*'], sortOrder: 1, enabled: true }]
 };
 
 export const INITIAL_USERS: User[] = [
