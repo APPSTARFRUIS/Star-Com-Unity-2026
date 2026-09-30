@@ -150,8 +150,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
           }
 
           .pdf-cover {
-            page-break-after: always;
-            break-after: page;
+            break-inside: avoid;
           }
 
           .pdf-cover-image {
@@ -210,8 +209,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
 
           .pdf-summary {
             padding: 86px 72px;
-            page-break-after: always;
-            break-after: page;
+            break-inside: avoid;
           }
 
           .pdf-summary h2 {
@@ -271,11 +269,8 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
 
           .pdf-article {
             padding: 56px 64px 48px;
-            min-height: 1122px;
-            max-height: 1122px;
+            min-height: 1040px;
             overflow: hidden;
-            page-break-after: always;
-            break-after: page;
             page-break-inside: avoid;
             break-inside: avoid;
             display: flex;
@@ -512,7 +507,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
         scrollX: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-article-header', '.pdf-main-image', '.pdf-article-summary', '.pdf-media-block', '.pdf-video-block', '.pdf-button-block', '.pdf-gallery-block', '.pdf-footer'] }
+      pagebreak: { mode: ['css'], before: ['.pdf-summary', '.pdf-article'], avoid: ['.pdf-article-header', '.pdf-main-image', '.pdf-article-summary', '.pdf-media-block', '.pdf-video-block', '.pdf-button-block', '.pdf-gallery-block', '.pdf-footer'] }
     };
 
     try {
