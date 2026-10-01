@@ -4,7 +4,7 @@ import AudienceSelector from './AudienceSelector';
 import { canViewAudience } from '../audience';
 import { uploadMediaToStorage } from '../storageUtils';
 import { supabase } from '../supabaseClient';
-import { geminiService } from '../geminiService';
+import { mistralDocumentService } from '../mistralDocumentService';
 
 interface DocumentsViewProps {
   currentUser: User;
@@ -440,35 +440,57 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
-  const extractTextForAnalysis = async (doc: DocumentFile): Promise<string> => {
+  const extractSpreadsheetText = async (doc: DocumentFile): Promise<string> => {
     const url = await loadDocumentBlob(doc);
     try {
-      if (isPdf(doc)) {
-        const moduleUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
-        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
-        const pdfjs: any = await import(/* @vite-ignore */ moduleUrl);
-        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-        const pdf = await pdfjs.getDocument({ url }).promise;
-        const chunks: string[] = [];
-        for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
-          const page = await pdf.getPage(pageNo);
-          const content = await page.getTextContent();
-          chunks.push(content.items.map((item: any) => item.str || '').join(' '));
-        }
-        await pdf.destroy?.();
-        return chunks.join('\n').trim();
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Impossible de lire le tableur.');
+      const buffer = await response.arrayBuffer();
+      const XLSX: any = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const chunks: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        if (csv.trim()) chunks.push(`FEUILLE : ${sheetName}\n${csv}`);
       }
-
-      const safeType = (doc.type || '').toLowerCase();
-      if (safeType.startsWith('text/') || /\.(txt|md|csv)$/i.test(doc.name)) {
-        const response = await fetch(url);
-        return (await response.text()).trim();
-      }
-
-      throw new Error('L’analyse automatique est disponible pour les PDF avec texte et les fichiers texte. Les PDF scannés nécessiteront une étape OCR ultérieure.');
+      return chunks.join('\n\n').trim();
     } finally {
       if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+  };
+
+  const extractTextForAnalysis = async (doc: DocumentFile): Promise<string> => {
+    const name = (doc.name || '').toLowerCase();
+    const safeType = (doc.type || '').toLowerCase();
+
+    // TXT / CSV / Markdown : lecture directe, sans OCR.
+    if (safeType.startsWith('text/') || /\.(txt|md|csv)$/i.test(name)) {
+      const url = await loadDocumentBlob(doc);
+      try {
+        const response = await fetch(url);
+        return (await response.text()).trim();
+      } finally {
+        if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    }
+
+    // Excel : extraction des feuilles et cellules dans le navigateur.
+    if (/\.(xlsx|xls)$/i.test(name) || /spreadsheet|excel/i.test(safeType)) {
+      return extractSpreadsheetText(doc);
+    }
+
+    // PDF (y compris scanné), Word, PowerPoint et images : OCR / Document AI Mistral.
+    if (/\.(pdf|docx?|pptx?|png|jpe?g|webp|avif|gif)$/i.test(name) ||
+        /pdf|word|officedocument|powerpoint|presentation|image/i.test(safeType)) {
+      const sourceUrl = getDocumentUrl(doc);
+      if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+        return mistralDocumentService.extractFromUrl(sourceUrl, doc.name, doc.type || '');
+      }
+      throw new Error('Ce document ancien doit être retéléversé pour permettre son analyse multiformat.');
+    }
+
+    throw new Error('Ce format de fichier n’est pas encore pris en charge par l’analyse.');
   };
 
   const handleAnalyzeDocument = async (doc: DocumentFile) => {
@@ -476,21 +498,23 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     setAnalyzingId(doc.id);
     try {
       const extractedText = await extractTextForAnalysis(doc);
-      if (extractedText.length < 30) throw new Error('Le document ne contient pas assez de texte exploitable pour produire un résumé.');
-      const analysis = await geminiService.summarizeDocument(extractedText);
+      if (extractedText.length < 20) throw new Error('Le document ne contient pas assez de contenu exploitable pour produire une synthèse.');
+      const analysis = await mistralDocumentService.summarizeText(extractedText, doc.name, doc.type || '');
       const analyzedAt = new Date().toISOString();
+      const storedText = extractedText.slice(0, 250000);
       const { error } = await supabase.from('documents').update({
         summary: analysis.summary,
         key_points: analysis.keyPoints,
         actions: analysis.actions,
-        extracted_text: extractedText.slice(0, 250000),
+        extracted_text: storedText,
         analyzed_at: analyzedAt,
       }).eq('id', doc.id);
       if (error) throw error;
-      Object.assign(doc, { ...analysis, extractedText: extractedText.slice(0, 250000), analyzedAt });
+      Object.assign(doc, { ...analysis, extractedText: storedText, analyzedAt });
       setAnalysisDocument({ ...doc });
     } catch (error: any) {
-      alert(error?.message || 'Impossible d’analyser ce document.');
+      console.error('Analyse document:', error);
+      alert(error?.message || 'Impossible d’analyser ce document pour le moment.');
     } finally {
       setAnalyzingId(null);
     }
