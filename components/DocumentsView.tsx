@@ -490,6 +490,78 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
+  const decodeOfficeXmlText = (xml: string): string => {
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(xml, 'application/xml');
+    if (parsed.querySelector('parsererror')) return '';
+    return Array.from(parsed.getElementsByTagName('*'))
+      .filter((node: any) => ['t', 'tab', 'br'].includes(String(node.localName || '').toLowerCase()))
+      .map((node: any) => {
+        const name = String(node.localName || '').toLowerCase();
+        if (name === 'tab') return '\t';
+        if (name === 'br') return '\n';
+        return node.textContent || '';
+      })
+      .join(' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\s*\n\s*/g, '\n')
+      .trim();
+  };
+
+  const extractDocxText = async (doc: DocumentFile): Promise<string> => {
+    const url = await loadDocumentBlob(doc);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Impossible de lire le document Word.');
+      const buffer = await response.arrayBuffer();
+      const { default: JSZip } = await import('jszip');
+      const zip = await JSZip.loadAsync(buffer);
+      const parts: string[] = [];
+      const orderedFiles = [
+        'word/document.xml',
+        ...Object.keys(zip.files).filter(name => /^word\/(header|footer)\d+\.xml$/i.test(name)).sort(),
+        'word/footnotes.xml',
+        'word/endnotes.xml',
+      ];
+      for (const fileName of orderedFiles) {
+        const entry = zip.file(fileName);
+        if (!entry) continue;
+        const text = decodeOfficeXmlText(await entry.async('string'));
+        if (text) parts.push(text);
+      }
+      return parts.join('\n\n').trim();
+    } finally {
+      if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  };
+
+  const extractPptxText = async (doc: DocumentFile): Promise<string> => {
+    const url = await loadDocumentBlob(doc);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Impossible de lire la présentation PowerPoint.');
+      const buffer = await response.arrayBuffer();
+      const { default: JSZip } = await import('jszip');
+      const zip = await JSZip.loadAsync(buffer);
+      const slideNames = Object.keys(zip.files)
+        .filter(name => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+        .sort((a, b) => Number(a.match(/slide(\d+)\.xml/i)?.[1] || 0) - Number(b.match(/slide(\d+)\.xml/i)?.[1] || 0));
+      const slides: string[] = [];
+      for (const slideName of slideNames) {
+        const entry = zip.file(slideName);
+        if (!entry) continue;
+        const text = decodeOfficeXmlText(await entry.async('string'));
+        if (text) {
+          const number = slideName.match(/slide(\d+)\.xml/i)?.[1] || '';
+          slides.push(`DIAPOSITIVE ${number}\n${text}`);
+        }
+      }
+      return slides.join('\n\n').trim();
+    } finally {
+      if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  };
+
   const extractTextForAnalysis = async (doc: DocumentFile): Promise<string> => {
     const name = (doc.name || '').toLowerCase();
     const safeType = (doc.type || '').toLowerCase();
@@ -523,9 +595,22 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       throw new Error('Ce PDF semble scanné et doit être retéléversé pour permettre son OCR.');
     }
 
-    // Word, PowerPoint et images : extraction documentaire/OCR Mistral.
-    if (/\.(docx?|pptx?|png|jpe?g|webp|avif|gif)$/i.test(name) ||
-        /word|officedocument|powerpoint|presentation|image/i.test(safeType)) {
+    // DOCX : extraction locale du texte Open XML, sans Mistral OCR.
+    if (/\.docx$/i.test(name) || /wordprocessingml/i.test(safeType)) {
+      const text = await extractDocxText(doc);
+      if (text.length >= 20) return text;
+      throw new Error('Ce document Word ne contient pas assez de texte exploitable pour produire une synthèse.');
+    }
+
+    // PPTX : extraction locale du texte des diapositives Open XML, sans Mistral OCR.
+    if (/\.pptx$/i.test(name) || /presentationml/i.test(safeType)) {
+      const text = await extractPptxText(doc);
+      if (text.length >= 20) return text;
+      throw new Error('Cette présentation ne contient pas assez de texte exploitable pour produire une synthèse.');
+    }
+
+    // Images et anciens formats binaires .doc/.ppt : OCR documentaire Mistral en dernier recours.
+    if (/\.(doc|ppt|png|jpe?g|webp|avif|gif)$/i.test(name) || /image/i.test(safeType)) {
       const sourceUrl = getDocumentUrl(doc);
       if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
         return mistralDocumentService.extractFromUrl(sourceUrl, doc.name, doc.type || '');
