@@ -446,7 +446,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Impossible de lire le tableur.');
       const buffer = await response.arrayBuffer();
-      const XLSX: any = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
+      const XLSX: any = await import('xlsx');
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
       const chunks: string[] = [];
       for (const sheetName of workbook.SheetNames) {
