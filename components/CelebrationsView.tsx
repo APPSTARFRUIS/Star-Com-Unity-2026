@@ -23,6 +23,9 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   preSelectedUserId
 }) => {
   const [showModal, setShowModal] = useState(false);
+  const [showWishModal, setShowWishModal] = useState(false);
+  const [wishUser, setWishUser] = useState<User | null>(null);
+  const [wishMessage, setWishMessage] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newType, setNewType] = useState<CelebrationType>('success');
@@ -65,11 +68,26 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
 
   // Gérer le pré-remplissage si on vient du dashboard ou d'un bouton direct
   const openWishModal = (user: User) => {
-    setNewType('anniversary');
-    setSelectedUserId(user.id);
-    setNewTitle(`Joyeux anniversaire ${user.name.split(' ')[0]} ! 🎂`);
-    setNewDesc(`Toute l'équipe te souhaite une excellente journée pour ton anniversaire !`);
-    setShowModal(true);
+    setWishUser(user);
+    setWishMessage('');
+    setShowWishModal(true);
+  };
+
+  const handleWishSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wishUser || !wishMessage.trim()) return;
+    onAddCelebration({
+      type: 'anniversary',
+      title: `Joyeux anniversaire ${wishUser.name.split(' ')[0]} ! 🎂`,
+      description: wishMessage.trim(),
+      date: new Date().toISOString().split('T')[0],
+      userName: wishUser.name,
+      userAvatar: wishUser.avatar,
+      userIds: [wishUser.id]
+    });
+    setShowWishModal(false);
+    setWishUser(null);
+    setWishMessage('');
   };
 
   useEffect(() => {
@@ -177,6 +195,10 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                         <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">
                           {new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
+                        {(() => {
+                          const author = users.find(u => u.id === c.createdBy);
+                          return author ? <p className="text-[10px] text-slate-400 mt-1">Message de {author.name}</p> : null;
+                        })()}
                       </div>
                       {canModerate && (
                         <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 p-1" title="Supprimer">×</button>
@@ -273,6 +295,47 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal dédié pour souhaiter un anniversaire */}
+      {showWishModal && wishUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl animate-in zoom-in duration-300 overflow-hidden">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-pink-500 mb-1">Anniversaire</p>
+                <h2 className="text-xl font-bold text-slate-800">Souhaiter un joyeux anniversaire à {wishUser.name.split(' ')[0]}</h2>
+              </div>
+              <button type="button" onClick={() => { setShowWishModal(false); setWishUser(null); setWishMessage(''); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleWishSubmit} className="p-8 space-y-5">
+              <div className="flex items-center gap-4 bg-pink-50/70 rounded-2xl p-4">
+                <img src={wishUser.avatar} className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm" alt="" />
+                <div>
+                  <p className="font-bold text-slate-800">{wishUser.name}</p>
+                  <p className="text-xs text-pink-600 font-medium">Écrivez-lui un petit mot</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Votre message</label>
+                <textarea
+                  autoFocus
+                  required
+                  rows={4}
+                  value={wishMessage}
+                  onChange={(e) => setWishMessage(e.target.value)}
+                  placeholder={`Joyeux anniversaire ${wishUser.name.split(' ')[0]} !`}
+                  className="w-full bg-[#f8fafc] border border-slate-100 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-pink-400 outline-none resize-none placeholder:text-slate-300"
+                />
+              </div>
+              <button type="submit" disabled={!wishMessage.trim()} className="w-full py-4 bg-[#14532d] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-2xl font-bold shadow-lg hover:bg-green-800 transition-all active:scale-[0.98]">
+                Envoyer mon message
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal de création */}
       {showModal && (
