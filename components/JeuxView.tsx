@@ -12,6 +12,7 @@ interface JeuxViewProps {
   onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
   onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
+  onOpenResources?: () => void;
 }
 
 interface MemoryCard {
@@ -30,7 +31,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], categories = ['Produits', 'Histoire', 'Valeurs', 'Processus'], onAddPrediction, onEarnPoints, mode = 'games' }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], categories = ['Produits', 'Histoire', 'Valeurs', 'Processus'], onAddPrediction, onEarnPoints, mode = 'games', onOpenResources }) => {
   const [activeCategory, setActiveCategory] = useState<string | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
   const trivialCategories = useMemo(() => {
@@ -519,6 +520,14 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   return (
     <div className={`max-w-7xl mx-auto animate-in fade-in duration-500 text-left ${mode === 'predictions' ? 'space-y-5 pb-4' : 'space-y-10 pb-20'}`}>
+      {mode === 'games' && onOpenResources && (
+        <div className="flex justify-end pt-1">
+          <div className="flex rounded-2xl bg-slate-100 p-1 w-fit">
+            <button onClick={onOpenResources} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 hover:text-green-800 transition-colors">Ressources</button>
+            <button className="px-5 py-2.5 rounded-xl bg-white shadow-sm font-black text-green-800">Jeux</button>
+          </div>
+        </div>
+      )}
       <div className={mode === 'predictions' ? "bg-white border border-slate-100 rounded-3xl shadow-sm p-6 flex items-center justify-between gap-4" : "flex flex-col md:flex-row md:items-center justify-between gap-6"}>
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center shadow-sm">

@@ -2803,6 +2803,7 @@ const App: React.FC = () => {
             predictions={predictions}
             completions={gameCompletions}
             categories={appConfig.gameCategories || INITIAL_CONFIG.gameCategories}
+            onOpenResources={() => setView('ressources')}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
               const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
               if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
