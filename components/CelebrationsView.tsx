@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Celebration, UserRole } from '../types';
+import { supabase } from '../supabaseClient';
 
 interface CelebrationsViewProps {
   currentUser: User;
@@ -26,6 +27,8 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   const [showWishModal, setShowWishModal] = useState(false);
   const [wishUser, setWishUser] = useState<User | null>(null);
   const [wishMessage, setWishMessage] = useState('');
+  const [birthdayWishes, setBirthdayWishes] = useState<any[]>([]);
+  const [birthdayLikes, setBirthdayLikes] = useState<any[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newType, setNewType] = useState<CelebrationType>('success');
@@ -67,27 +70,49 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
   );
 
   // Gérer le pré-remplissage si on vient du dashboard ou d'un bouton direct
+  const loadBirthdayInteractions = async () => {
+    if (!supabase) return;
+    const [{ data: wishes }, { data: likes }] = await Promise.all([
+      supabase.from('birthday_wishes').select('*').order('created_at', { ascending: true }),
+      supabase.from('birthday_likes').select('*')
+    ]);
+    setBirthdayWishes(wishes || []);
+    setBirthdayLikes(likes || []);
+  };
+
+  useEffect(() => { void loadBirthdayInteractions(); }, []);
+
   const openWishModal = (user: User) => {
     setWishUser(user);
     setWishMessage('');
     setShowWishModal(true);
   };
 
-  const handleWishSubmit = (e: React.FormEvent) => {
+  const handleWishSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wishUser || !wishMessage.trim()) return;
-    onAddCelebration({
-      type: 'anniversary',
-      title: `Joyeux anniversaire ${wishUser.name.split(' ')[0]} ! 🎂`,
-      description: wishMessage.trim(),
-      date: new Date().toISOString().split('T')[0],
-      userName: wishUser.name,
-      userAvatar: wishUser.avatar,
-      userIds: [wishUser.id]
+    if (!wishUser || !wishMessage.trim() || !supabase) return;
+    const { error } = await supabase.from('birthday_wishes').insert({
+      birthday_user_id: wishUser.id,
+      author_id: currentUser.id,
+      message: wishMessage.trim()
     });
-    setShowWishModal(false);
-    setWishUser(null);
-    setWishMessage('');
+    if (!error) {
+      setShowWishModal(false);
+      setWishUser(null);
+      setWishMessage('');
+      await loadBirthdayInteractions();
+    } else {
+      console.error('Erreur souhait anniversaire:', error);
+      alert("Impossible d'envoyer le message d'anniversaire.");
+    }
+  };
+
+  const toggleBirthdayLike = async (birthdayUserId: string) => {
+    if (!supabase) return;
+    const existing = birthdayLikes.find(l => l.birthday_user_id === birthdayUserId && l.user_id === currentUser.id);
+    if (existing) await supabase.from('birthday_likes').delete().eq('id', existing.id);
+    else await supabase.from('birthday_likes').insert({ birthday_user_id: birthdayUserId, user_id: currentUser.id });
+    await loadBirthdayInteractions();
   };
 
   useEffect(() => {
@@ -148,74 +173,51 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
           </h2>
           
           <div className="space-y-4">
-            {birthdays.length > 0 ? birthdays.map(user => (
-              <div key={user.id} className={`p-4 rounded-3xl border transition-all group ${user.isToday ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-pink-100 shadow-sm ring-2 ring-pink-200 ring-offset-2' : 'bg-white border-slate-100 shadow-sm'}`}>
+            {birthdays.length > 0 ? birthdays.map(user => {
+              const wishes = birthdayWishes.filter(w => w.birthday_user_id === user.id);
+              const legacyWishes = anniversaryCelebrations.filter(c => (c.userIds || []).includes(user.id));
+              const likes = birthdayLikes.filter(l => l.birthday_user_id === user.id);
+              const liked = likes.some(l => l.user_id === currentUser.id);
+              return (
+              <div key={user.id} className={`p-5 rounded-3xl border transition-all ${user.isToday ? 'bg-gradient-to-br from-pink-50 to-orange-50 border-pink-100 shadow-sm ring-2 ring-pink-200 ring-offset-2' : 'bg-white border-slate-100 shadow-sm'}`}>
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <img src={user.avatar} className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm" alt="" />
-                    {user.isToday && <span className="absolute -top-2 -right-2 text-xl animate-bounce">🎂</span>}
+                    {user.isToday && <span className="absolute -top-2 -right-2 text-xl">🎂</span>}
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <p className="font-bold text-slate-800 truncate">{user.name}</p>
+                    <p className="font-bold text-slate-800 truncate">Joyeux anniversaire {user.name.split(' ')[0]} ! 🎂</p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                       {user.isToday ? "C'est aujourd'hui !" : `${user.birthDay} ${new Date(2024, user.birthMonth - 1).toLocaleString('fr-FR', { month: 'long' })}`}
                     </p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => openWishModal(user)}
-                  className="w-full mt-4 py-2 bg-pink-100 text-pink-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-pink-200 transition-all opacity-0 group-hover:opacity-100 transform translate-y-1 group-hover:translate-y-0"
-                >
-                  Lui souhaiter ✨
-                </button>
+
+                <div className="mt-4 flex items-center gap-4 border-t border-pink-100/70 pt-3">
+                  <button onClick={() => void toggleBirthdayLike(user.id)} className={`flex items-center gap-1.5 text-xs font-bold ${liked ? 'text-pink-600' : 'text-slate-400 hover:text-pink-500'}`}>
+                    <span className="text-lg">{liked ? '♥' : '♡'}</span> {likes.length > 0 ? `${likes.length} félicitation${likes.length > 1 ? 's' : ''}` : 'Féliciter'}
+                  </button>
+                  <button onClick={() => openWishModal(user)} className="text-xs font-bold text-slate-500 hover:text-pink-600">Commenter / Lui souhaiter</button>
+                </div>
+
+                {(wishes.length > 0 || legacyWishes.length > 0) && (
+                  <div className="mt-4 space-y-2">
+                    {[...legacyWishes.map(c => ({ id: `legacy-${c.id}`, author_id: c.createdBy, message: c.description })), ...wishes].map((w:any) => {
+                      const author = users.find(u => u.id === w.author_id);
+                      return <div key={w.id} className="bg-white/80 rounded-2xl px-3 py-2 border border-pink-100">
+                        <p className="text-[11px] font-bold text-slate-700">{author?.name || 'Collaborateur'}</p>
+                        <p className="text-sm text-slate-600">{w.message}</p>
+                      </div>;
+                    })}
+                  </div>
+                )}
               </div>
-            )) : anniversaryCelebrations.length === 0 ? (
+            )}) : (
               <div className="bg-slate-50 border border-dashed border-slate-200 rounded-3xl py-12 text-center">
                 <p className="text-slate-400 italic text-sm">Aucun anniversaire ce mois-ci.</p>
               </div>
-            ) : null}
+            )}
           </div>
-
-          {anniversaryCelebrations.length > 0 && (
-            <div className="space-y-4 pt-2">
-              <h3 className="text-xs font-black uppercase tracking-[0.18em] text-pink-500">
-                Messages d’anniversaire
-              </h3>
-              {anniversaryCelebrations.map(c => (
-                <div key={c.id} className="bg-white rounded-3xl border border-pink-100 shadow-sm overflow-hidden group">
-                  <div className="p-5">
-                    <div className="flex items-start gap-3">
-                      {c.userAvatar ? (
-                        <img src={c.userAvatar} className="w-11 h-11 rounded-2xl object-cover" alt="" />
-                      ) : (
-                        <div className="w-11 h-11 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center text-xl">🎂</div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-black text-slate-800 leading-tight">{c.title}</h4>
-                        <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">
-                          {new Date(c.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </p>
-                        {(() => {
-                          const author = users.find(u => u.id === c.createdBy);
-                          return author ? <p className="text-[10px] text-slate-400 mt-1">Message de {author.name}</p> : null;
-                        })()}
-                      </div>
-                      {canModerate && (
-                        <button onClick={() => onDeleteCelebration(c.id)} className="text-slate-300 hover:text-red-500 p-1" title="Supprimer">×</button>
-                      )}
-                    </div>
-                    <p className="mt-4 text-sm text-slate-600 italic bg-pink-50/50 p-3 rounded-2xl">“{c.description}”</p>
-                    <button
-                      onClick={() => onLikeCelebration(c.id)}
-                      className={`mt-3 text-xs font-bold ${c.likes.includes(currentUser.id) ? 'text-green-600' : 'text-slate-400 hover:text-green-500'}`}
-                    >
-                      ♥ {c.likes.length > 0 ? `${c.likes.length} félicitations` : 'Féliciter'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Colonne Fil des réussites et bienvenues */}
@@ -353,8 +355,7 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
                   <div className="flex gap-3">
                      {[
                        { id: 'success', label: 'Réussite', icon: '🏆' },
-                       { id: 'welcome', label: 'Bienvenue', icon: '👋' },
-                       { id: 'anniversary', label: 'Anniversaire', icon: '🎂' }
+                       { id: 'welcome', label: 'Bienvenue', icon: '👋' }
                      ].map((t) => (
                         <button 
                           key={t.id}
