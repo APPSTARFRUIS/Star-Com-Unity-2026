@@ -1,8 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-const jsonFromModel = (value) => {
-  const raw = String(value || '').trim().replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
-  try { return JSON.parse(raw); } catch { return null; }
+const parseStructuredSummary = (value) => {
+  const raw = String(value || '').replace(/```(?:json|text)?/gi, '').trim();
+  if (!raw) return null;
+
+  // Compatibilité avec une éventuelle réponse JSON spontanée, sans jamais l'imposer au modèle.
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      summary: String(parsed?.summary || '').trim(),
+      keyPoints: Array.isArray(parsed?.keyPoints) ? parsed.keyPoints.map(String).filter(Boolean) : [],
+      actions: Array.isArray(parsed?.actions) ? parsed.actions.map(String).filter(Boolean) : [],
+    };
+  } catch {}
+
+  const normalized = raw.replace(/\r\n/g, '\n');
+  const section = (name, nextNames = []) => {
+    const alternatives = nextNames.length ? `(?=\n(?:${nextNames.join('|')}):|$)` : '$';
+    const re = new RegExp(`(?:^|\n)${name}:\s*([\s\S]*?)${alternatives}`, 'i');
+    return (normalized.match(re)?.[1] || '').trim();
+  };
+  const summary = section('SUMMARY', ['KEY_POINTS', 'ACTIONS']);
+  const pointsRaw = section('KEY_POINTS', ['ACTIONS']);
+  const actionsRaw = section('ACTIONS');
+  const list = (block) => String(block || '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter((line) => line && !/^(?:aucune?|néant|none)$/i.test(line));
+
+  // Même si le modèle oublie les marqueurs, on ne fait plus échouer l'analyse :
+  // sa réponse devient la synthèse et les listes restent vides.
+  return {
+    summary: summary || normalized.trim(),
+    keyPoints: list(pointsRaw),
+    actions: list(actionsRaw),
+  };
 };
 
 const mistralFetch = async (path, apiKey, body, stage = 'mistral') => {
@@ -211,17 +243,20 @@ export default async function handler(request, response) {
 
       const prompt = `Tu analyses un document interne nommé "${fileName}" (${mimeType || 'type inconnu'}).\n` +
         `Base-toi UNIQUEMENT sur son contenu. N'invente aucune information. Adapte la synthèse au type de document : pour un tableur, décris les feuilles/tableaux, indicateurs et données saillantes ; pour une présentation, restitue les messages des diapositives ; pour un document texte, restitue sa structure et son contenu.\n` +
-        `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].${prepared.truncated ? `\nLe document est long : le contenu fourni contient des extraits répartis dans le début, le milieu et la fin. Ne prétends pas couvrir des éléments absents des extraits.` : ''}\n\nCONTENU :\n${text}`;
+        `Réponds en texte simple, sans JSON, sans markdown complexe et avec EXACTEMENT ces trois marqueurs :\n` +
+        `SUMMARY:\n3 à 6 phrases de synthèse.\nKEY_POINTS:\n- 3 à 8 points clés, un par ligne.\nACTIONS:\n- uniquement les actions, décisions ou échéances explicitement présentes ; écris "Aucune" s'il n'y en a pas.${prepared.truncated ? `\nLe document est long : le contenu fourni contient des extraits répartis dans le début, le milieu et la fin. Ne prétends pas couvrir des éléments absents des extraits.` : ''}\n\nCONTENU :\n${text}`;
 
       const completion = await groqFetch('/v1/chat/completions', groqKey, {
         model: await chooseGroqModel(groqKey),
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
+        messages: [
+          { role: 'system', content: 'Tu produis une synthèse fidèle du document. Respecte les marqueurs SUMMARY:, KEY_POINTS: et ACTIONS:. Ne produis pas de JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0,
         max_tokens: 900,
       }, 'summary');
-      const parsed = jsonFromModel(completion?.choices?.[0]?.message?.content);
-      if (!parsed) return response.status(502).json({ error: 'Groq a renvoyé une réponse inexploitable. Réessayez.' });
+      const parsed = parseStructuredSummary(completion?.choices?.[0]?.message?.content);
+      if (!parsed?.summary) return response.status(502).json({ error: 'Groq n’a renvoyé aucun contenu de synthèse exploitable. Réessayez.' });
       return response.status(200).json({
         ok: true,
         summary: String(parsed.summary || ''),
