@@ -52,6 +52,26 @@ const groqFetch = async (path, apiKey, body, stage = 'summary') => {
   return data;
 };
 
+
+const chooseGroqModel = async (apiKey) => {
+  const configured = String(process.env.GROQ_DOCUMENT_MODEL || '').trim();
+  const preferred = [configured, 'openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b'].filter(Boolean);
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const ids = new Set((Array.isArray(data?.data) ? data.data : []).map((m) => m?.id).filter(Boolean));
+      const available = preferred.find((id) => ids.has(id));
+      if (available) return available;
+    }
+  } catch (error) {
+    console.warn('Groq model discovery failed; using production fallback.', String(error?.message || error));
+  }
+  return 'openai/gpt-oss-20b';
+};
+
 const mimeFromName = (name = '', fallback = '') => {
   if (fallback && fallback !== 'application/octet-stream') return fallback;
   const n = String(name).toLowerCase();
@@ -166,7 +186,7 @@ export default async function handler(request, response) {
         `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].\n\nCONTENU :\n${text.slice(0, 120000)}`;
 
       const completion = await groqFetch('/v1/chat/completions', groqKey, {
-        model: process.env.GROQ_DOCUMENT_MODEL || 'llama-3.1-8b-instant',
+        model: await chooseGroqModel(groqKey),
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
