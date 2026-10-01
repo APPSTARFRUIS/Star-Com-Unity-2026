@@ -117,6 +117,21 @@ export interface ExternalTool {
   enabled: boolean;
 }
 
+export interface ResourceItem {
+  id: string;
+  title: string;
+  summary: string;
+  content: string;
+  category: string;
+  mediaType: 'text' | 'document' | 'video' | 'image' | 'link' | string;
+  resourceUrl?: string;
+  thumbnailUrl?: string;
+  audienceCompanies: string[];
+  published: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface AppConfig {
   appName: string;
   appSlogan: string;

@@ -56,6 +56,7 @@ import CelebrationsView from './components/CelebrationsView';
 import NewsletterView from './components/NewsletterView';
 import BienEtreView from './components/BienEtreView';
 import JeuxView from './components/JeuxView';
+import ResourcesView from './components/ResourcesView';
 import BoutiqueView from './components/BoutiqueView';
 import Settings from './components/Settings';
 import NotificationCenter from './components/NotificationCenter';
@@ -2789,6 +2790,9 @@ const App: React.FC = () => {
         );
 
       case 'bienetre': return <BienEtreView contents={wellnessContents} challenges={wellnessChallenges} />;
+
+      case 'ressources':
+        return <ResourcesView currentUser={currentUser} onOpenGames={() => setView('jeux')} />;
 
       case 'jeux':
         return (
