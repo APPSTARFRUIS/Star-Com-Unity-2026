@@ -440,6 +440,36 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
+  const extractPdfText = async (doc: DocumentFile): Promise<string> => {
+    const url = await loadDocumentBlob(doc);
+    try {
+      // Réutilise PDF.js déjà employé par le lecteur intégré : aucun appel OCR si le PDF contient du vrai texte.
+      const moduleUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+      const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+      const pdfjs: any = await import(/* @vite-ignore */ moduleUrl);
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+      const loadingTask = pdfjs.getDocument({ url, cMapPacked: true, enableXfa: true });
+      const pdf = await loadingTask.promise;
+      const pages: string[] = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const text = (content.items || [])
+          .map((item: any) => typeof item?.str === 'string' ? item.str : '')
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (text) pages.push(`PAGE ${pageNumber}\n${text}`);
+      }
+      try { await pdf.destroy(); } catch {}
+      return pages.join('\n\n').trim();
+    } finally {
+      if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  };
+
   const extractSpreadsheetText = async (doc: DocumentFile): Promise<string> => {
     const url = await loadDocumentBlob(doc);
     try {
@@ -480,9 +510,22 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       return extractSpreadsheetText(doc);
     }
 
-    // PDF (y compris scanné), Word, PowerPoint et images : OCR / Document AI Mistral.
-    if (/\.(pdf|docx?|pptx?|png|jpe?g|webp|avif|gif)$/i.test(name) ||
-        /pdf|word|officedocument|powerpoint|presentation|image/i.test(safeType)) {
+    // PDF : extraction locale d'abord. L'OCR Mistral n'est appelé que si le PDF est réellement scanné
+    // (pas ou presque pas de texte natif). Cela évite de consommer inutilement le quota OCR.
+    if (/\.pdf$/i.test(name) || /pdf/i.test(safeType)) {
+      const nativeText = await extractPdfText(doc);
+      if (nativeText.replace(/\s+/g, ' ').trim().length >= 80) return nativeText;
+
+      const sourceUrl = getDocumentUrl(doc);
+      if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+        return mistralDocumentService.extractFromUrl(sourceUrl, doc.name, doc.type || '');
+      }
+      throw new Error('Ce PDF semble scanné et doit être retéléversé pour permettre son OCR.');
+    }
+
+    // Word, PowerPoint et images : extraction documentaire/OCR Mistral.
+    if (/\.(docx?|pptx?|png|jpe?g|webp|avif|gif)$/i.test(name) ||
+        /word|officedocument|powerpoint|presentation|image/i.test(safeType)) {
       const sourceUrl = getDocumentUrl(doc);
       if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
         return mistralDocumentService.extractFromUrl(sourceUrl, doc.name, doc.type || '');
