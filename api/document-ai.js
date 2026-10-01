@@ -5,7 +5,7 @@ const jsonFromModel = (value) => {
   try { return JSON.parse(raw); } catch { return null; }
 };
 
-const mistralFetch = async (path, apiKey, body) => {
+const mistralFetch = async (path, apiKey, body, stage = 'mistral') => {
   const res = await fetch(`https://api.mistral.ai${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -19,6 +19,10 @@ const mistralFetch = async (path, apiKey, body) => {
     const err = new Error(String(detail));
     err.status = res.status;
     err.provider = 'mistral';
+    err.stage = stage;
+    err.providerBody = data;
+    const requestId = res.headers.get('x-request-id') || res.headers.get('request-id') || '';
+    if (requestId) err.requestId = requestId;
     throw err;
   }
   return data;
@@ -63,9 +67,15 @@ const fetchAsDataUrl = async (url, fileName, declaredMime) => {
 const friendlyError = (error) => {
   const raw = String(error?.message || error || 'Erreur inconnue');
   const status = Number(error?.status || 500);
+  const stage = error?.stage === 'ocr' ? 'OCR' : error?.stage === 'summary' ? 'synthèse' : 'analyse';
   if (/api key|unauthorized|invalid.*key|401/i.test(raw) || status === 401) return 'La clé Mistral configurée sur Vercel est refusée. Vérifiez qu’elle est active.';
-  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return 'Le compte Mistral associé à cette clé ne dispose pas du crédit ou de l’accès nécessaire pour cette analyse.';
-  if (/rate.?limit|too many|429/i.test(raw) || status === 429) return 'Mistral reçoit trop de demandes pour le moment. Réessayez dans quelques instants.';
+  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return `Mistral refuse l’étape ${stage} pour un problème de crédit, quota ou facturation. Vérifiez le compte associé à MISTRAL_API_KEY.`;
+  if (status === 403) return `Mistral refuse l’accès à l’étape ${stage} (403). La clé est reconnue mais n’a probablement pas accès au modèle ou au service demandé.`;
+  if (status === 429) {
+    if (/quota|credit|billing|capacity|insufficient|balance/i.test(raw)) return `Mistral refuse l’étape ${stage} : quota/crédit/capacité indisponible (429). Détail : ${raw.slice(0, 220)}`;
+    return `Mistral limite actuellement l’étape ${stage} (429). Détail : ${raw.slice(0, 220)}`;
+  }
+  if (/rate.?limit|too many/i.test(raw)) return `Mistral limite actuellement l’étape ${stage}. Détail : ${raw.slice(0, 220)}`;
   if (status === 413 || /too (large|big)|maximum 20/i.test(raw)) return raw;
   if (error?.provider === 'source') return raw;
   if (/unsupported|not supported|format|media type/i.test(raw)) return `Mistral ne peut pas traiter ce format de document : ${raw}`;
@@ -116,7 +126,7 @@ export default async function handler(request, response) {
           : { type: 'document_url', document_url: dataUrl },
         table_format: 'markdown',
         include_image_base64: false,
-      });
+      }, 'ocr');
       const pages = Array.isArray(ocr?.pages) ? ocr.pages : [];
       const extractedText = pages.map((p) => p?.markdown || p?.text || '').filter(Boolean).join('\n\n').trim();
       if (!extractedText) return response.status(422).json({ error: 'Aucun contenu exploitable n’a été extrait de ce document.' });
@@ -138,7 +148,7 @@ export default async function handler(request, response) {
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
-      });
+      }, 'summary');
       const parsed = jsonFromModel(completion?.choices?.[0]?.message?.content);
       if (!parsed) return response.status(502).json({ error: 'Mistral a renvoyé une réponse inexploitable. Réessayez.' });
       return response.status(200).json({
@@ -155,6 +165,9 @@ export default async function handler(request, response) {
       message: String(error?.message || error),
       status: error?.status || 500,
       provider: error?.provider || 'server',
+      stage: error?.stage || 'server',
+      requestId: error?.requestId || null,
+      providerBody: error?.providerBody || null,
     });
     return response.status(Number(error?.status) >= 400 && Number(error?.status) < 600 ? Number(error.status) : 500)
       .json({ error: friendlyError(error) });
