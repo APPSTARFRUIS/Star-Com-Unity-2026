@@ -1024,7 +1024,7 @@ const App: React.FC = () => {
             void fetchOrganization(1);
 
             const documentColumns =
-              'id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies';
+              'id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies,summary,key_points,actions,extracted_text,analyzed_at';
 
             let docsResult: any = null;
             let lastDocsError: any = null;
@@ -1083,7 +1083,12 @@ const App: React.FC = () => {
               uploadedAt: d.uploaded_at || new Date().toISOString(),
               data: d.storage_path || '',
               storagePath: d.storage_path || '',
-              audienceCompanies: d.audience_companies || ['Star Fruits']
+              audienceCompanies: d.audience_companies || ['Star Fruits'],
+              summary: d.summary || '',
+              keyPoints: d.key_points || [],
+              actions: d.actions || [],
+              extractedText: d.extracted_text || '',
+              analyzedAt: d.analyzed_at || ''
             }));
 
             setDocuments(mappedDocuments as any);
@@ -1346,7 +1351,7 @@ const App: React.FC = () => {
         supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(60),
         supabase.from('events').select('*').order('date', { ascending: true }).limit(100),
         supabase.from('ideas').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('documents').select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies').order('uploaded_at', { ascending: false }).limit(100),
+        supabase.from('documents').select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,storage_path,audience_companies,summary,key_points,actions,extracted_text,analyzed_at').order('uploaded_at', { ascending: false }).limit(100),
         supabase.from('rewards').select('*').order('cost', { ascending: true }).limit(100),
         supabase.from('newsletters').select('*').order('published_at', { ascending: false }).limit(30),
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400),
@@ -1427,7 +1432,8 @@ const App: React.FC = () => {
         ...d,
         uploadedBy: d.uploaded_by,
         uploadedByName: d.uploaded_by_name,
-        uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString()
+        uploadedAt: d.uploaded_at || d.created_at || new Date().toISOString(),
+        summary: d.summary || '', keyPoints: d.key_points || [], actions: d.actions || [], extractedText: d.extracted_text || '', analyzedAt: d.analyzed_at || ''
       })) as any);
       if (rewardsData) setRewards(rewardsData as any);
       if (newsData) setNewsletters(newsData.map((n: any) => ({ ...n, coverImage: n.cover_image, publishedAt: n.published_at, authorName: n.author_name, readCount: n.read_count, articles: n.articles })));

@@ -284,6 +284,11 @@ export interface DocumentFile {
   data?: string;
   storagePath?: string;
   audienceCompanies?: string[];
+  summary?: string;
+  keyPoints?: string[];
+  actions?: string[];
+  extractedText?: string;
+  analyzedAt?: string;
 }
 
 export type EventType = 'Réunion' | 'Formation' | 'Événement social' | 'Autre';

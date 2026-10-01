@@ -4,6 +4,7 @@ import AudienceSelector from './AudienceSelector';
 import { canViewAudience } from '../audience';
 import { uploadMediaToStorage } from '../storageUtils';
 import { supabase } from '../supabaseClient';
+import { geminiService } from '../geminiService';
 
 interface DocumentsViewProps {
   currentUser: User;
@@ -304,6 +305,8 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadCategory, setUploadCategory] = useState(categories[0] || 'Général');
   const [uploadAudience, setUploadAudience] = useState('ALL');
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analysisDocument, setAnalysisDocument] = useState<DocumentFile | null>(null);
 
   const docCategoriesForFilter = useMemo(() => ['Tous', ...categories], [categories]);
 
@@ -311,7 +314,8 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     return documents
       .filter((doc) => {
         const matchesCategory = selectedCategory === 'Tous' || doc.category === selectedCategory;
-        const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const haystack = [doc.name, doc.summary || '', ...(doc.keyPoints || []), ...(doc.actions || []), doc.extractedText || ''].join(' ').toLowerCase();
+        const matchesSearch = haystack.includes(searchQuery.toLowerCase());
         const matchesAudience = canViewAudience(currentUser, doc.audienceCompanies);
         return matchesCategory && matchesSearch && matchesAudience;
       })
@@ -436,6 +440,62 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     }
   };
 
+  const extractTextForAnalysis = async (doc: DocumentFile): Promise<string> => {
+    const url = await loadDocumentBlob(doc);
+    try {
+      if (isPdf(doc)) {
+        const moduleUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+        const pdfjs: any = await import(/* @vite-ignore */ moduleUrl);
+        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+        const pdf = await pdfjs.getDocument({ url }).promise;
+        const chunks: string[] = [];
+        for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
+          const page = await pdf.getPage(pageNo);
+          const content = await page.getTextContent();
+          chunks.push(content.items.map((item: any) => item.str || '').join(' '));
+        }
+        await pdf.destroy?.();
+        return chunks.join('\n').trim();
+      }
+
+      const safeType = (doc.type || '').toLowerCase();
+      if (safeType.startsWith('text/') || /\.(txt|md|csv)$/i.test(doc.name)) {
+        const response = await fetch(url);
+        return (await response.text()).trim();
+      }
+
+      throw new Error('L’analyse automatique est disponible pour les PDF avec texte et les fichiers texte. Les PDF scannés nécessiteront une étape OCR ultérieure.');
+    } finally {
+      if (url.startsWith('blob:') && url !== previewObjectUrl) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  };
+
+  const handleAnalyzeDocument = async (doc: DocumentFile) => {
+    if (!supabase || analyzingId) return;
+    setAnalyzingId(doc.id);
+    try {
+      const extractedText = await extractTextForAnalysis(doc);
+      if (extractedText.length < 30) throw new Error('Le document ne contient pas assez de texte exploitable pour produire un résumé.');
+      const analysis = await geminiService.summarizeDocument(extractedText);
+      const analyzedAt = new Date().toISOString();
+      const { error } = await supabase.from('documents').update({
+        summary: analysis.summary,
+        key_points: analysis.keyPoints,
+        actions: analysis.actions,
+        extracted_text: extractedText.slice(0, 250000),
+        analyzed_at: analyzedAt,
+      }).eq('id', doc.id);
+      if (error) throw error;
+      Object.assign(doc, { ...analysis, extractedText: extractedText.slice(0, 250000), analyzedAt });
+      setAnalysisDocument({ ...doc });
+    } catch (error: any) {
+      alert(error?.message || 'Impossible d’analyser ce document.');
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
   const formatSize = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
@@ -526,7 +586,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
             <input
               type="text"
-              placeholder="Rechercher un document..."
+              placeholder="Rechercher dans les noms, résumés et contenus..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-4 py-3"
@@ -570,6 +630,11 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                         <button type="button" title="Prévisualiser" onClick={() => handleViewDocument(doc)} className="text-slate-500 hover:text-green-600">👁️</button>
                         <button type="button" title="Ouvrir" onClick={() => handleOpenDocument(doc)} className="text-slate-500 hover:text-blue-600">↗️</button>
                         <button type="button" title="Télécharger" onClick={() => handleDownloadDocument(doc)} className="text-slate-500 hover:text-blue-600">⬇️</button>
+                        {doc.summary ? (
+                          <button type="button" title="Voir le résumé" onClick={() => setAnalysisDocument(doc)} className="text-slate-500 hover:text-violet-700">✨</button>
+                        ) : (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR || doc.uploadedBy === currentUser.id) ? (
+                          <button type="button" title="Analyser et résumer" disabled={analyzingId === doc.id} onClick={() => handleAnalyzeDocument(doc)} className="text-slate-500 hover:text-violet-700 disabled:opacity-40">{analyzingId === doc.id ? '…' : '✦'}</button>
+                        ) : null}
 
                         {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MODERATOR) && (
                           <button type="button" title="Supprimer" onClick={() => onDelete(doc.id)} className="text-slate-500 hover:text-red-600">🗑️</button>
@@ -591,6 +656,21 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {analysisDocument && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[88vh] overflow-y-auto p-7 relative">
+            <button type="button" onClick={() => setAnalysisDocument(null)} className="absolute right-5 top-4 text-2xl text-slate-400 hover:text-slate-700">×</button>
+            <p className="text-xs font-black uppercase tracking-widest text-violet-600 mb-2">Synthèse du document</p>
+            <h2 className="text-2xl font-black text-slate-900 pr-10">{analysisDocument.name}</h2>
+            {analysisDocument.analyzedAt && <p className="text-xs text-slate-400 mt-1">Analysé le {formatDate(analysisDocument.analyzedAt)}</p>}
+            <section className="mt-6"><h3 className="font-black text-slate-800 mb-2">Résumé</h3><p className="text-slate-600 leading-relaxed whitespace-pre-line">{analysisDocument.summary}</p></section>
+            <section className="mt-6"><h3 className="font-black text-slate-800 mb-2">Points clés</h3><ul className="space-y-2">{(analysisDocument.keyPoints || []).map((x,i)=><li key={i} className="flex gap-2 text-slate-600"><span>•</span><span>{x}</span></li>)}</ul></section>
+            <section className="mt-6"><h3 className="font-black text-slate-800 mb-2">Échéances / actions</h3>{(analysisDocument.actions || []).length ? <ul className="space-y-2">{analysisDocument.actions!.map((x,i)=><li key={i} className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-slate-700">{x}</li>)}</ul> : <p className="text-slate-500">Aucune échéance ou action explicite détectée.</p>}</section>
+            <p className="mt-7 text-xs text-slate-400">Synthèse générée à partir du texte du document. Consultez le document original pour toute décision importante.</p>
+          </div>
+        </div>
+      )}
 
       {previewDocument && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
