@@ -6,17 +6,71 @@ const jsonFromModel = (value) => {
 };
 
 const mistralFetch = async (path, apiKey, body) => {
-  const response = await fetch(`https://api.mistral.ai${path}`, {
+  const res = await fetch(`https://api.mistral.ai${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = data?.message || data?.error?.message || `Erreur Mistral (${response.status})`;
-    throw new Error(message);
+  const raw = await res.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw: raw.slice(0, 1000) }; }
+  if (!res.ok) {
+    const detail = data?.message || data?.error?.message || data?.detail || data?.raw || `HTTP ${res.status}`;
+    const err = new Error(String(detail));
+    err.status = res.status;
+    err.provider = 'mistral';
+    throw err;
   }
   return data;
+};
+
+const mimeFromName = (name = '', fallback = '') => {
+  if (fallback && fallback !== 'application/octet-stream') return fallback;
+  const n = String(name).toLowerCase();
+  if (n.endsWith('.pdf')) return 'application/pdf';
+  if (n.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (n.endsWith('.doc')) return 'application/msword';
+  if (n.endsWith('.pptx')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  if (n.endsWith('.ppt')) return 'application/vnd.ms-powerpoint';
+  if (n.endsWith('.png')) return 'image/png';
+  if (/\.jpe?g$/.test(n)) return 'image/jpeg';
+  if (n.endsWith('.webp')) return 'image/webp';
+  if (n.endsWith('.avif')) return 'image/avif';
+  return fallback || 'application/octet-stream';
+};
+
+const fetchAsDataUrl = async (url, fileName, declaredMime) => {
+  const source = await fetch(url, { redirect: 'follow' });
+  if (!source.ok) {
+    const err = new Error(`Le fichier source n’est pas accessible (HTTP ${source.status}).`);
+    err.status = source.status;
+    err.provider = 'source';
+    throw err;
+  }
+  const buffer = Buffer.from(await source.arrayBuffer());
+  if (!buffer.length) throw new Error('Le fichier source est vide.');
+  // Garde une marge sous les limites des fonctions serverless et de l'API OCR.
+  if (buffer.length > 20 * 1024 * 1024) {
+    const err = new Error('Ce document est trop volumineux pour l’analyse automatique (maximum 20 Mo).');
+    err.status = 413;
+    err.provider = 'source';
+    throw err;
+  }
+  const contentType = mimeFromName(fileName, (source.headers.get('content-type') || declaredMime || '').split(';')[0]);
+  return { dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`, contentType };
+};
+
+const friendlyError = (error) => {
+  const raw = String(error?.message || error || 'Erreur inconnue');
+  const status = Number(error?.status || 500);
+  if (/api key|unauthorized|invalid.*key|401/i.test(raw) || status === 401) return 'La clé Mistral configurée sur Vercel est refusée. Vérifiez qu’elle est active.';
+  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return 'Le compte Mistral associé à cette clé ne dispose pas du crédit ou de l’accès nécessaire pour cette analyse.';
+  if (/rate.?limit|too many|429/i.test(raw) || status === 429) return 'Mistral reçoit trop de demandes pour le moment. Réessayez dans quelques instants.';
+  if (status === 413 || /too (large|big)|maximum 20/i.test(raw)) return raw;
+  if (error?.provider === 'source') return raw;
+  if (/unsupported|not supported|format|media type/i.test(raw)) return `Mistral ne peut pas traiter ce format de document : ${raw}`;
+  // Conserver une information utile sans exposer de secret, payload ou stack technique.
+  return `L’analyse Mistral a échoué (${status}). ${raw.slice(0, 300)}`;
 };
 
 export default async function handler(request, response) {
@@ -47,15 +101,19 @@ export default async function handler(request, response) {
 
     if (action === 'extract') {
       const url = String(body.url || '').trim();
-      const mimeType = String(body.mimeType || '').toLowerCase();
+      const fileName = String(body.fileName || 'document');
+      const declaredMime = String(body.mimeType || '').toLowerCase();
       if (!url || !/^https?:\/\//i.test(url)) return response.status(400).json({ error: 'URL du document invalide.' });
 
-      const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|webp|avif|gif)(\?|$)/i.test(url);
+      // Les URL Supabase peuvent être privées/signées et Mistral n'arrive pas toujours à les relire.
+      // La fonction serveur récupère donc le fichier puis l'envoie à Mistral en data URL.
+      const { dataUrl, contentType } = await fetchAsDataUrl(url, fileName, declaredMime);
+      const isImage = contentType.startsWith('image/');
       const ocr = await mistralFetch('/v1/ocr', mistralKey, {
         model: 'mistral-ocr-latest',
         document: isImage
-          ? { type: 'image_url', image_url: url }
-          : { type: 'document_url', document_url: url },
+          ? { type: 'image_url', image_url: dataUrl }
+          : { type: 'document_url', document_url: dataUrl },
         table_format: 'markdown',
         include_image_base64: false,
       });
@@ -73,7 +131,7 @@ export default async function handler(request, response) {
 
       const prompt = `Tu analyses un document interne nommé "${fileName}" (${mimeType || 'type inconnu'}).\n` +
         `Base-toi UNIQUEMENT sur son contenu. N'invente aucune information. Adapte la synthèse au type de document : pour un tableur, décris les feuilles/tableaux, indicateurs et données saillantes ; pour une présentation, restitue les messages des diapositives ; pour un document texte, restitue sa structure et son contenu.\n` +
-        `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].\n\nCONTENU :\n${text.slice(0, 180000)}`;
+        `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].\n\nCONTENU :\n${text.slice(0, 120000)}`;
 
       const completion = await mistralFetch('/v1/chat/completions', mistralKey, {
         model: process.env.MISTRAL_DOCUMENT_MODEL || 'mistral-small-latest',
@@ -93,11 +151,12 @@ export default async function handler(request, response) {
 
     return response.status(400).json({ error: 'Action d’analyse inconnue.' });
   } catch (error) {
-    console.error('Document AI error:', error);
-    const raw = String(error?.message || error || 'Erreur inconnue');
-    const clean = /api key|unauthorized|401/i.test(raw)
-      ? 'La configuration Mistral doit être vérifiée sur Vercel.'
-      : 'Impossible d’analyser ce document pour le moment. Réessayez dans quelques instants.';
-    return response.status(500).json({ error: clean });
+    console.error('Document AI error:', {
+      message: String(error?.message || error),
+      status: error?.status || 500,
+      provider: error?.provider || 'server',
+    });
+    return response.status(Number(error?.status) >= 400 && Number(error?.status) < 600 ? Number(error.status) : 500)
+      .json({ error: friendlyError(error) });
   }
 }
