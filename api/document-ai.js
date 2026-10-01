@@ -47,6 +47,12 @@ const groqFetch = async (path, apiKey, body, stage = 'summary') => {
     err.providerBody = data;
     const requestId = res.headers.get('x-request-id') || res.headers.get('request-id') || '';
     if (requestId) err.requestId = requestId;
+    err.rateLimit = {
+      retryAfter: res.headers.get('retry-after'),
+      remainingTokens: res.headers.get('x-ratelimit-remaining-tokens'),
+      resetTokens: res.headers.get('x-ratelimit-reset-tokens'),
+      remainingRequests: res.headers.get('x-ratelimit-remaining-requests'),
+    };
     throw err;
   }
   return data;
@@ -108,15 +114,35 @@ const fetchAsDataUrl = async (url, fileName, declaredMime) => {
   return { dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`, contentType };
 };
 
+const prepareGroqText = (value, maxChars = 18000) => {
+  const text = String(value || '').replace(/\u0000/g, '').replace(/\r\n/g, '\n').trim();
+  if (text.length <= maxChars) return { text, truncated: false, originalLength: text.length };
+
+  // Conserve le début, le milieu et la fin du document afin de rester sous le TPM
+  // du tier gratuit Groq sans résumer uniquement les premières pages.
+  const separator = '\n\n[... extrait intermédiaire ...]\n\n';
+  const budget = maxChars - separator.length * 2;
+  const firstSize = Math.floor(budget * 0.45);
+  const middleSize = Math.floor(budget * 0.25);
+  const lastSize = budget - firstSize - middleSize;
+  const middleStart = Math.max(firstSize, Math.floor((text.length - middleSize) / 2));
+  const selected = [
+    text.slice(0, firstSize),
+    text.slice(middleStart, middleStart + middleSize),
+    text.slice(-lastSize),
+  ].join(separator);
+  return { text: selected, truncated: true, originalLength: text.length };
+};
+
 const friendlyError = (error) => {
   const raw = String(error?.message || error || 'Erreur inconnue');
   const status = Number(error?.status || 500);
   const stage = error?.stage === 'ocr' ? 'OCR' : error?.stage === 'summary' ? 'synthèse' : 'analyse';
   const provider = error?.provider === 'groq' ? 'Groq' : 'Mistral';
   if (/api key|unauthorized|invalid.*key|401/i.test(raw) || status === 401) return `La clé ${provider} configurée sur Vercel est refusée. Vérifiez qu’elle est active.`;
-  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return `${provider} refuse l’étape ${stage} pour un problème de crédit, quota ou facturation.`;
+  if (status === 429 || /rate.?limit|too many/i.test(raw)) return `${provider} limite actuellement l’étape ${stage} (429). Détail : ${raw.slice(0, 300)}`;
+  if (status === 402 || /payment|billing|credit|insufficient|balance/i.test(raw)) return `${provider} refuse l’étape ${stage} pour un problème de crédit ou de facturation. Détail : ${raw.slice(0, 220)}`;
   if (status === 403) return `${provider} refuse l’accès à l’étape ${stage} (403). La clé est reconnue mais n’a probablement pas accès au modèle ou au service demandé.`;
-  if (status === 429 || /rate.?limit|too many/i.test(raw)) return `${provider} limite actuellement l’étape ${stage} (429). Détail : ${raw.slice(0, 220)}`;
   if (status === 413 || /too (large|big)|maximum 20/i.test(raw)) return raw;
   if (error?.provider === 'source') return raw;
   if (/unsupported|not supported|format|media type/i.test(raw)) return `${provider} ne peut pas traiter ce format : ${raw}`;
@@ -176,20 +202,23 @@ export default async function handler(request, response) {
 
     if (action === 'summarize') {
       if (!groqKey) return response.status(500).json({ error: 'La clé Groq n’est pas configurée sur Vercel (GROQ_API_KEY).' });
-      const text = String(body.text || '').replace(/\u0000/g, '').trim();
+      const rawText = String(body.text || '').replace(/\u0000/g, '').trim();
       const fileName = String(body.fileName || 'document');
       const mimeType = String(body.mimeType || '');
-      if (text.length < 20) return response.status(400).json({ error: 'Le document ne contient pas assez de contenu exploitable.' });
+      if (rawText.length < 20) return response.status(400).json({ error: 'Le document ne contient pas assez de contenu exploitable.' });
+      const prepared = prepareGroqText(rawText, 18000);
+      const text = prepared.text;
 
       const prompt = `Tu analyses un document interne nommé "${fileName}" (${mimeType || 'type inconnu'}).\n` +
         `Base-toi UNIQUEMENT sur son contenu. N'invente aucune information. Adapte la synthèse au type de document : pour un tableur, décris les feuilles/tableaux, indicateurs et données saillantes ; pour une présentation, restitue les messages des diapositives ; pour un document texte, restitue sa structure et son contenu.\n` +
-        `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].\n\nCONTENU :\n${text.slice(0, 120000)}`;
+        `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].${prepared.truncated ? `\nLe document est long : le contenu fourni contient des extraits répartis dans le début, le milieu et la fin. Ne prétends pas couvrir des éléments absents des extraits.` : ''}\n\nCONTENU :\n${text}`;
 
       const completion = await groqFetch('/v1/chat/completions', groqKey, {
         model: await chooseGroqModel(groqKey),
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
+        max_tokens: 900,
       }, 'summary');
       const parsed = jsonFromModel(completion?.choices?.[0]?.message?.content);
       if (!parsed) return response.status(502).json({ error: 'Groq a renvoyé une réponse inexploitable. Réessayez.' });
@@ -210,6 +239,7 @@ export default async function handler(request, response) {
       stage: error?.stage || 'server',
       requestId: error?.requestId || null,
       providerBody: error?.providerBody || null,
+      rateLimit: error?.rateLimit || null,
     });
     return response.status(Number(error?.status) >= 400 && Number(error?.status) < 600 ? Number(error.status) : 500)
       .json({ error: friendlyError(error) });
