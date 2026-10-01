@@ -1,10 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
+const extractGroqText = (completion) => {
+  const message = completion?.choices?.[0]?.message;
+  const content = message?.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => typeof part === 'string' ? part : (part?.text || part?.content || ''))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  // Compatibilité défensive avec d'autres formes de réponse OpenAI-compatible.
+  if (typeof completion?.output_text === 'string') return completion.output_text.trim();
+  return '';
+};
+
 const parseStructuredSummary = (value) => {
-  const raw = String(value || '').replace(/```(?:json|text)?/gi, '').trim();
+  const raw = String(value || '').replace(/```(?:json|text)?/gi, '').replace(/```/g, '').trim();
   if (!raw) return null;
 
-  // Compatibilité avec une éventuelle réponse JSON spontanée, sans jamais l'imposer au modèle.
+  // Compatibilité avec une éventuelle réponse JSON spontanée, sans l'imposer au modèle.
   try {
     const parsed = JSON.parse(raw);
     return {
@@ -16,8 +32,8 @@ const parseStructuredSummary = (value) => {
 
   const normalized = raw.replace(/\r\n/g, '\n');
   const section = (name, nextNames = []) => {
-    const alternatives = nextNames.length ? `(?=\n(?:${nextNames.join('|')}):|$)` : '$';
-    const re = new RegExp(`(?:^|\n)${name}:\s*([\s\S]*?)${alternatives}`, 'i');
+    const alternatives = nextNames.length ? `(?=\\n(?:${nextNames.join('|')}):|$)` : '$';
+    const re = new RegExp(`(?:^|\\n)${name}:\\s*([\\s\\S]*?)${alternatives}`, 'i');
     return (normalized.match(re)?.[1] || '').trim();
   };
   const summary = section('SUMMARY', ['KEY_POINTS', 'ACTIONS']);
@@ -28,8 +44,6 @@ const parseStructuredSummary = (value) => {
     .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
     .filter((line) => line && !/^(?:aucune?|néant|none)$/i.test(line));
 
-  // Même si le modèle oublie les marqueurs, on ne fait plus échouer l'analyse :
-  // sa réponse devient la synthèse et les listes restent vides.
   return {
     summary: summary || normalized.trim(),
     keyPoints: list(pointsRaw),
@@ -246,17 +260,31 @@ export default async function handler(request, response) {
         `Réponds en texte simple, sans JSON, sans markdown complexe et avec EXACTEMENT ces trois marqueurs :\n` +
         `SUMMARY:\n3 à 6 phrases de synthèse.\nKEY_POINTS:\n- 3 à 8 points clés, un par ligne.\nACTIONS:\n- uniquement les actions, décisions ou échéances explicitement présentes ; écris "Aucune" s'il n'y en a pas.${prepared.truncated ? `\nLe document est long : le contenu fourni contient des extraits répartis dans le début, le milieu et la fin. Ne prétends pas couvrir des éléments absents des extraits.` : ''}\n\nCONTENU :\n${text}`;
 
+      const selectedModel = await chooseGroqModel(groqKey);
       const completion = await groqFetch('/v1/chat/completions', groqKey, {
-        model: await chooseGroqModel(groqKey),
+        model: selectedModel,
+        // GPT-OSS peut consommer la totalité d'un petit budget en raisonnement et renvoyer
+        // content vide. On masque le raisonnement, on le limite à low et on réserve un vrai
+        // budget de complétion à la synthèse visible.
         messages: [
-          { role: 'system', content: 'Tu produis une synthèse fidèle du document. Respecte les marqueurs SUMMARY:, KEY_POINTS: et ACTIONS:. Ne produis pas de JSON.' },
-          { role: 'user', content: prompt },
+          { role: 'user', content: `Tu dois produire uniquement la synthèse finale, sans exposer ton raisonnement.\n\n${prompt}` },
         ],
-        temperature: 0,
-        max_tokens: 900,
+        temperature: 0.2,
+        max_completion_tokens: 1200,
+        reasoning_effort: 'low',
+        include_reasoning: false,
       }, 'summary');
-      const parsed = parseStructuredSummary(completion?.choices?.[0]?.message?.content);
-      if (!parsed?.summary) return response.status(502).json({ error: 'Groq n’a renvoyé aucun contenu de synthèse exploitable. Réessayez.' });
+      const groqText = extractGroqText(completion);
+      const parsed = parseStructuredSummary(groqText);
+      if (!parsed?.summary) {
+        console.error('Groq empty final content:', {
+          model: completion?.model || selectedModel,
+          finishReason: completion?.choices?.[0]?.finish_reason || null,
+          hasReasoning: Boolean(completion?.choices?.[0]?.message?.reasoning),
+          usage: completion?.usage || null,
+        });
+        return response.status(502).json({ error: 'Groq a répondu mais sans texte final exploitable. Le serveur a reçu une réponse vide.' });
+      }
       return response.status(200).json({
         ok: true,
         summary: String(parsed.summary || ''),
