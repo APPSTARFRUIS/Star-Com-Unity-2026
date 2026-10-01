@@ -28,6 +28,30 @@ const mistralFetch = async (path, apiKey, body, stage = 'mistral') => {
   return data;
 };
 
+
+const groqFetch = async (path, apiKey, body, stage = 'summary') => {
+  const res = await fetch(`https://api.groq.com/openai${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  });
+  const raw = await res.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw: raw.slice(0, 1000) }; }
+  if (!res.ok) {
+    const detail = data?.error?.message || data?.message || data?.detail || data?.raw || `HTTP ${res.status}`;
+    const err = new Error(String(detail));
+    err.status = res.status;
+    err.provider = 'groq';
+    err.stage = stage;
+    err.providerBody = data;
+    const requestId = res.headers.get('x-request-id') || res.headers.get('request-id') || '';
+    if (requestId) err.requestId = requestId;
+    throw err;
+  }
+  return data;
+};
+
 const mimeFromName = (name = '', fallback = '') => {
   if (fallback && fallback !== 'application/octet-stream') return fallback;
   const n = String(name).toLowerCase();
@@ -68,19 +92,15 @@ const friendlyError = (error) => {
   const raw = String(error?.message || error || 'Erreur inconnue');
   const status = Number(error?.status || 500);
   const stage = error?.stage === 'ocr' ? 'OCR' : error?.stage === 'summary' ? 'synthèse' : 'analyse';
-  if (/api key|unauthorized|invalid.*key|401/i.test(raw) || status === 401) return 'La clé Mistral configurée sur Vercel est refusée. Vérifiez qu’elle est active.';
-  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return `Mistral refuse l’étape ${stage} pour un problème de crédit, quota ou facturation. Vérifiez le compte associé à MISTRAL_API_KEY.`;
-  if (status === 403) return `Mistral refuse l’accès à l’étape ${stage} (403). La clé est reconnue mais n’a probablement pas accès au modèle ou au service demandé.`;
-  if (status === 429) {
-    if (/quota|credit|billing|capacity|insufficient|balance/i.test(raw)) return `Mistral refuse l’étape ${stage} : quota/crédit/capacité indisponible (429). Détail : ${raw.slice(0, 220)}`;
-    return `Mistral limite actuellement l’étape ${stage} (429). Détail : ${raw.slice(0, 220)}`;
-  }
-  if (/rate.?limit|too many/i.test(raw)) return `Mistral limite actuellement l’étape ${stage}. Détail : ${raw.slice(0, 220)}`;
+  const provider = error?.provider === 'groq' ? 'Groq' : 'Mistral';
+  if (/api key|unauthorized|invalid.*key|401/i.test(raw) || status === 401) return `La clé ${provider} configurée sur Vercel est refusée. Vérifiez qu’elle est active.`;
+  if (/payment|billing|credit|quota|insufficient|balance|402/i.test(raw) || status === 402) return `${provider} refuse l’étape ${stage} pour un problème de crédit, quota ou facturation.`;
+  if (status === 403) return `${provider} refuse l’accès à l’étape ${stage} (403). La clé est reconnue mais n’a probablement pas accès au modèle ou au service demandé.`;
+  if (status === 429 || /rate.?limit|too many/i.test(raw)) return `${provider} limite actuellement l’étape ${stage} (429). Détail : ${raw.slice(0, 220)}`;
   if (status === 413 || /too (large|big)|maximum 20/i.test(raw)) return raw;
   if (error?.provider === 'source') return raw;
-  if (/unsupported|not supported|format|media type/i.test(raw)) return `Mistral ne peut pas traiter ce format de document : ${raw}`;
-  // Conserver une information utile sans exposer de secret, payload ou stack technique.
-  return `L’analyse Mistral a échoué (${status}). ${raw.slice(0, 300)}`;
+  if (/unsupported|not supported|format|media type/i.test(raw)) return `${provider} ne peut pas traiter ce format : ${raw}`;
+  return `L’analyse ${provider} a échoué (${status}). ${raw.slice(0, 300)}`;
 };
 
 export default async function handler(request, response) {
@@ -91,11 +111,11 @@ export default async function handler(request, response) {
 
   try {
     const mistralKey = process.env.MISTRAL_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
     const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
     const authorization = request.headers.authorization;
 
-    if (!mistralKey) return response.status(500).json({ error: 'La clé Mistral n’est pas configurée sur Vercel (MISTRAL_API_KEY).' });
     if (!supabaseUrl || !anonKey) return response.status(500).json({ error: 'Configuration Supabase serveur incomplète.' });
     if (!authorization) return response.status(401).json({ error: 'Session utilisateur manquante.' });
 
@@ -110,6 +130,7 @@ export default async function handler(request, response) {
     const action = String(body.action || '');
 
     if (action === 'extract') {
+      if (!mistralKey) return response.status(500).json({ error: 'La clé Mistral n’est pas configurée sur Vercel (MISTRAL_API_KEY). Elle est uniquement requise pour l’OCR de secours.' });
       const url = String(body.url || '').trim();
       const fileName = String(body.fileName || 'document');
       const declaredMime = String(body.mimeType || '').toLowerCase();
@@ -134,6 +155,7 @@ export default async function handler(request, response) {
     }
 
     if (action === 'summarize') {
+      if (!groqKey) return response.status(500).json({ error: 'La clé Groq n’est pas configurée sur Vercel (GROQ_API_KEY).' });
       const text = String(body.text || '').replace(/\u0000/g, '').trim();
       const fileName = String(body.fileName || 'document');
       const mimeType = String(body.mimeType || '');
@@ -143,14 +165,14 @@ export default async function handler(request, response) {
         `Base-toi UNIQUEMENT sur son contenu. N'invente aucune information. Adapte la synthèse au type de document : pour un tableur, décris les feuilles/tableaux, indicateurs et données saillantes ; pour une présentation, restitue les messages des diapositives ; pour un document texte, restitue sa structure et son contenu.\n` +
         `Réponds en JSON strict avec exactement : {"summary":"3 à 6 phrases","keyPoints":["3 à 8 points"],"actions":["uniquement actions, décisions ou échéances explicitement présentes"]}. Si aucune action/échéance n'est présente, actions doit être [].\n\nCONTENU :\n${text.slice(0, 120000)}`;
 
-      const completion = await mistralFetch('/v1/chat/completions', mistralKey, {
-        model: process.env.MISTRAL_DOCUMENT_MODEL || 'mistral-small-latest',
+      const completion = await groqFetch('/v1/chat/completions', groqKey, {
+        model: process.env.GROQ_DOCUMENT_MODEL || 'llama-3.1-8b-instant',
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
       }, 'summary');
       const parsed = jsonFromModel(completion?.choices?.[0]?.message?.content);
-      if (!parsed) return response.status(502).json({ error: 'Mistral a renvoyé une réponse inexploitable. Réessayez.' });
+      if (!parsed) return response.status(502).json({ error: 'Groq a renvoyé une réponse inexploitable. Réessayez.' });
       return response.status(200).json({
         ok: true,
         summary: String(parsed.summary || ''),
