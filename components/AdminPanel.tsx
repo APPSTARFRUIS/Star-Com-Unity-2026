@@ -7,6 +7,8 @@ import { uploadMediaToStorage } from '../storageUtils';
 import EngagementAdmin from './EngagementAdmin';
 import ExternalToolsAdmin from './ExternalToolsAdmin';
 import ResourcesAdmin from './ResourcesAdmin';
+import { supabase } from '../supabaseClient';
+import { registerPushSubscription } from '../notificationUtils';
 
 interface AdminPanelProps {
   users: User[];
@@ -615,6 +617,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   // --- WELLNESS ---
   const [showWellnessModal, setShowWellnessModal] = useState(false);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [pushTestStatus, setPushTestStatus] = useState('');
+  const [pushTestBusy, setPushTestBusy] = useState(false);
+
+  const handleEnableAndTestPush = async () => {
+    if (!supabase) return;
+    setPushTestBusy(true); setPushTestStatus('');
+    try {
+      await registerPushSubscription(currentUser.id);
+      const { data, error } = await supabase.functions.invoke('send-push-test', { body: {} });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || 'Envoi du push impossible.');
+      setPushTestStatus('Notification test envoyée. Elle doit apparaître sur cet appareil.');
+    } catch (error: any) {
+      setPushTestStatus(error?.message || 'Impossible de tester la notification push.');
+    } finally { setPushTestBusy(false); }
+  };
+
   const [newWellness, setNewWellness] = useState<Omit<WellnessContent, 'id' | 'createdAt'>>({ type: 'article', title: '', summary: '', content: '', category: 'Mental', author: currentUser.name, duration: '5 min', mediaUrl: '' });
   const [newChallenge, setNewChallenge] = useState<Omit<WellnessChallenge, 'id' | 'isActive'>>({ title: '', description: '', points: 50 });
   
@@ -2176,6 +2195,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div className={`p-4 rounded-2xl border font-bold text-sm ${appConfig.notificationsTestMode ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
               {appConfig.notificationsTestMode ? `Sécurisé : notifications externes limitées à ${appConfig.notificationsTestEmail || 'aucune adresse'}.` : 'ATTENTION : mode test désactivé. Les notifications navigateur peuvent être affichées aux utilisateurs qui les ont autorisées.'}
+            </div>
+            <div className="pt-5 border-t border-slate-100 space-y-3">
+              <p className="font-black text-slate-800">Test push navigateur / PC</p>
+              <p className="text-sm text-slate-500">Autorise cet appareil, enregistre son abonnement push puis envoie une vraie notification de test. En mode test, seul le compte correspondant à l’adresse autorisée peut recevoir ce push.</p>
+              <button type="button" disabled={pushTestBusy || !appConfig.notificationsTestMode} onClick={handleEnableAndTestPush} className="px-5 py-3 rounded-2xl bg-purple-600 text-white font-black text-sm disabled:opacity-40">
+                {pushTestBusy ? 'Envoi en cours…' : 'Activer et envoyer un push test'}
+              </button>
+              {pushTestStatus && <p className="text-sm font-bold text-slate-700">{pushTestStatus}</p>}
             </div>
           </div>
         </div>
