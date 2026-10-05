@@ -686,6 +686,8 @@ const App: React.FC = () => {
         documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
         externalTools: config.external_tools ?? INITIAL_CONFIG.externalTools,
+        notificationsTestMode: config.notifications_test_mode ?? INITIAL_CONFIG.notificationsTestMode,
+        notificationsTestEmail: config.notifications_test_email ?? INITIAL_CONFIG.notificationsTestEmail,
       });
     }
 
@@ -1381,6 +1383,8 @@ const App: React.FC = () => {
           documentCategories: config.document_categories ?? INITIAL_CONFIG.documentCategories,
         gameCategories: config.game_categories ?? INITIAL_CONFIG.gameCategories,
         externalTools: config.external_tools ?? INITIAL_CONFIG.externalTools,
+        notificationsTestMode: config.notifications_test_mode ?? INITIAL_CONFIG.notificationsTestMode,
+        notificationsTestEmail: config.notifications_test_email ?? INITIAL_CONFIG.notificationsTestEmail,
         });
       }
 
@@ -1632,7 +1636,9 @@ const App: React.FC = () => {
             const channelEnabled = isMobileDevice()
               ? currentUser?.notification_settings?.mobile
               : currentUser?.notification_settings?.desktop;
-            if (channelEnabled) void showBrowserNotification(item.title, item.message);
+            const externalNotificationAllowed = !appConfig.notificationsTestMode
+              || currentUser?.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
+            if (channelEnabled && externalNotificationAllowed) void showBrowserNotification(item.title, item.message);
           }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {
@@ -2495,7 +2501,9 @@ const App: React.FC = () => {
                 welcome_subtitle: cfg.welcomeSubtitle,
                 document_categories: cfg.documentCategories,
                 game_categories: cfg.gameCategories,
-                external_tools: cfg.externalTools
+                external_tools: cfg.externalTools,
+                notifications_test_mode: cfg.notificationsTestMode,
+                notifications_test_email: cfg.notificationsTestEmail
               }).eq('id', 1).select('external_tools').single();
               if (error) {
                 addToast(`Configuration non enregistrée : ${error.message}`, 'error');

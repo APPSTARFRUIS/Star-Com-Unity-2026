@@ -8,7 +8,9 @@ export const INITIAL_CONFIG: AppConfig = {
   welcomeSubtitle: 'Voici les dernières actualités de la matinée.',
   documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique'],
   gameCategories: ['Produits', 'Histoire', 'Valeurs', 'Processus'],
-  externalTools: [{ id: 'payfit', name: 'PayFit', description: 'Mon espace RH', url: 'https://app.payfit.com/', audienceCompanies: ['*'], sortOrder: 1, enabled: true }]
+  externalTools: [{ id: 'payfit', name: 'PayFit', description: 'Mon espace RH', url: 'https://app.payfit.com/', audienceCompanies: ['*'], sortOrder: 1, enabled: true }],
+  notificationsTestMode: true,
+  notificationsTestEmail: 'ludivine.tramier@star-fruits.com'
 };
 
 export const INITIAL_USERS: User[] = [

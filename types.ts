@@ -141,6 +141,8 @@ export interface AppConfig {
   documentCategories: string[];
   gameCategories: string[];
   externalTools: ExternalTool[];
+  notificationsTestMode: boolean;
+  notificationsTestEmail: string;
 }
 
 export enum QuestionType {
