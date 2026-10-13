@@ -21,7 +21,7 @@ interface EngagementViewProps {
   section?: 'rankings' | 'highlights';
   games: CompanyGame[];
   predictions: GamePrediction[];
-  onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
+  onAddPrediction: (gameId: string, eventId: string, homeScore?: number, awayScore?: number, answer?: string) => void;
   onEarnPoints: (userId: string, amount: number, reason: string) => void;
 }
 

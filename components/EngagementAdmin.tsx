@@ -15,7 +15,7 @@ interface EngagementAdminProps {
   onAddGame: (game: Omit<CompanyGame, 'id' | 'createdAt'>) => void | Promise<void>;
   onDeleteGame: (id: string) => void | Promise<void>;
   onToggleGameStatus: (id: string) => void | Promise<void>;
-  onUpdateSportResult: (gameId: string, fixtureId: string, homeScore: number, awayScore: number) => void | Promise<void>;
+  onUpdateSportResult: (gameId: string, fixtureId: string, result: { homeScore?: number; awayScore?: number; resultValue?: string }) => void | Promise<void>;
 }
 
 type EditorMode = 'list' | 'predictions' | EngagementType;

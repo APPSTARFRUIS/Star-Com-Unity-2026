@@ -9,7 +9,7 @@ interface JeuxViewProps {
   predictions: GamePrediction[];
   completions?: GameCompletion[];
   categories?: string[];
-  onAddPrediction: (gameId: string, eventId: string, homeScore: number, awayScore: number) => void;
+  onAddPrediction: (gameId: string, eventId: string, homeScore?: number, awayScore?: number, answer?: string) => void;
   onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
   onOpenResources?: () => void;
@@ -81,15 +81,16 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   const [isProcessingPoints, setIsProcessingPoints] = useState(false);
   const [sportTab, setSportTab] = useState<'matches' | 'ranking'>('matches');
-  const [sportDrafts, setSportDrafts] = useState<Record<string, { home: string; away: string }>>({});
+  const [sportDrafts, setSportDrafts] = useState<Record<string, { home: string; away: string; answer: string }>>({});
 
   const getPredictionForFixture = (gameId: string, eventId: string) =>
     predictions.find(p => p.gameId === gameId && p.eventId === eventId && p.userId === currentUser.id);
 
-  const submitSportPrediction = (gameId: string, eventId: string) => {
+  const submitSportPrediction = (gameId: string, eventId: string, format: string) => {
     const draft = sportDrafts[eventId];
-    if (!draft || draft.home === '' || draft.away === '') return;
-    onAddPrediction(gameId, eventId, Number(draft.home), Number(draft.away));
+    if (!draft) return;
+    if (format === 'score') { if (draft.home === '' || draft.away === '') return; onAddPrediction(gameId, eventId, Number(draft.home), Number(draft.away)); }
+    else { if (!draft.answer) return; onAddPrediction(gameId, eventId, undefined, undefined, draft.answer); }
   };
 
   const sportRanking = useMemo(() => {
@@ -648,11 +649,9 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                {isGamePassed(game.id)
-                  ? 'Rejouer'
-                  : isGameUnlocked(game)
-                    ? 'Jouer maintenant'
-                    : 'Niveau verrouillé'}
+                {game.type === 'Pari'
+                  ? (predictions.some(p => p.gameId === game.id && p.userId === currentUser.id) ? 'Voir / modifier mes pronos' : 'Jouer maintenant')
+                  : isGamePassed(game.id) ? 'Rejouer' : isGameUnlocked(game) ? 'Jouer maintenant' : 'Niveau verrouillé'}
               </button>
             </div>
           </div>
@@ -712,30 +711,25 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                        {(playingGame.sportEvents || []).map(f => {
                          const existing = getPredictionForFixture(playingGame.id, f.id);
                          const closed = new Date(f.closingDate).getTime() <= Date.now() || f.isFinished;
-                         const draft = sportDrafts[f.id] || { home: existing?.homeScore?.toString() || '', away: existing?.awayScore?.toString() || '' };
+                         const format = f.predictionFormat || 'score';
+                         const draft = sportDrafts[f.id] || { home: existing?.homeScore?.toString() || '', away: existing?.awayScore?.toString() || '', answer: existing?.answer || existing?.choice || '' };
+                         const resultLabel = f.isFinished ? (format === 'score' ? `${f.homeScore} – ${f.awayScore}` : (f.resultValue === 'A' ? f.homeTeam : f.resultValue === 'B' ? f.awayTeam : f.resultValue)) : '';
+                         const predictionLabel = format === 'score' ? `${existing?.homeScore ?? ''} – ${existing?.awayScore ?? ''}` : (existing?.answer === 'A' ? f.homeTeam : existing?.answer === 'B' ? f.awayTeam : existing?.answer || existing?.choice || '');
                          return (
                            <div key={f.id} className="bg-white rounded-[28px] p-5 md:p-6 shadow-xl">
                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                <div>
-                                 <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-widest text-slate-400">{new Date(f.eventDate).toLocaleString('fr-FR')}</p>{f.roundLabel && <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-black uppercase">{f.roundLabel}</span>}</div>
-                                 <h3 className="text-xl font-black text-slate-800 mt-1">{f.homeTeam} <span className="text-slate-300">vs</span> {f.awayTeam}</h3>
+                                 <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-widest text-slate-400">{new Date(f.eventDate).toLocaleString('fr-FR')}</p>{f.roundLabel && <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-black uppercase">{f.roundLabel}</span>}{existing && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full text-[9px] font-black uppercase">✓ Joué</span>}</div>
+                                 <h3 className="text-xl font-black text-slate-800 mt-1">{f.question || <>{f.homeTeam} <span className="text-slate-300">vs</span> {f.awayTeam}</>}</h3>
                                  <p className="text-xs text-slate-500 mt-1">Pronostics jusqu'au {new Date(f.closingDate).toLocaleString('fr-FR')}{f.venue ? ` · ${f.venue}` : ''}</p>
                                </div>
-                               {f.isFinished ? (
-                                 <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xl">{f.homeScore} – {f.awayScore}</div>
-                               ) : closed ? (
-                                 <span className="px-4 py-2 bg-amber-100 text-amber-800 rounded-full text-xs font-black uppercase">Pronostics clos</span>
-                               ) : null}
+                               {f.isFinished ? <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black">Résultat : {resultLabel}</div> : closed ? <span className="px-4 py-2 bg-amber-100 text-amber-800 rounded-full text-xs font-black uppercase">Pronostics clos</span> : null}
                              </div>
                              <div className="mt-5 flex flex-wrap items-center gap-3">
-                               <div className="flex items-center gap-2">
-                                 <input disabled={closed} type="number" min="0" value={draft.home} onChange={e => setSportDrafts(prev => ({...prev, [f.id]: {...draft, home: e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100" aria-label={`Score ${f.homeTeam}`} />
-                                 <span className="font-black text-slate-400">–</span>
-                                 <input disabled={closed} type="number" min="0" value={draft.away} onChange={e => setSportDrafts(prev => ({...prev, [f.id]: {...draft, away: e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100" aria-label={`Score ${f.awayTeam}`} />
-                               </div>
-                               {!closed && <button onClick={() => submitSportPrediction(playingGame.id, f.id)} className="px-6 h-14 bg-green-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-green-700">{existing ? 'Modifier mon prono' : 'Valider mon prono'}</button>}
-                               {existing && <span className="text-xs font-bold text-green-700">Pronostic enregistré : {existing.homeScore} – {existing.awayScore}{existing.awarded ? ` · +${existing.pointsAwarded || 0} pts` : ''}</span>}
+                               {format === 'score' ? <div className="flex items-center gap-2"><input disabled={closed} type="number" min="0" value={draft.home} onChange={e=>setSportDrafts(prev=>({...prev,[f.id]:{...draft,home:e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100"/><span className="font-black text-slate-400">–</span><input disabled={closed} type="number" min="0" value={draft.away} onChange={e=>setSportDrafts(prev=>({...prev,[f.id]:{...draft,away:e.target.value}}))} className="w-20 h-14 rounded-2xl border-2 border-slate-200 text-center text-xl font-black disabled:bg-slate-100"/></div> : format === 'winner' ? <select disabled={closed} value={draft.answer} onChange={e=>setSportDrafts(prev=>({...prev,[f.id]:{...draft,answer:e.target.value}}))} className="h-14 min-w-56 rounded-2xl border-2 border-slate-200 px-4 font-bold disabled:bg-slate-100"><option value="">Choisir…</option><option value="A">{f.homeTeam}</option><option value="B">{f.awayTeam}</option>{playingGame.sportName !== 'Tennis' && <option value="Nul">Nul</option>}</select> : format === 'choice' ? <select disabled={closed} value={draft.answer} onChange={e=>setSportDrafts(prev=>({...prev,[f.id]:{...draft,answer:e.target.value}}))} className="h-14 min-w-56 rounded-2xl border-2 border-slate-200 px-4 font-bold disabled:bg-slate-100"><option value="">Choisir…</option>{(f.options||[]).map(o=><option key={o}>{o}</option>)}</select> : <input disabled={closed} type="number" value={draft.answer} onChange={e=>setSportDrafts(prev=>({...prev,[f.id]:{...draft,answer:e.target.value}}))} className="h-14 w-40 rounded-2xl border-2 border-slate-200 px-4 text-center text-xl font-black disabled:bg-slate-100" placeholder="Votre réponse"/>}
+                               {!closed && <button onClick={()=>submitSportPrediction(playingGame.id,f.id,format)} className="px-6 h-14 bg-green-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-green-700">{existing?'Modifier mon prono':'Valider mon prono'}</button>}
                              </div>
+                             {existing && <div className={`mt-4 rounded-2xl p-4 ${f.isFinished ? 'bg-slate-50' : 'bg-green-50'}`}><p className="text-xs font-black uppercase text-slate-400">Mon pronostic</p><p className="font-black text-slate-800 mt-1">{predictionLabel}{existing.awarded ? ` · ${existing.pointsAwarded || 0} point(s)` : ''}</p>{f.isFinished && <p className="text-sm text-slate-500 mt-1">Résultat officiel : <strong>{resultLabel}</strong></p>}</div>}
                            </div>
                          );
                        })}

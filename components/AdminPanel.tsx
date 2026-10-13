@@ -40,7 +40,7 @@ interface AdminPanelProps {
   onDeleteGame: (id: string) => void;
   onToggleGameStatus: (id: string) => void;
   onSetGameResult: (gameId: string, result: 'A' | 'Nul' | 'B') => void;
-  onUpdateSportResult: (gameId: string, fixtureId: string, homeScore: number, awayScore: number) => void;
+  onUpdateSportResult: (gameId: string, fixtureId: string, result: { homeScore?: number; awayScore?: number; resultValue?: string }) => void;
   predictions: GamePrediction[];
   rewards: Reward[];
   onAddReward: (r: Omit<Reward, 'id'>) => void;
@@ -1350,7 +1350,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                            <input type="number" min="0" value={draft.home} onChange={e => setSportResultDrafts(prev => ({...prev, [f.id]: {...draft, home: e.target.value}}))} className="w-16 border rounded-lg px-2 py-1 text-center" />
                            <span>–</span>
                            <input type="number" min="0" value={draft.away} onChange={e => setSportResultDrafts(prev => ({...prev, [f.id]: {...draft, away: e.target.value}}))} className="w-16 border rounded-lg px-2 py-1 text-center" />
-                           <button type="button" onClick={() => { if (draft.home === '' || draft.away === '') return; onUpdateSportResult(g.id, f.id, Number(draft.home), Number(draft.away)); }} className="px-3 py-2 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase">Valider</button>
+                           <button type="button" onClick={() => { if (draft.home === '' || draft.away === '') return; onUpdateSportResult(g.id, f.id, { homeScore: Number(draft.home), awayScore: Number(draft.away) }); }} className="px-3 py-2 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase">Valider</button>
                          </div>;
                        })}
                      </div>

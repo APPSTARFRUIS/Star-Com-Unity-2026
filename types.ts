@@ -420,6 +420,8 @@ export interface HiddenObject {
   radius: number; 
 }
 
+export type PredictionFormat = 'score' | 'winner' | 'choice' | 'number';
+
 export interface SportFixture {
   id: string;
   homeTeam: string;
@@ -431,6 +433,12 @@ export interface SportFixture {
   isFinished?: boolean;
   roundLabel?: string;
   venue?: string;
+  predictionFormat?: PredictionFormat;
+  question?: string;
+  options?: string[];
+  resultValue?: string;
+  exactPoints?: number;
+  outcomePoints?: number;
 }
 
 export interface CompanyGame {
@@ -486,7 +494,8 @@ export interface GamePrediction {
   eventId?: string;
   homeScore?: number;
   awayScore?: number;
-  choice?: 'A' | 'Nul' | 'B';
+  choice?: string;
+  answer?: string;
   submittedAt: string;
   pointsAwarded?: number;
   awarded?: boolean;

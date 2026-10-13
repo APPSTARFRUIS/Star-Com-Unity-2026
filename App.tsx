@@ -563,6 +563,7 @@ const App: React.FC = () => {
         homeScore: parsed.homeScore,
         awayScore: parsed.awayScore,
         choice: parsed.choice,
+        answer: parsed.answer,
         pointsAwarded: parsed.pointsAwarded || 0,
         awarded: !!parsed.awarded,
         submittedAt: p.submitted_at
@@ -2460,31 +2461,35 @@ const App: React.FC = () => {
             onDeleteGame={async (id) => { await supabase.from('games').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             onToggleGameStatus={async (id) => { const g = games.find(x => x.id === id); if (g) { await supabase.from('games').update({ status: g.status === 'Actif' ? 'Inactif' : 'Actif' }).eq('id', id); void fetchViewData(currentViewRef.current, true); } }}
             onSetGameResult={async (id, r) => { await supabase.from('games').update({ result: r, is_processed: true }).eq('id', id); void fetchViewData(currentViewRef.current, true); }}
-            onUpdateSportResult={async (gameId, fixtureId, homeScore, awayScore) => {
-              const game = games.find(g => g.id === gameId);
-              if (!game) return;
-              const updatedEvents = (game.sportEvents || []).map(f => f.id === fixtureId ? { ...f, homeScore, awayScore, isFinished: true } : f);
+            onUpdateSportResult={async (gameId, fixtureId, result) => {
+              const game = games.find(g => g.id === gameId); if (!game) return;
+              const fixture = (game.sportEvents || []).find(f => f.id === fixtureId); if (!fixture) return;
+              const format = fixture.predictionFormat || 'score';
+              const updatedEvents = (game.sportEvents || []).map(f => f.id === fixtureId ? { ...f, ...result, isFinished: true } : f);
               const { error: gameError } = await supabase.from('games').update({ sport_events: updatedEvents }).eq('id', gameId);
               if (gameError) { addToast('Erreur lors de l’enregistrement du résultat.', 'error'); return; }
-
               const fixturePredictions = predictions.filter(p => p.gameId === gameId && p.eventId === fixtureId && !p.awarded);
-              const outcome = (a: number, b: number) => a === b ? 'Nul' : a > b ? 'A' : 'B';
+              const outcome = (a:number,b:number) => a===b?'Nul':a>b?'A':'B';
               for (const prediction of fixturePredictions) {
-                if (prediction.homeScore === undefined || prediction.awayScore === undefined || !prediction.id) continue;
-                const exact = prediction.homeScore === homeScore && prediction.awayScore === awayScore;
-                const correctOutcome = outcome(prediction.homeScore, prediction.awayScore) === outcome(homeScore, awayScore);
-                const points = exact ? (game.exactScorePoints || game.rewardPoints || 10) : correctOutcome ? (game.outcomePoints ?? 5) : 0;
-                const payload = JSON.stringify({ eventId: fixtureId, homeScore: prediction.homeScore, awayScore: prediction.awayScore, awarded: true, pointsAwarded: points });
+                if (!prediction.id) continue;
+                let points = 0; let exact = false;
+                if (format === 'score' && prediction.homeScore !== undefined && prediction.awayScore !== undefined && result.homeScore !== undefined && result.awayScore !== undefined) {
+                  exact = prediction.homeScore === result.homeScore && prediction.awayScore === result.awayScore;
+                  const good = outcome(prediction.homeScore,prediction.awayScore) === outcome(result.homeScore,result.awayScore);
+                  points = exact ? (fixture.exactPoints ?? game.exactScorePoints ?? game.rewardPoints ?? 3) : good ? (fixture.outcomePoints ?? game.outcomePoints ?? 1) : 0;
+                } else {
+                  exact = String(prediction.answer ?? prediction.choice ?? '') === String(result.resultValue ?? '');
+                  points = exact ? (fixture.exactPoints ?? game.exactScorePoints ?? game.rewardPoints ?? 3) : 0;
+                }
+                const payload = JSON.stringify({ eventId: fixtureId, homeScore: prediction.homeScore, awayScore: prediction.awayScore, answer: prediction.answer, choice: prediction.choice, awarded: true, pointsAwarded: points });
                 await supabase.from('game_predictions').update({ choice: payload }).eq('id', prediction.id);
                 if (points > 0) {
                   const { data: profile } = await supabase.from('profiles').select('points').eq('id', prediction.userId).single();
-                  const newPoints = (profile?.points || 0) + points;
-                  await supabase.from('profiles').update({ points: newPoints }).eq('id', prediction.userId);
-                  await supabase.from('transactions').insert({ user_id: prediction.userId, amount: points, reason: `Pronostic ${exact ? 'score exact' : 'bon résultat'} : ${updatedEvents.find(f => f.id === fixtureId)?.homeTeam} - ${updatedEvents.find(f => f.id === fixtureId)?.awayTeam}`, type: 'earn', date: new Date().toISOString() });
+                  await supabase.from('profiles').update({ points: (profile?.points || 0) + points }).eq('id', prediction.userId);
+                  await supabase.from('transactions').insert({ user_id: prediction.userId, amount: points, reason: `Pronostic réussi : ${fixture.question || `${fixture.homeTeam} - ${fixture.awayTeam}`}`, type: 'earn', date: new Date().toISOString() });
                 }
               }
-              addToast('Résultat validé et points calculés.');
-              void fetchViewData(currentViewRef.current, true);
+              addToast('Résultat enregistré et classement recalculé.'); void fetchViewData(currentViewRef.current, true);
             }}
             predictions={predictions}
             rewards={rewards}
@@ -2818,8 +2823,8 @@ const App: React.FC = () => {
             completions={gameCompletions}
             categories={appConfig.gameCategories || INITIAL_CONFIG.gameCategories}
             onOpenResources={() => setView('ressources')}
-            onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
-              const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
+            onAddPrediction={async (gameId, eventId, homeScore, awayScore, answer) => {
+              const { error } = await supabase.rpc('submit_game_prediction_v2', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore ?? null, p_away_score: awayScore ?? null, p_answer: answer ?? null });
               if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
               addToast('Pronostic enregistré !');
               void fetchViewData(currentViewRef.current, true);
@@ -2876,8 +2881,8 @@ const App: React.FC = () => {
           games={games}
           predictions={predictions}
           section={view === 'tempsforts' ? 'highlights' : 'rankings'}
-          onAddPrediction={async (gameId, eventId, homeScore, awayScore) => {
-            const { error } = await supabase.rpc('submit_game_prediction', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore, p_away_score: awayScore });
+          onAddPrediction={async (gameId, eventId, homeScore, awayScore, answer) => {
+            const { error } = await supabase.rpc('submit_game_prediction_v2', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore ?? null, p_away_score: awayScore ?? null, p_answer: answer ?? null });
             if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
             addToast('Pronostic enregistré !');
             void fetchViewData(currentViewRef.current, true);
