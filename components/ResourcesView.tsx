@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ResourceItem, User } from '../types';
 import { supabase } from '../supabaseClient';
 import { canViewAudience } from '../audience';
@@ -79,17 +80,20 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
       <div className="p-5 flex-1 flex flex-col"><div className="flex gap-2 mb-3"><span className="text-[10px] uppercase tracking-widest font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-full">{r.category}</span><span className="text-[10px] uppercase tracking-widest font-black text-slate-400 px-2 py-1">{typeLabel(r.mediaType)}</span></div><h2 className="text-xl font-black text-slate-900">{r.title}</h2>{r.summary && <p className="text-sm text-slate-500 mt-2">{r.summary}</p>}{r.content && <p className="text-sm text-slate-700 mt-4 whitespace-pre-line line-clamp-5">{r.content}</p>}{r.resourceUrl && (r.mediaType === 'document' ? <button type="button" onClick={() => openDocumentForReading(r)} className="mt-auto pt-5 text-sm font-black text-green-700 hover:text-green-900 text-left">Ouvrir le document →</button> : <a href={r.resourceUrl} target="_blank" rel="noreferrer" className="mt-auto pt-5 text-sm font-black text-green-700 hover:text-green-900">{r.mediaType === 'video' ? 'Voir la vidéo →' : r.mediaType === 'image' ? 'Voir l’image →' : 'Consulter →'}</a>)}</div>
     </article>)}</div>}
 
-    {documentPreview && <div className="fixed inset-0 z-50 bg-black/70 p-3 md:p-6 flex items-center justify-center" onClick={closeDocumentPreview}>
-      <div className="bg-white rounded-2xl w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
-          <div><h2 className="font-black text-slate-900">{documentPreview.title}</h2><p className="text-xs text-slate-400 mt-1">Lecture du document</p></div>
-          <button type="button" onClick={closeDocumentPreview} className="text-3xl leading-none text-slate-400 hover:text-slate-700" aria-label="Fermer">×</button>
+    {documentPreview && createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/70 p-3 md:p-6 flex items-center justify-center" onClick={closeDocumentPreview}>
+        <div className="bg-white rounded-2xl w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
+            <div className="min-w-0"><h2 className="font-black text-slate-900 truncate">{documentPreview.title}</h2><p className="text-xs text-slate-400 mt-1">Lecture du document</p></div>
+            <button type="button" onClick={closeDocumentPreview} className="text-3xl leading-none text-slate-400 hover:text-slate-700 shrink-0" aria-label="Fermer">×</button>
+          </div>
+          <div className="flex-1 min-h-0 bg-slate-100">
+            {documentPreviewLoading ? <div className="h-full flex items-center justify-center text-slate-500 font-bold">Chargement du document…</div> : documentPreviewError ? <div className="h-full flex items-center justify-center p-8 text-center text-slate-600 font-bold">{documentPreviewError}</div> : documentPreview.url ? <PdfJsViewer source={documentPreview.url} fileName={documentPreview.title} onDownload={() => window.open(documentPreview.url, '_blank', 'noopener,noreferrer')} /> : null}
+          </div>
         </div>
-        <div className="flex-1 min-h-0 bg-slate-100">
-          {documentPreviewLoading ? <div className="h-full flex items-center justify-center text-slate-500 font-bold">Chargement du document…</div> : documentPreviewError ? <div className="h-full flex items-center justify-center p-8 text-center text-slate-600 font-bold">{documentPreviewError}</div> : documentPreview.url ? <PdfJsViewer source={documentPreview.url} fileName={documentPreview.title} onDownload={() => window.open(documentPreview.url, '_blank', 'noopener,noreferrer')} /> : null}
-        </div>
-      </div>
-    </div>}
+      </div>,
+      document.body
+    )}
   </div>;
 };
 export default ResourcesView;
