@@ -49,6 +49,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [userSelections, setUserSelections] = useState<Record<number, number[]>>({});
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0, points: 0 });
+  const [quizAnswered, setQuizAnswered] = useState(false);
 
   // Trivial Pursuit state
   const [trivialStep, setTrivialStep] = useState<'intro' | 'board' | 'question' | 'finished'>('intro');
@@ -56,6 +57,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
   const [activeTrivialCat, setActiveTrivialCat] = useState<string | null>(null);
   const [currentTrivialQuestion, setCurrentTrivialQuestion] = useState<QuizQuestion | null>(null);
   const [trivialSelection, setTrivialSelection] = useState<number[]>([]);
+  const [trivialAnswered, setTrivialAnswered] = useState(false);
   
   // Memory game state
   const [memoryCards, setMemoryCards] = useState<MemoryCard[]>([]);
@@ -262,11 +264,13 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
       setCurrentQuestionIdx(0);
       setUserSelections({});
       setQuizScore({ correct: 0, total: 0, points: 0 });
+      setQuizAnswered(false);
     } else if (game.type === 'Trivial') {
       setTrivialStep('intro');
       setEarnedWedges([]);
       setActiveTrivialCat(null);
       setCurrentTrivialQuestion(null);
+      setTrivialAnswered(false);
       setTrivialSelection([]);
     } else if (game.type === 'Memory') {
       setMemoryStep('intro');
@@ -296,37 +300,39 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
     setCurrentTrivialQuestion(randomQ);
     setActiveTrivialCat(catName);
     setTrivialSelection([]);
+    setTrivialAnswered(false);
     setTrivialStep('question');
   };
 
   const handleTrivialOptionClick = (idx: number) => {
-    if (!currentTrivialQuestion) return;
+    if (!currentTrivialQuestion || trivialAnswered) return;
     setTrivialSelection([idx]);
-    
-    // Auto-validation après un court délai
-    setTimeout(() => {
-      const isCorrect = currentTrivialQuestion.correctIndices.includes(idx);
-      if (isCorrect) {
-        const nextWedges = [...earnedWedges, activeTrivialCat!];
-        setEarnedWedges(nextWedges);
-        if (nextWedges.length === trivialCategories.length) {
-          setTrivialStep('finished');
-          if (!isProcessingPoints) {
-            setIsProcessingPoints(true);
-            void onEarnPoints(currentUser.id, playingGame?.rewardPoints || 100, `Grand Chelem Trivial en ${formatTime(seconds)}`, playingGame!.id);
-          }
-        } else {
-          setTrivialStep('board');
-          setActiveTrivialCat(null);
-          setCurrentTrivialQuestion(null);
+    setTrivialAnswered(true);
+  };
+
+  const continueAfterTrivialFeedback = () => {
+    if (!currentTrivialQuestion || trivialSelection.length === 0) return;
+    const idx = trivialSelection[0];
+    const isCorrect = currentTrivialQuestion.correctIndices.includes(idx);
+    if (isCorrect) {
+      const nextWedges = [...earnedWedges, activeTrivialCat!];
+      setEarnedWedges(nextWedges);
+      if (nextWedges.length === trivialCategories.length) {
+        setTrivialStep('finished');
+        if (!isProcessingPoints) {
+          setIsProcessingPoints(true);
+          void onEarnPoints(currentUser.id, playingGame?.rewardPoints || 100, `Grand Chelem Trivial en ${formatTime(seconds)}`, playingGame!.id);
         }
       } else {
-        alert("Mauvaise réponse ! Essayez une autre catégorie ou retentez votre chance.");
         setTrivialStep('board');
-        setActiveTrivialCat(null);
-        setCurrentTrivialQuestion(null);
       }
-    }, 600);
+    } else {
+      setTrivialStep('board');
+    }
+    setActiveTrivialCat(null);
+    setCurrentTrivialQuestion(null);
+    setTrivialSelection([]);
+    setTrivialAnswered(false);
   };
 
   // Logique Memory
@@ -449,19 +455,11 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   // Logique Quiz
   const handleToggleQuizOption = (optionIdx: number) => {
-    if (!playingGame?.questions) return;
+    if (!playingGame?.questions || quizAnswered) return;
     const q = playingGame.questions[currentQuestionIdx];
-    
     if (q.type === 'QCU' || q.type === 'Vrai/Faux') {
-      const next = { ...userSelections, [currentQuestionIdx]: [optionIdx] };
-      setUserSelections(next);
-      setTimeout(() => {
-        if (currentQuestionIdx < playingGame.questions!.length - 1) {
-          setCurrentQuestionIdx(currentQuestionIdx + 1);
-        } else {
-          finishQuiz(next);
-        }
-      }, 400);
+      setUserSelections({ ...userSelections, [currentQuestionIdx]: [optionIdx] });
+      setQuizAnswered(true);
     } else {
       const cur = userSelections[currentQuestionIdx] || [];
       const next = cur.includes(optionIdx) ? cur.filter(i => i !== optionIdx) : [...cur, optionIdx];
@@ -471,8 +469,15 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   const handleNextQuizQuestion = () => {
     if (!playingGame?.questions) return;
+    const selection = userSelections[currentQuestionIdx] || [];
+    if (!selection.length) return;
+    if (!quizAnswered) {
+      setQuizAnswered(true);
+      return;
+    }
     if (currentQuestionIdx < playingGame.questions.length - 1) {
       setCurrentQuestionIdx(currentQuestionIdx + 1);
+      setQuizAnswered(false);
     } else {
       finishQuiz(userSelections);
     }
@@ -806,6 +811,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                    <button 
                                      key={oIdx} 
                                      onClick={() => handleTrivialOptionClick(oIdx)}
+                                     disabled={trivialAnswered}
                                      className={`group p-4 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                    >
                                       <div className={`w-10 h-10 flex items-center justify-center text-xs font-black rounded-2xl ${isSelected ? 'bg-green-600 text-white' : 'bg-white/10 text-white'}`}>{String.fromCharCode(65 + oIdx)}</div>
@@ -814,6 +820,16 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                  );
                                })}
                             </div>
+                            {trivialAnswered && (
+                              <div className="bg-white rounded-[28px] p-6 text-left space-y-3 shadow-2xl">
+                                <p className={`font-black ${currentTrivialQuestion.correctIndices.includes(trivialSelection[0]) ? 'text-green-700' : 'text-red-600'}`}>
+                                  {currentTrivialQuestion.correctIndices.includes(trivialSelection[0]) ? 'Bonne réponse' : 'Réponse incorrecte'}
+                                </p>
+                                {currentTrivialQuestion.feedback && <div><p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Feedback</p><p className="text-slate-700 font-medium">{currentTrivialQuestion.feedback}</p></div>}
+                                {(currentTrivialQuestion.sourceLabel || currentTrivialQuestion.sourceResourceId) && <div className="flex flex-wrap items-center gap-3 pt-2"><span className="text-xs font-black uppercase text-slate-400">Où trouver la réponse :</span><span className="font-black text-slate-800">{currentTrivialQuestion.sourceLabel || 'Ressources & Jeux'}</span>{currentTrivialQuestion.sourceResourceId && onOpenResources && <button onClick={onOpenResources} className="px-3 py-2 bg-green-50 text-green-800 rounded-xl text-xs font-black">Voir la ressource</button>}</div>}
+                                <button onClick={continueAfterTrivialFeedback} className="w-full mt-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest">Continuer</button>
+                              </div>
+                            )}
                          </div>
                        )}
 
@@ -861,27 +877,38 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                                     {playingGame.questions![currentQuestionIdx].options.map((opt, oIdx) => {
                                       const isSelected = (userSelections[currentQuestionIdx] || []).includes(oIdx);
                                       return (
-                                        <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} className={`group p-3.5 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
+                                        <button key={oIdx} onClick={() => handleToggleQuizOption(oIdx)} disabled={quizAnswered} className={`group p-3.5 sm:p-6 border-2 transition-all flex items-center gap-3 sm:gap-4 rounded-2xl sm:rounded-[32px] ${isSelected ? 'bg-green-600/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}>
                                            <div className={`w-10 h-10 shrink-0 flex items-center justify-center text-xs font-black transition-all uppercase rounded-2xl ${isSelected ? 'bg-green-600 text-white scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>{String.fromCharCode(65 + oIdx)}</div>
                                            <span className={`font-bold text-sm sm:text-lg text-left transition-colors ${isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{opt}</span>
                                         </button>
                                       );
                                     })}
                                  </div>
-                                 {playingGame.questions![currentQuestionIdx].type === 'QCM' && (
+                                 {playingGame.questions![currentQuestionIdx].type === 'QCM' && !quizAnswered && (
                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Choix multiples possible</p>
                                  )}
+                                 {quizAnswered && (() => {
+                                   const q = playingGame.questions![currentQuestionIdx];
+                                   const selected = [...(userSelections[currentQuestionIdx] || [])].sort((a,b)=>a-b);
+                                   const correct = [...q.correctIndices].sort((a,b)=>a-b);
+                                   const isCorrect = selected.length === correct.length && selected.every((value,index)=>value===correct[index]);
+                                   return <div className="bg-white rounded-[28px] p-5 sm:p-6 text-left space-y-3 shadow-2xl">
+                                     <p className={`font-black ${isCorrect ? 'text-green-700' : 'text-red-600'}`}>{isCorrect ? 'Bonne réponse' : 'Réponse incorrecte'}</p>
+                                     {q.feedback && <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Feedback</p><p className="text-slate-700 font-medium">{q.feedback}</p></div>}
+                                     {(q.sourceLabel || q.sourceResourceId) && <div className="flex flex-wrap items-center gap-3 pt-1"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Où trouver la réponse :</span><span className="font-black text-slate-800">{q.sourceLabel || 'Ressources & Jeux'}</span>{q.sourceResourceId && onOpenResources && <button onClick={onOpenResources} className="px-3 py-2 bg-green-50 text-green-800 rounded-xl text-xs font-black">Voir la ressource</button>}</div>}
+                                   </div>;
+                                 })()}
                               </div>
                            </div>
 
-                           {playingGame.questions![currentQuestionIdx].type !== 'QCU' && playingGame.questions![currentQuestionIdx].type !== 'Vrai/Faux' && (
+                           {(
                              <div className="quiz-footer fixed inset-x-0 bottom-0 z-[220] shrink-0 border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur sm:static sm:px-0 sm:pt-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
                                 <button 
                                   onClick={handleNextQuizQuestion}
                                   disabled={!userSelections[currentQuestionIdx] || userSelections[currentQuestionIdx].length === 0}
                                   className="w-full sm:w-auto sm:min-w-[320px] px-6 sm:px-16 py-4 sm:py-5 bg-green-600 text-white rounded-2xl sm:rounded-[24px] font-black uppercase tracking-[0.14em] sm:tracking-[0.2em] text-sm shadow-xl shadow-green-900/40 hover:bg-green-500 disabled:opacity-30 transition-all active:scale-95"
                                 >
-                                  {currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Valider & Suivant'}
+                                  {!quizAnswered ? 'Valider ma réponse' : (currentQuestionIdx === playingGame.questions!.length - 1 ? 'Terminer le Quiz' : 'Question suivante')}
                                 </button>
                              </div>
                            )}

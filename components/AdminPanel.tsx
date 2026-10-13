@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation, OrgEntity, OrgService, OrgContact } from '../types';
 import { DEPARTMENTS } from '../constants';
 import OrganizationAdmin from './OrganizationAdmin';
@@ -296,6 +296,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [sportResultDrafts, setSportResultDrafts] = useState<Record<string, { home: string; away: string }>>({});
   const [customTrivialCategories, setCustomTrivialCategories] = useState<string[]>([]);
   const [newTrivialCategory, setNewTrivialCategory] = useState('');
+  const [learningResources, setLearningResources] = useState<Array<{id:string; title:string; category:string}>>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadLearningResources = async () => {
+      const { data, error } = await supabase.from('learning_resources').select('id,title,category').eq('published', true).order('title');
+      if (!error && active) setLearningResources((data || []).map((r:any) => ({ id:r.id, title:r.title, category:r.category || 'Général' })));
+    };
+    void loadLearningResources();
+    return () => { active = false; };
+  }, []);
 
   const learningPathOptions = useMemo(
     () => [...new Set(games.map(game => game.learningPath?.trim()).filter((value): value is string => Boolean(value)))].sort(),
@@ -380,6 +391,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       question: 'Nouvelle question ?', 
       options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'], 
       correctIndices: [0],
+      feedback: '',
+      sourceResourceId: '',
+      sourceLabel: '',
       trivialCategory: newGame.type === 'Trivial' ? (trivialCategoryOptions[0] || 'Entreprise') : undefined
     };
     setNewGame(prev => ({ ...prev, questions: [...(prev.questions || []), q] }));
@@ -1643,6 +1657,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                               )}
                                            </div>
                                          ))}
+                                      </div>
+                                   </div>
+
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                                      <div className="md:col-span-2">
+                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Feedback pédagogique</label>
+                                         <textarea
+                                           rows={3}
+                                           value={q.feedback || ''}
+                                           onChange={e => handleUpdateQuizQuestion(qIdx, { feedback: e.target.value })}
+                                           placeholder="Explication affichée après la réponse…"
+                                           className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-medium outline-none focus:border-indigo-400"
+                                         />
+                                      </div>
+                                      <div>
+                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Où trouver la réponse ?</label>
+                                         <select
+                                           value={q.sourceResourceId || ''}
+                                           onChange={e => {
+                                             const resource = learningResources.find(r => r.id === e.target.value);
+                                             handleUpdateQuizQuestion(qIdx, { sourceResourceId: e.target.value, sourceLabel: resource?.title || q.sourceLabel || '' });
+                                           }}
+                                           className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm font-bold outline-none"
+                                         >
+                                           <option value="">Aucune ressource liée</option>
+                                           {learningResources.map(resource => <option key={resource.id} value={resource.id}>{resource.title} — {resource.category}</option>)}
+                                         </select>
+                                      </div>
+                                      <div>
+                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Libellé de la source</label>
+                                         <input
+                                           value={q.sourceLabel || ''}
+                                           onChange={e => handleUpdateQuizQuestion(qIdx, { sourceLabel: e.target.value })}
+                                           placeholder="Ex. ON BOARDING (002)"
+                                           className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-400"
+                                         />
                                       </div>
                                    </div>
                                 </div>

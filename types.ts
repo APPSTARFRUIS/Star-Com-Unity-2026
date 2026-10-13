@@ -399,7 +399,10 @@ export interface QuizQuestion {
   question: string;
   options: string[];
   correctIndices: number[]; 
-  trivialCategory?: string; 
+  trivialCategory?: string;
+  feedback?: string;
+  sourceResourceId?: string;
+  sourceLabel?: string;
 }
 
 export interface TimelineItem {
