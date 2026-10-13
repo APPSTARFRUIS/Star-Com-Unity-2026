@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ResourceItem, User } from '../types';
 import { supabase } from '../supabaseClient';
 import { canViewAudience } from '../audience';
+import PdfJsViewer from './PdfJsViewer';
 
 interface Props { currentUser: User; onOpenGames: () => void; }
 
@@ -85,7 +86,7 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
           <button type="button" onClick={closeDocumentPreview} className="text-3xl leading-none text-slate-400 hover:text-slate-700" aria-label="Fermer">×</button>
         </div>
         <div className="flex-1 min-h-0 bg-slate-100">
-          {documentPreviewLoading ? <div className="h-full flex items-center justify-center text-slate-500 font-bold">Chargement du document…</div> : documentPreviewError ? <div className="h-full flex items-center justify-center p-8 text-center text-slate-600 font-bold">{documentPreviewError}</div> : documentPreview.url ? <iframe title={documentPreview.title} src={documentPreview.url} className="w-full h-full border-0" /> : null}
+          {documentPreviewLoading ? <div className="h-full flex items-center justify-center text-slate-500 font-bold">Chargement du document…</div> : documentPreviewError ? <div className="h-full flex items-center justify-center p-8 text-center text-slate-600 font-bold">{documentPreviewError}</div> : documentPreview.url ? <PdfJsViewer source={documentPreview.url} fileName={documentPreview.title} onDownload={() => window.open(documentPreview.url, '_blank', 'noopener,noreferrer')} /> : null}
         </div>
       </div>
     </div>}
