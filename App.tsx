@@ -63,6 +63,7 @@ import NotificationCenter from './components/NotificationCenter';
 import MySpaceView from './components/MySpaceView';
 import EventCreatorModal from './components/EventCreatorModal';
 import EngagementView from './components/EngagementView';
+import FirstLoginOnboarding from './components/FirstLoginOnboarding';
 
 interface Toast {
   id: string;
@@ -111,6 +112,7 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [wishingBirthdayForId, setWishingBirthdayForId] = useState<string | undefined>(undefined);
+  const [showFirstLoginOnboarding, setShowFirstLoginOnboarding] = useState(false);
 
   // Protection contre les rafraîchissements simultanés et les rafales Realtime.
   const dataFetchInFlightRef = useRef<Promise<void> | null>(null);
@@ -325,7 +327,7 @@ const App: React.FC = () => {
         const authUser = authUserOverride || session?.user || null;
         const profileId = authUser?.user_metadata?.profile_id as string | undefined;
         const authEmail = authUser?.email as string | undefined;
-        const profileColumns = 'id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,profile_visibility,created_at,updated_at';
+        const profileColumns = 'id,email,name,role,department,company,avatar,points,phone,job_function,birthday,notification_settings,profile_visibility,onboarding_completed_at,created_at,updated_at';
         let profile: any = null;
 
         const byIdResult = await withRequestTimeout(
@@ -370,6 +372,7 @@ const App: React.FC = () => {
         } as User;
 
         setCurrentUser(mappedUser);
+        setShowFirstLoginOnboarding(!mappedUser.onboarding_completed_at);
         setIsLoading(false);
 
         window.setTimeout(() => {
@@ -3501,6 +3504,25 @@ const App: React.FC = () => {
           <main className="flex-1 md:ml-64 p-3 sm:p-4 md:p-8 w-full max-w-full overflow-x-hidden">
             {renderContent()}
           </main>
+
+          {showFirstLoginOnboarding && (
+            <FirstLoginOnboarding
+              userName={currentUser.name}
+              onNavigate={setView}
+              onFinish={async () => {
+                if (!supabase) return;
+                const completedAt = new Date().toISOString();
+                const { error } = await supabase.from('profiles').update({ onboarding_completed_at: completedAt }).eq('id', currentUser.id);
+                if (error) {
+                  console.error('Erreur validation onboarding:', error);
+                  addToast("Impossible d’enregistrer la fin de la présentation.", 'error');
+                  throw error;
+                }
+                setCurrentUser(prev => prev ? { ...prev, onboarding_completed_at: completedAt } : prev);
+                setShowFirstLoginOnboarding(false);
+              }}
+            />
+          )}
 
           {isEventModalOpen && (
             <EventCreatorModal

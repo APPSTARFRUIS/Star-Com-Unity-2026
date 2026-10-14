@@ -76,6 +76,7 @@ export interface User {
   personal_note?: string;
   notification_settings?: NotificationSettings;
   profile_visibility?: { email?: boolean; phone?: boolean };
+  onboarding_completed_at?: string | null;
 }
 
 
