@@ -103,6 +103,7 @@ const App: React.FC = () => {
   const [adventOpenings, setAdventOpenings] = useState<AdventOpening[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [publicGamificationStats, setPublicGamificationStats] = useState<Record<string, { earned: number; purchases: number; gains: number }>>({});
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
   const [view, setView] = useState<ViewType>('accueil');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -120,6 +121,46 @@ const App: React.FC = () => {
   const viewFetchesRef = useRef<Map<ViewType, Promise<void>>>(new Map());
   const profilesFetchInFlightRef = useRef<Promise<User[] | null> | null>(null);
   const currentProfileFetchRef = useRef<Map<string, Promise<User | null>>>(new Map());
+
+  useEffect(() => {
+    if (!supabase || !currentUser?.id) {
+      setOnlineUserIds(new Set());
+      return;
+    }
+
+    // Présence globale Star Com'Unity : un utilisateur est en ligne uniquement
+    // lorsqu'au moins une instance de l'application est réellement connectée.
+    const channel = supabase.channel('star-community-presence', {
+      config: { presence: { key: currentUser.id } }
+    });
+
+    const syncPresence = () => {
+      const state = channel.presenceState() as Record<string, Array<{ user_id?: string }>>;
+      const ids = new Set<string>();
+      Object.entries(state).forEach(([key, presences]) => {
+        if (key) ids.add(key);
+        (presences || []).forEach(presence => {
+          if (presence?.user_id) ids.add(presence.user_id);
+        });
+      });
+      setOnlineUserIds(ids);
+    };
+
+    channel
+      .on('presence', { event: 'sync' }, syncPresence)
+      .on('presence', { event: 'join' }, syncPresence)
+      .on('presence', { event: 'leave' }, syncPresence)
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ user_id: currentUser.id, online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => {
+      void channel.untrack();
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -2658,6 +2699,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             users={users}
             messages={messages}
+            onlineUserIds={onlineUserIds}
             onEditMessage={async (messageId, text) => {
               const { error } = await supabase.from('messages').update({ text, edited_at: new Date().toISOString() }).eq('id', messageId).eq('sender_id', currentUser.id);
               if (error) { addToast(error.message, 'error'); return; }

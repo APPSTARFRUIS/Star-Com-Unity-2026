@@ -7,12 +7,13 @@ interface MessagesViewProps {
   currentUser: User;
   users: User[];
   messages: Message[];
+  onlineUserIds: Set<string>;
   onSendMessage: (receiverId: string, text: string, attachments?: Attachment[]) => void;
   onEditMessage: (messageId: string, text: string) => Promise<void>;
   onDeleteMessage: (messageId: string) => Promise<void>;
 }
 
-const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, messages, onSendMessage, onEditMessage, onDeleteMessage }) => {
+const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, messages, onlineUserIds, onSendMessage, onEditMessage, onDeleteMessage }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,7 +161,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
               >
                 <div className="relative">
                   <img src={user.avatar} className="w-12 h-12 rounded-full border border-slate-200" alt="" />
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div title={onlineUserIds.has(user.id) ? 'En ligne' : 'Hors ligne'} className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${onlineUserIds.has(user.id) ? 'bg-green-500' : 'bg-slate-300'}`}></div>
                 </div>
                 <div className="flex-1 text-left overflow-hidden">
                   <div className="flex justify-between items-baseline">
@@ -193,8 +194,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
                 <div>
                   <h3 className="font-bold text-slate-800">{selectedUser.name}</h3>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-xs text-slate-400 font-medium">En ligne</span>
+                    <div className={`w-2 h-2 rounded-full ${onlineUserIds.has(selectedUser.id) ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                    <span className="text-xs text-slate-400 font-medium">{onlineUserIds.has(selectedUser.id) ? 'En ligne' : 'Hors ligne'}</span>
                   </div>
                 </div>
               </div>
