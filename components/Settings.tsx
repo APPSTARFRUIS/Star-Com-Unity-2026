@@ -232,7 +232,7 @@ const Settings: React.FC<SettingsProps> = ({ user, onSave }) => {
               <div className="rounded-2xl border border-green-100 bg-green-50 px-5 py-4">
                 <p className="font-bold text-green-900">Préférences de notifications</p>
                 <p className="text-xs text-green-800 mt-1">
-                  Choisissez les informations à recevoir et les canaux disponibles sur cet appareil. Les notifications navigateur fonctionnent lorsque Star Com’Unity est active ; l’email reste une préférence préparée pour un futur service d’envoi.
+                  Choisissez les informations à recevoir et les canaux à utiliser. Chaque canal est indépendant : vous pouvez par exemple conserver les notifications dans Star Com’Unity sans recevoir de push navigateur. L’email reste une préférence préparée pour un futur service d’envoi.
                 </p>
               </div>
 

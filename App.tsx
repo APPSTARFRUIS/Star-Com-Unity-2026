@@ -740,7 +740,9 @@ const App: React.FC = () => {
     if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'] })));
     if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
     if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
-    if (notificationsResult.data) setNotifications(mapNotifications(notificationsResult.data));
+    if (notificationsResult.data) {
+      setNotifications(currentUserRef.current?.notification_settings?.inApp === false ? [] : mapNotifications(notificationsResult.data));
+    }
 
     loadedViewsRef.current.add('accueil');
     lastFullFetchAtRef.current = Date.now();
@@ -1745,10 +1747,12 @@ const App: React.FC = () => {
         }, (payload: any) => {
           const item = mapNotifications([payload.new])[0];
           if (item) {
-            setNotifications(previous => [
-              item,
-              ...previous.filter(existing => existing.id !== item.id)
-            ].slice(0, 100));
+            if (currentUser?.notification_settings?.inApp !== false) {
+              setNotifications(previous => [
+                item,
+                ...previous.filter(existing => existing.id !== item.id)
+              ].slice(0, 100));
+            }
             const channelEnabled = isMobileDevice()
               ? currentUser?.notification_settings?.mobile
               : currentUser?.notification_settings?.desktop;
@@ -1756,9 +1760,9 @@ const App: React.FC = () => {
               && currentUser?.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
             const externalNotificationAllowed = !appConfig.notificationsTestMode || isAuthorizedTestAccount;
 
-            // En mode test, le compte de test autorisé reçoit systématiquement le push :
-            // cela permet de valider toute la chaîne sans exposer les autres utilisateurs.
-            if (externalNotificationAllowed && (channelEnabled || isAuthorizedTestAccount)) {
+            // Le mode test limite les destinataires externes mais ne contourne jamais
+            // les préférences de canal choisies par l'utilisateur.
+            if (externalNotificationAllowed && channelEnabled) {
               if (isAuthorizedTestAccount) {
                 void supabase.functions.invoke('send-push-test', {
                   body: { notification_id: item.id }
