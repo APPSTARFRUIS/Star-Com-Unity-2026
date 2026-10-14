@@ -130,6 +130,8 @@ export interface ResourceItem {
   published: boolean;
   sortOrder: number;
   createdAt: string;
+  learningPath?: string;
+  levelNumber?: number;
 }
 
 export interface AppConfig {

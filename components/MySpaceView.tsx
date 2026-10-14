@@ -51,6 +51,8 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
     const passedIds = new Set(completions.filter(c => c.passed).map(c => c.game_id));
     const learningPassed = learningGames.filter(g => passedIds.has(g.id)).length;
     const learningProgress = learningGames.length ? Math.round((learningPassed / learningGames.length) * 100) : 0;
+    const learningCompletionRows = completions.filter(c => learningGames.some(g => g.id === c.game_id));
+    const learningSuccessRate = learningCompletionRows.length ? Math.round(learningCompletionRows.reduce((sum,c)=>sum+Number(c.best_score||0),0)/learningCompletionRows.length) : 0;
     const earned = transactions.filter(t => t.type === 'earn').reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const spent = transactions.filter(t => t.type === 'spend').reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
     const exacts = predictions.filter(p => Number(parsePrediction(p.choice).pointsAwarded || 0) >= 3).length;
@@ -69,7 +71,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
       });
     });
     const learningRemaining = learningGames.filter(g => g.status === 'Actif' && !passedIds.has(g.id)).length;
-    return { learningGames: learningGames.length, learningPassed, learningProgress, earned, spent, exacts, predictionPoints, openPredictions, learningRemaining };
+    return { learningGames: learningGames.length, learningPassed, learningProgress, learningSuccessRate, earned, spent, exacts, predictionPoints, openPredictions, learningRemaining };
   }, [games, completions, predictions, transactions]);
 
   const badges = useMemo(() => [
@@ -101,7 +103,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          ['E-learning', `${stats.learningProgress} %`, `${stats.learningPassed}/${stats.learningGames} niveaux validés`],
+          ['E-learning', `${stats.learningProgress} %`, `${stats.learningPassed}/${stats.learningGames} validés · réussite ${stats.learningSuccessRate}%`],
           ['Pronostics', `${predictions.length}`, `${stats.predictionPoints} pts gagnés`],
           ['Badges', `${badges.filter(b => b.unlocked).length}/${badges.length}`, 'débloqués'],
           ['Notifications', `${unreadNotifications}`, unreadNotifications ? 'à consulter' : 'tout est lu']
