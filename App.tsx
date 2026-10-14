@@ -1602,7 +1602,15 @@ const App: React.FC = () => {
     if (!supabase || !currentUser?.id) return;
     const isAuthorizedTestAccount = appConfig.notificationsTestMode
       && currentUser.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
-    if (!isAuthorizedTestAccount) {
+    const automaticPushChannelEnabled = isMobileDevice()
+      ? currentUser.notification_settings?.mobile !== false
+      : currentUser.notification_settings?.desktop !== false;
+
+    // V1.6.19 — le filet de sécurité Web Push doit respecter exactement le
+    // canal choisi dans Paramètres. La V1.6.18 filtrait le chemin Realtime,
+    // mais pas ce poller de rattrapage : il pouvait donc encore envoyer un
+    // push bureau alors que « Notifications bureau » était désactivé.
+    if (!isAuthorizedTestAccount || !automaticPushChannelEnabled) {
       automaticPushCursorRef.current = null;
       return;
     }
@@ -1661,7 +1669,14 @@ const App: React.FC = () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [currentUser?.id, currentUser?.email, appConfig.notificationsTestMode, appConfig.notificationsTestEmail]);
+  }, [
+    currentUser?.id,
+    currentUser?.email,
+    currentUser?.notification_settings?.desktop,
+    currentUser?.notification_settings?.mobile,
+    appConfig.notificationsTestMode,
+    appConfig.notificationsTestEmail
+  ]);
 
   const realtimeViewsByTable: Record<string, ViewType[]> = {
     posts: ['accueil', 'social', 'engagement', 'admin'],
