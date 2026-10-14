@@ -1679,9 +1679,23 @@ const App: React.FC = () => {
             const channelEnabled = isMobileDevice()
               ? currentUser?.notification_settings?.mobile
               : currentUser?.notification_settings?.desktop;
-            const externalNotificationAllowed = !appConfig.notificationsTestMode
-              || currentUser?.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
-            if (channelEnabled && externalNotificationAllowed) void showBrowserNotification(item.title, item.message);
+            const isAuthorizedTestAccount = appConfig.notificationsTestMode
+              && currentUser?.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
+            const externalNotificationAllowed = !appConfig.notificationsTestMode || isAuthorizedTestAccount;
+
+            // En mode test, le compte de test autorisé reçoit systématiquement le push :
+            // cela permet de valider toute la chaîne sans exposer les autres utilisateurs.
+            if (externalNotificationAllowed && (channelEnabled || isAuthorizedTestAccount)) {
+              if (isAuthorizedTestAccount) {
+                void supabase.functions.invoke('send-push-test', {
+                  body: { notification_id: item.id }
+                }).then(({ error }) => {
+                  if (error) console.warn('Push automatique indisponible', error);
+                });
+              } else {
+                void showBrowserNotification(item.title, item.message);
+              }
+            }
           }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'newsletters' }, (payload: any) => {

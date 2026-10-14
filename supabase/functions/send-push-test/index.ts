@@ -27,7 +27,26 @@ Deno.serve(async (req) => {
     const { data: subscriptions, error } = await admin.from('push_subscriptions').select('*').eq('user_id', profile.id);
     if (error) throw error;
     if (!subscriptions?.length) throw new Error('Aucun appareil push enregistré.');
-    const payload = JSON.stringify({ title: 'Star Com’Unity', body: 'Test réussi : les notifications push fonctionnent sur cet appareil.', url: '/' });
+    let notificationPayload = { title: 'Star Com’Unity', body: 'Test réussi : les notifications push fonctionnent sur cet appareil.', url: '/' };
+    let requestBody: any = {};
+    try { requestBody = await req.json(); } catch (_) { requestBody = {}; }
+    const notificationId = String(requestBody?.notification_id || '').trim();
+    if (notificationId) {
+      const { data: notification, error: notificationError } = await admin
+        .from('notifications')
+        .select('id,user_id,title,message,link_view')
+        .eq('id', notificationId)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+      if (notificationError) throw notificationError;
+      if (!notification) throw new Error('Notification introuvable pour ce compte.');
+      notificationPayload = {
+        title: notification.title || 'Star Com’Unity',
+        body: notification.message || 'Vous avez une nouvelle notification.',
+        url: notification.link_view ? `/?view=${encodeURIComponent(notification.link_view)}` : '/'
+      };
+    }
+    const payload = JSON.stringify(notificationPayload);
     let sent = 0;
     for (const sub of subscriptions) {
       try {
