@@ -60,6 +60,7 @@ import ResourcesView from './components/ResourcesView';
 import BoutiqueView from './components/BoutiqueView';
 import Settings from './components/Settings';
 import NotificationCenter from './components/NotificationCenter';
+import MySpaceView from './components/MySpaceView';
 import EventCreatorModal from './components/EventCreatorModal';
 import EngagementView from './components/EngagementView';
 
@@ -3286,6 +3287,8 @@ const App: React.FC = () => {
             </div>
           </div>
         );
+
+      case 'mon-espace': return <MySpaceView currentUser={currentUser} unreadNotifications={notifications.filter(item => !item.isRead).length} onNavigate={setView} />;
 
       case 'parametres': return <Settings user={currentUser} onSave={handleSelfUpdateProfile} />;
 
