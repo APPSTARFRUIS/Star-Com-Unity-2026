@@ -118,6 +118,8 @@ const App: React.FC = () => {
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const currentUserRef = useRef<User | null>(null);
   const currentViewRef = useRef<ViewType>('accueil');
+  const automaticPushCursorRef = useRef<string | null>(null);
+  const automaticPushBusyRef = useRef(false);
   const loadedViewsRef = useRef<Set<ViewType>>(new Set());
   const viewFetchesRef = useRef<Map<ViewType, Promise<void>>>(new Map());
   const profilesFetchInFlightRef = useRef<Promise<User[] | null> | null>(null);
@@ -1587,6 +1589,77 @@ const App: React.FC = () => {
       dataFetchInFlightRef.current = null;
     }
   }, [session]);
+
+  // V1.6.17 — filet de sécurité pour les push automatiques en mode test.
+  // Les notifications internes peuvent être créées par des triggers SQL sans qu'un
+  // événement Realtime soit reçu par le navigateur. On surveille donc directement
+  // la table notifications du compte de test et on transmet chaque nouvelle ligne
+  // à l'Edge Function Web Push. Le premier passage initialise seulement le curseur
+  // afin de ne jamais renvoyer l'historique.
+  useEffect(() => {
+    if (!supabase || !currentUser?.id) return;
+    const isAuthorizedTestAccount = appConfig.notificationsTestMode
+      && currentUser.email?.trim().toLowerCase() === appConfig.notificationsTestEmail?.trim().toLowerCase();
+    if (!isAuthorizedTestAccount) {
+      automaticPushCursorRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollAutomaticPush = async () => {
+      if (cancelled || automaticPushBusyRef.current) return;
+      automaticPushBusyRef.current = true;
+      try {
+        if (!automaticPushCursorRef.current) {
+          const { data, error } = await supabase
+            .from('notifications')
+            .select('created_at')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!error) automaticPushCursorRef.current = data?.created_at || new Date().toISOString();
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id,created_at')
+          .eq('user_id', currentUser.id)
+          .gt('created_at', automaticPushCursorRef.current)
+          .order('created_at', { ascending: true })
+          .limit(20);
+        if (error || !data?.length) return;
+
+        for (const row of data) {
+          if (cancelled) return;
+          const { error: pushError } = await supabase.functions.invoke('send-push-test', {
+            body: { notification_id: row.id }
+          });
+          if (pushError) {
+            console.warn('Push automatique indisponible', pushError);
+            return; // ne pas avancer le curseur : nouvelle tentative au prochain passage
+          }
+          automaticPushCursorRef.current = row.created_at;
+        }
+      } finally {
+        automaticPushBusyRef.current = false;
+      }
+    };
+
+    void pollAutomaticPush();
+    const timer = window.setInterval(() => void pollAutomaticPush(), 4000);
+    const onFocus = () => void pollAutomaticPush();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [currentUser?.id, currentUser?.email, appConfig.notificationsTestMode, appConfig.notificationsTestEmail]);
 
   const realtimeViewsByTable: Record<string, ViewType[]> = {
     posts: ['accueil', 'social', 'engagement', 'admin'],
