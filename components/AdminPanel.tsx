@@ -7,6 +7,7 @@ import { uploadMediaToStorage } from '../storageUtils';
 import EngagementAdmin from './EngagementAdmin';
 import ExternalToolsAdmin from './ExternalToolsAdmin';
 import ResourcesAdmin from './ResourcesAdmin';
+import AdminStatsDashboard from './AdminStatsDashboard';
 import { supabase } from '../supabaseClient';
 import { registerPushSubscription } from '../notificationUtils';
 
@@ -79,6 +80,7 @@ const TRIVIAL_CATEGORIES = [
 ];
 
 const ADMIN_TABS = [
+  { id: 'stats', label: 'Dashboard', icon: 'M3 3v18h18M7 16v-4m4 4V8m4 8v-6m4 6V5' },
   { id: 'users', label: 'Utilisateurs', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
   { id: 'tools', label: 'Mes outils', icon: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-6-4L20 4m0 0h-6m6 0v6' },
   { id: 'organization', label: 'Organisation', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6' },
@@ -108,7 +110,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   transactions, engagementAnimations, onCreateEngagementAnimation, onDeleteEngagementAnimation, onDrawEngagementWinner,
   orgEntities, orgServices, orgContacts, onAddOrgEntity, onUpdateOrgEntity, onDeleteOrgEntity, onAddOrgService, onUpdateOrgService, onDeleteOrgService, onAddOrgContact, onUpdateOrgContact, onDeleteOrgContact
 }) => {
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('stats');
   const [rewardsSubTab, setRewardsSubTab] = useState<'products' | 'orders'>('products');
   const [orderFilter, setOrderFilter] = useState<'pending' | 'distributed' | 'all'>('pending');
   const [newDocCategory, setNewDocCategory] = useState('');
@@ -734,6 +736,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         ))}
       </div>
+
+      {activeTab === 'stats' && (
+        <AdminStatsDashboard users={users} posts={posts} ideas={ideas} newsletters={newsletters} games={games} predictions={predictions} />
+      )}
 
       {/* --- UTILISATEURS --- */}
       {activeTab === 'users' && (
