@@ -18,16 +18,45 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      if (!supabase) return;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const loadResources = async (attempt = 0) => {
+      if (!supabase || !active) return;
       setLoading(true);
+
+      // In an installed desktop PWA, Supabase can restore the persisted auth
+      // session a fraction later than React mounts. learning_resources is
+      // authenticated-only: wait for session restoration before querying it.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session && attempt < 6) {
+        retryTimer = setTimeout(() => void loadResources(attempt + 1), 350 * (attempt + 1));
+        return;
+      }
+
       const { data, error } = await supabase.from('learning_resources').select('*').eq('published', true).order('sort_order').order('created_at', { ascending: false });
-      if (active && !error && data) setResources(data.map((r:any) => ({
+      if (error) {
+        console.warn('[Ressources] chargement impossible:', error.message);
+        if (attempt < 6) {
+          retryTimer = setTimeout(() => void loadResources(attempt + 1), 500 * (attempt + 1));
+          return;
+        }
+      }
+      if (active && data) setResources(data.map((r:any) => ({
         id:r.id, title:r.title, summary:r.summary || '', content:r.content || '', category:r.category || 'Général', mediaType:r.media_type || 'text', resourceUrl:r.resource_url || '', thumbnailUrl:r.thumbnail_url || '', audienceCompanies:r.audience_companies || ['ALL'], published:r.published !== false, sortOrder:r.sort_order || 0, createdAt:r.created_at, learningPath:r.learning_path || '', levelNumber:r.level_number || 1
       })).filter((r:ResourceItem) => canViewAudience(currentUser, r.audienceCompanies)));
       if (active) setLoading(false);
-    })();
-    return () => { active = false; };
+    };
+
+    void loadResources();
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && active) void loadResources();
+    });
+
+    return () => {
+      active = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      authListener?.subscription?.unsubscribe();
+    };
   }, [currentUser.id, currentUser.company]);
 
   const categories = useMemo(() => ['Toutes', ...Array.from(new Set(resources.map(r => r.category).filter(Boolean)))], [resources]);

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { User, Newsletter, NewsletterArticle, UserRole } from '../types';
+import { supabase } from '../supabaseClient';
 
 interface NewsletterViewProps {
   currentUser: User;
@@ -14,6 +15,29 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
   const [readingNewsletter, setReadingNewsletter] = useState<Newsletter | null>(null);
   const [readingArticle, setReadingArticle] = useState<NewsletterArticle | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  const openNewsletter = async (newsletter: Newsletter) => {
+    setReadingNewsletter(newsletter);
+    if (!supabase || !currentUser?.id) return;
+    try {
+      const { data: existing } = await supabase.from('newsletter_reads')
+        .select('id,open_count').eq('newsletter_id', newsletter.id).eq('user_id', currentUser.id).maybeSingle();
+      if (existing?.id) {
+        await supabase.from('newsletter_reads').update({
+          last_opened_at: new Date().toISOString(),
+          open_count: Number(existing.open_count || 1) + 1
+        }).eq('id', existing.id);
+      } else {
+        const { error } = await supabase.from('newsletter_reads').insert({ newsletter_id: newsletter.id, user_id: currentUser.id });
+        if (!error) {
+          // read_count remains a compatibility counter: one count per unique reader.
+          await supabase.from('newsletters').update({ read_count: Number(newsletter.readCount || 0) + 1 }).eq('id', newsletter.id);
+        }
+      }
+    } catch (error) {
+      console.warn('[Newsletter] suivi de lecture indisponible:', error);
+    }
+  };
 
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return 'Inconnue';
@@ -540,7 +564,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
             <h2 className="text-xs font-black uppercase tracking-[0.2em] text-green-600">À la une</h2>
             <span className="text-xs font-bold text-slate-400">Publié le {formatDate(latest.publishedAt)}</span>
           </div>
-          <div onClick={() => setReadingNewsletter(latest)} className="group bg-white rounded-[48px] border border-slate-100 shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-[1.01]">
+          <div onClick={() => void openNewsletter(latest)} className="group bg-white rounded-[48px] border border-slate-100 shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-[1.01]">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               <div className="h-64 lg:h-[500px] bg-slate-100 overflow-hidden">
                 {latest.coverImage && <img src={latest.coverImage} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />}
@@ -568,7 +592,7 @@ const NewsletterView: React.FC<NewsletterViewProps> = ({
            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 px-1 border-b pb-4">Archives</h2>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {archives.map(n => (
-                <div key={n.id} onClick={() => setReadingNewsletter(n)} className="bg-white rounded-[32px] border border-slate-100 shadow-lg overflow-hidden cursor-pointer hover:-translate-y-2 transition-all">
+                <div key={n.id} onClick={() => void openNewsletter(n)} className="bg-white rounded-[32px] border border-slate-100 shadow-lg overflow-hidden cursor-pointer hover:-translate-y-2 transition-all">
                   <div className="h-48 bg-slate-100 overflow-hidden">{n.coverImage && <img src={n.coverImage} className="w-full h-full object-cover" alt="" />}</div>
                   <div className="p-6">
                     <h3 className="text-xl font-black text-slate-800 mb-2">{n.title}</h3>
