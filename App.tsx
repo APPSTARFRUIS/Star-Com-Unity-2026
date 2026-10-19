@@ -930,8 +930,8 @@ const App: React.FC = () => {
                 lastEventsError = error;
               }
 
-              if (attempt < 3) {
-                await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+              if (attempt < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1200));
               }
             }
 
@@ -1081,23 +1081,7 @@ const App: React.FC = () => {
             let docsResult: any = null;
             let lastDocsError: any = null;
 
-            // Safari/iOS sometimes restores local auth state before the token is
-            // accepted by PostgREST. Validate/refresh the session before the
-            // authenticated Documents query instead of interpreting an auth race
-            // as an empty library.
-            try {
-              const sessionState = await supabase.auth.getSession();
-              if (sessionState.data.session) {
-                const userState = await withRequestTimeout(supabase.auth.getUser(), 8000, 'validation session Safari') as any;
-                if (userState?.error) {
-                  await withRequestTimeout(supabase.auth.refreshSession(), 8000, 'rafraîchissement session Safari');
-                }
-              }
-            } catch (sessionError) {
-              console.warn('Validation session Documents différée :', sessionError);
-            }
-
-            for (let attempt = 1; attempt <= 3; attempt += 1) {
+            for (let attempt = 1; attempt <= 2; attempt += 1) {
               try {
                 docsResult = await withRequestTimeout(
                   supabase
@@ -1105,8 +1089,8 @@ const App: React.FC = () => {
                     .select(documentColumns)
                     .order('uploaded_at', { ascending: false })
                     .limit(100),
-                  12000,
-                  `liste documents ${attempt}/3`
+                  6500,
+                  `liste documents ${attempt}/2`
                 ) as any;
 
                 if (!docsResult?.error && Array.isArray(docsResult?.data)) break;
@@ -1115,8 +1099,8 @@ const App: React.FC = () => {
                 lastDocsError = error;
               }
 
-              if (attempt < 3) {
-                await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+              if (attempt < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1200));
               }
             }
 
@@ -1128,7 +1112,7 @@ const App: React.FC = () => {
                     .select('id,name,type,size,category,uploaded_by,uploaded_by_name,uploaded_at,audience_companies')
                     .order('uploaded_at', { ascending: false })
                     .limit(100),
-                  12000,
+                  6500,
                   'liste documents secours'
                 ) as any;
               } catch (fallbackError) {

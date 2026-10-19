@@ -13,7 +13,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
   const [pdfJs, setPdfJs] = useState<any>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
-  const [scale, setScale] = useState(1.15);
+  const [scale, setScale] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640 ? 0.58 : 1.15);
   const [rotation, setRotation] = useState(0);
   const [loading, setLoading] = useState(true);
   const [rendering, setRendering] = useState(false);
@@ -165,7 +165,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
           <p className="text-sm font-semibold truncate max-w-[calc(100vw-5rem)] sm:max-w-[280px]">{fileName}</p>
         </div>
 
-        <div className="grid grid-cols-4 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+        <div className="grid grid-cols-[36px_1fr_36px_36px_auto_36px_36px] sm:flex sm:flex-wrap items-center gap-1 sm:gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => changePage(pageNumber - 1)}
@@ -177,7 +177,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
           </button>
 
           <div className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 text-xs sm:text-sm whitespace-nowrap text-center">
-            Page {pageNumber} / {pageCount || '—'}
+            <span className="hidden sm:inline">Page </span>{pageNumber} / {pageCount || '—'}
           </div>
 
           <button
@@ -225,7 +225,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
           <button
             type="button"
             onClick={onDownload}
-            className="col-span-2 sm:col-span-1 px-2 sm:px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-xs sm:text-sm font-semibold"
+            className="hidden sm:block px-2 sm:px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-xs sm:text-sm font-semibold"
           >
             Télécharger
           </button>
