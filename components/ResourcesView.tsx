@@ -27,17 +27,43 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
       // In an installed desktop PWA, Supabase can restore the persisted auth
       // session a fraction later than React mounts. learning_resources is
       // authenticated-only: wait for session restoration before querying it.
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session && attempt < 6) {
-        retryTimer = setTimeout(() => void loadResources(attempt + 1), 350 * (attempt + 1));
+      let { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session && attempt < 8) {
+        retryTimer = setTimeout(() => void loadResources(attempt + 1), 450 * (attempt + 1));
         return;
       }
 
-      const { data, error } = await supabase.from('learning_resources').select('*').eq('published', true).order('sort_order').order('created_at', { ascending: false });
+      // Safari/iOS can restore a persisted session before its access token is
+      // actually usable by PostgREST. Validate it once on the network and, if
+      // needed, refresh it before loading authenticated content.
+      if (sessionData.session) {
+        try {
+          const { error: userError } = await supabase.auth.getUser();
+          if (userError) {
+            const refreshed = await supabase.auth.refreshSession();
+            sessionData = { session: refreshed.data.session } as any;
+          }
+        } catch (_) {
+          // A transient Safari network error is handled by the data retry below.
+        }
+      }
+
+      let data: any[] | null = null;
+      let error: any = null;
+      try {
+        const result = await Promise.race([
+          supabase.from('learning_resources').select('*').eq('published', true).order('sort_order').order('created_at', { ascending: false }),
+          new Promise<any>((_, reject) => window.setTimeout(() => reject(new Error('Ressources : délai réseau dépassé')), 12000))
+        ]) as any;
+        data = result?.data ?? null;
+        error = result?.error ?? null;
+      } catch (queryError) {
+        error = queryError;
+      }
       if (error) {
         console.warn('[Ressources] chargement impossible:', error.message);
-        if (attempt < 6) {
-          retryTimer = setTimeout(() => void loadResources(attempt + 1), 500 * (attempt + 1));
+        if (attempt < 8) {
+          retryTimer = setTimeout(() => void loadResources(attempt + 1), 650 * (attempt + 1));
           return;
         }
       }
