@@ -159,24 +159,24 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
 
   return (
     <div className="w-full h-full min-h-0 flex flex-col bg-slate-200 rounded-xl overflow-hidden">
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-slate-900 text-white">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 px-2.5 sm:px-3 py-2 bg-slate-900 text-white">
         <div className="min-w-0">
           <p className="text-xs text-slate-400">Lecteur PDF intégré</p>
-          <p className="text-sm font-semibold truncate max-w-[280px]">{fileName}</p>
+          <p className="text-sm font-semibold truncate max-w-[calc(100vw-5rem)] sm:max-w-[280px]">{fileName}</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="grid grid-cols-4 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => changePage(pageNumber - 1)}
             disabled={pageNumber <= 1 || loading}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
             title="Page précédente"
           >
             ←
           </button>
 
-          <div className="px-3 py-2 rounded-lg bg-white/10 text-sm whitespace-nowrap">
+          <div className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 text-xs sm:text-sm whitespace-nowrap text-center">
             Page {pageNumber} / {pageCount || '—'}
           </div>
 
@@ -184,7 +184,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
             type="button"
             onClick={() => changePage(pageNumber + 1)}
             disabled={pageNumber >= pageCount || loading}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
             title="Page suivante"
           >
             →
@@ -194,19 +194,19 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
             type="button"
             onClick={() => changeScale(scale - 0.15)}
             disabled={loading}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
             title="Dézoomer"
           >
             −
           </button>
 
-          <span className="text-xs min-w-[46px] text-center">{Math.round(scale * 100)} %</span>
+          <span className="text-xs min-w-0 sm:min-w-[46px] text-center">{Math.round(scale * 100)} %</span>
 
           <button
             type="button"
             onClick={() => changeScale(scale + 0.15)}
             disabled={loading}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
             title="Zoomer"
           >
             +
@@ -216,7 +216,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
             type="button"
             onClick={() => setRotation((current) => (current + 90) % 360)}
             disabled={loading}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
+            className="px-2 sm:px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 text-sm"
             title="Faire pivoter"
           >
             ↻
@@ -225,14 +225,14 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
           <button
             type="button"
             onClick={onDownload}
-            className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-sm font-semibold"
+            className="col-span-2 sm:col-span-1 px-2 sm:px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-xs sm:text-sm font-semibold"
           >
             Télécharger
           </button>
         </div>
       </div>
 
-      <div className="relative flex-1 min-h-0 overflow-auto p-4 md:p-6">
+      <div className="relative flex-1 min-h-0 overflow-auto p-1 sm:p-3 md:p-6">
         {(loading || rendering) && (
           <div className="sticky top-3 z-10 mx-auto mb-3 w-fit px-4 py-2 rounded-full bg-slate-900/85 text-white text-sm shadow-lg flex items-center gap-2">
             <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -256,7 +256,7 @@ const PdfJsViewer: React.FC<PdfJsViewerProps> = ({ source, fileName, onDownload 
           </div>
         ) : (
           <div className="min-w-full flex justify-center">
-            <canvas ref={canvasRef} className="block bg-white shadow-xl" />
+            <canvas ref={canvasRef} className="block bg-white shadow-xl max-w-full h-auto" />
           </div>
         )}
       </div>

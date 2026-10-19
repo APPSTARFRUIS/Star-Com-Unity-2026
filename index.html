@@ -44,6 +44,14 @@
         @media (max-width: 639px) {
             html, body, #root {
                 min-height: 100%;
+                max-width: 100%;
+                overflow-x: hidden;
+            }
+            img, video, canvas, iframe {
+                max-width: 100%;
+            }
+            input, select, textarea, button {
+                max-width: 100%;
             }
             .game-overlay {
                 overflow-y: auto !important;

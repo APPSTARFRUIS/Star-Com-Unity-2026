@@ -678,7 +678,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
     : '');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 space-y-6 overflow-x-hidden">
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-64 space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
@@ -745,40 +745,40 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
             />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full min-w-[760px]">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+            <table className="w-full md:min-w-[760px] table-fixed md:table-auto">
               <thead className="bg-slate-50 border-b border-slate-200 text-left text-sm text-slate-500 uppercase tracking-wide">
                 <tr>
-                  <th className="px-6 py-4">Document</th>
-                  <th className="px-6 py-4">Catégorie</th>
-                  <th className="px-6 py-4">Taille</th>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4">Actions</th>
+                  <th className="px-3 sm:px-4 md:px-6 py-4">Document</th>
+                  <th className="hidden md:table-cell px-6 py-4">Catégorie</th>
+                  <th className="hidden md:table-cell px-6 py-4">Taille</th>
+                  <th className="hidden md:table-cell px-6 py-4">Date</th>
+                  <th className="px-2 sm:px-4 md:px-6 py-4 w-[120px] md:w-auto">Actions</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredDocs.map((doc) => (
                   <tr key={doc.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
+                    <td className="px-3 sm:px-4 md:px-6 py-4 align-top">
+                      <div className="flex items-start gap-2 sm:gap-4 min-w-0">
                         <div className="text-2xl">{getFileIcon(doc.type)}</div>
-                        <div>
-                          <div className="font-medium text-slate-800">{doc.name}</div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-800 break-words text-sm sm:text-base">{doc.name}</div>
                           <div className="text-sm text-slate-500">Par {doc.uploadedByName || '-'}</div>
                         </div>
                       </div>
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="hidden md:table-cell px-6 py-4">
                       <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">{doc.category}</span>
                     </td>
 
-                    <td className="px-6 py-4 text-slate-600">{formatSize(doc.size)}</td>
-                    <td className="px-6 py-4 text-slate-600">{formatDate(doc.uploadedAt)}</td>
+                    <td className="hidden md:table-cell px-6 py-4 text-slate-600">{formatSize(doc.size)}</td>
+                    <td className="hidden md:table-cell px-6 py-4 text-slate-600">{formatDate(doc.uploadedAt)}</td>
 
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <td className="px-2 sm:px-4 md:px-6 py-4 align-top">
+                      <div className="flex flex-wrap items-center justify-end md:justify-start gap-2 md:gap-3">
                         <button type="button" title="Prévisualiser" onClick={() => handleViewDocument(doc)} className="text-slate-500 hover:text-green-600">👁️</button>
                         <button type="button" title="Ouvrir" onClick={() => handleOpenDocument(doc)} className="text-slate-500 hover:text-blue-600">↗️</button>
                         <button type="button" title="Télécharger" onClick={() => handleDownloadDocument(doc)} className="text-slate-500 hover:text-blue-600">⬇️</button>
@@ -810,7 +810,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       </div>
 
       {analysisDocument && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-6">
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[88vh] overflow-y-auto p-7 relative">
             <button type="button" onClick={() => setAnalysisDocument(null)} className="absolute right-5 top-4 text-2xl text-slate-400 hover:text-slate-700">×</button>
             <p className="text-xs font-black uppercase tracking-widest text-violet-600 mb-2">Synthèse du document</p>
@@ -825,9 +825,9 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
       )}
 
       {previewDocument && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] overflow-hidden relative flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-0 sm:p-6">
+          <div className="bg-white rounded-none sm:rounded-2xl w-full max-w-6xl h-[100dvh] sm:h-[90vh] overflow-hidden relative flex flex-col">
+            <div className="flex items-start sm:items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-200 shrink-0">
               <div>
                 <h2 className="font-semibold text-slate-800">{previewDocument.name}</h2>
                 <p className="text-xs text-slate-400 mt-1">Aperçu du document</p>
@@ -836,14 +836,14 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenDocument(previewDocument)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
+                  className="hidden sm:inline-flex px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold"
                 >
                   Ouvrir dans un onglet
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDownloadDocument(previewDocument)}
-                  className="px-4 py-2 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-semibold"
+                  className="hidden sm:inline-flex px-4 py-2 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-semibold"
                 >
                   Télécharger
                 </button>
@@ -861,7 +861,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
               </div>
             </div>
 
-            <div className="w-full flex-1 bg-slate-100 overflow-hidden flex items-center justify-center p-4">
+            <div className="w-full flex-1 min-h-0 bg-slate-100 overflow-hidden flex items-center justify-center p-0 sm:p-4">
               {isPreviewLoading ? (
                 <div className="text-center space-y-4 text-slate-600">
                   <div className="w-12 h-12 border-4 border-green-200 border-t-green-700 rounded-full animate-spin mx-auto" />
