@@ -27,8 +27,8 @@ export default function MascotLayer({item}:{item:MascotLayerItem}){
   const common:React.CSSProperties={position:'absolute',top:`${v.y}%`,width:`${v.width}%`,height:'auto',objectFit:'contain',pointerEvents:'none',zIndex:item.category==='background'?0:10};
   if(v.pair){
     return <>
-      <img src={item.image_url} alt="" style={{...common,left:`calc(50% - ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${-v.rotation}deg) scaleX(-1)`}}/>
-      <img src={item.image_url} alt="" style={{...common,left:`calc(50% + ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${v.rotation}deg)`}}/>
+      <img src={item.image_url} alt="" style={{...common,left:`calc(${v.x}% - ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${-v.rotation}deg) scaleX(-1)`}}/>
+      <img src={item.image_url} alt="" style={{...common,left:`calc(${v.x}% + ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${v.rotation}deg)`}}/>
     </>;
   }
   return <img src={item.image_url} alt="" style={{...common,left:`${v.x}%`,transform:`translate(-50%,-50%) rotate(${v.rotation}deg)`}}/>;
