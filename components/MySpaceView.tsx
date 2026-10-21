@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { User } from '../types';
 import { ViewType } from './Sidebar';
+import MascotCard from './MascotCard';
 
 interface Props {
   currentUser: User;
@@ -115,6 +116,8 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
           </div>
         ))}
       </div>
+
+      <MascotCard currentUser={currentUser} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">

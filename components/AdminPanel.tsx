@@ -10,6 +10,7 @@ import ResourcesAdmin from './ResourcesAdmin';
 import AdminStatsDashboard from './AdminStatsDashboard';
 import { supabase } from '../supabaseClient';
 import { registerPushSubscription } from '../notificationUtils';
+import MascotAdmin from './MascotAdmin';
 
 interface AdminPanelProps {
   users: User[];
@@ -84,6 +85,7 @@ const ADMIN_TABS = [
   { id: 'users', label: 'Utilisateurs', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
   { id: 'tools', label: 'Mes outils', icon: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-6-4L20 4m0 0h-6m6 0v6' },
   { id: 'organization', label: 'Organisation', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6' },
+  { id: 'mascot', label: 'Mascotte', icon: 'M12 3c4 0 7 3 7 7 0 5-3 10-7 11-4-1-7-6-7-11 0-4 3-7 7-7z' },
   { id: 'rewards', label: 'Boutique', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
   { id: 'resources', label: 'Ressources', icon: 'M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v15H6.5A2.5 2.5 0 004 19.5v-15z' },
   { id: 'jeux', label: 'Jeux', icon: 'M15 5v2m0 4v2m-7-4h12M5 15a3 3 0 110-6h14a3 3 0 110 6H5z' },
@@ -1065,6 +1067,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           onDeleteContact={onDeleteOrgContact}
         />
       )}
+
+      {activeTab === 'mascot' && <MascotAdmin users={users} />}
 
       {/* --- RÉCOMPENSES --- */}
       {activeTab === 'rewards' && (
