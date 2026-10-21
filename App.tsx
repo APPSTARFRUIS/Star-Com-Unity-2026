@@ -3362,7 +3362,8 @@ const App: React.FC = () => {
       {!currentUser ? (
         <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-6">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="p-8 bg-[#14532d] text-white text-center">
+            <div className="p-7 bg-[#14532d] text-white text-center flex flex-col items-center gap-3">
+              <img src="/brand-logo.png" alt="Star Com'Unity" className="w-28 h-28 object-contain drop-shadow-sm" />
               <h1 className="text-2xl font-bold">{appConfig.appName}</h1>
             </div>
 
@@ -3398,7 +3399,7 @@ const App: React.FC = () => {
       ) : (
         <>
           <div className="md:hidden bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-            <span className="font-bold text-slate-800">{appConfig.appName}</span>
+            <div className="flex items-center gap-2"><img src="/brand-logo.png" alt="Star Com'Unity" className="w-9 h-9 object-contain" /><span className="font-bold text-slate-800">{appConfig.appName}</span></div>
             <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />

@@ -3,7 +3,7 @@ import { Post, User, UserRole, CompanyEvent, AppConfig, Reward } from './types';
 export const INITIAL_CONFIG: AppConfig = {
   appName: 'Star ComUnity',
   appSlogan: 'Le mur social de votre entreprise',
-  logoUrl: 'logo.png',
+  logoUrl: '/brand-logo.png',
   welcomeTitle: 'Bonjour, {name} !',
   welcomeSubtitle: 'Voici les dernières actualités de la matinée.',
   documentCategories: ['Général', 'RH', 'Finance', 'Technique', 'Juridique'],
