@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { User, Reward, PointsTransaction } from '../types';
 
 interface BoutiqueViewProps {
@@ -7,9 +8,62 @@ interface BoutiqueViewProps {
   rewards: Reward[];
   onClaimReward: (rewardId: string) => void;
   transactions: PointsTransaction[];
+  onMascotPurchase?: (remainingPoints: number) => void;
 }
 
-const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onClaimReward, transactions }) => {
+type MascotShopItem = { id:string; name:string; description?:string|null; image_url?:string|null; category:string; collection_id?:string|null; price_points:number; rarity:string; active:boolean; acquisition_type:string };
+type MascotCollection = { id:string; name:string; active:boolean; starts_at?:string|null; ends_at?:string|null };
+
+const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onClaimReward, transactions, onMascotPurchase }) => {
+  const [shopUniverse, setShopUniverse] = useState<'star'|'mascot'>('star');
+  const [mascotItems, setMascotItems] = useState<MascotShopItem[]>([]);
+  const [mascotCollections, setMascotCollections] = useState<MascotCollection[]>([]);
+  const [ownedMascotIds, setOwnedMascotIds] = useState<Set<string>>(new Set());
+  const [buyingMascotId, setBuyingMascotId] = useState<string|null>(null);
+
+  const loadMascotShop = async () => {
+    if (!supabase) return;
+    const [itemsRes, collectionsRes, ownedRes] = await Promise.all([
+      supabase.from('mascot_items').select('*').eq('active', true).eq('acquisition_type','purchase').order('created_at',{ascending:false}),
+      supabase.from('mascot_collections').select('*').eq('active', true),
+      supabase.from('mascot_user_items').select('item_id').eq('user_id', currentUser.id)
+    ]);
+    if (!itemsRes.error) setMascotItems((itemsRes.data||[]) as MascotShopItem[]);
+    if (!collectionsRes.error) setMascotCollections((collectionsRes.data||[]) as MascotCollection[]);
+    if (!ownedRes.error) setOwnedMascotIds(new Set((ownedRes.data||[]).map((x:any)=>x.item_id)));
+  };
+
+  useEffect(()=>{ void loadMascotShop(); },[currentUser.id]);
+
+  const availableMascotItems = useMemo(()=>{
+    const now=Date.now();
+    const cmap=new Map(mascotCollections.map(c=>[c.id,c]));
+    return mascotItems.filter(item=>{
+      if(!item.collection_id) return true;
+      const c=cmap.get(item.collection_id);
+      if(!c || !c.active) return false;
+      if(c.starts_at && now < new Date(c.starts_at).getTime()) return false;
+      if(c.ends_at && now > new Date(c.ends_at).getTime()) return false;
+      return true;
+    });
+  },[mascotItems,mascotCollections]);
+
+  const buyMascotItem = async (item:MascotShopItem) => {
+    if (!supabase || buyingMascotId || ownedMascotIds.has(item.id)) return;
+    setBuyingMascotId(item.id);
+    const {data,error}=await supabase.rpc('claim_mascot_item',{p_item_id:item.id});
+    setBuyingMascotId(null);
+    if(error){
+      const msg=/Insufficient points/i.test(error.message||'') ? "Vous n'avez pas assez de points."
+        : /Already owned/i.test(error.message||'') ? 'Vous possédez déjà cet objet.'
+        : /Item unavailable/i.test(error.message||'') ? "Cet objet n'est plus disponible."
+        : error.message;
+      alert(msg); return;
+    }
+    const result=Array.isArray(data)?data[0]:data;
+    setOwnedMascotIds(prev=>new Set([...prev,item.id]));
+    if(result?.remaining_points!==undefined) onMascotPurchase?.(Number(result.remaining_points));
+  };
   const [activeCategory, setActiveCategory] = useState<Reward['category'] | 'Tous'>('Tous');
   const [showHistory, setShowHistory] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'earn' | 'spend'>('all');
@@ -142,6 +196,12 @@ const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onCla
         </div>
       </div>
 
+      {/* Deux univers de boutique */}
+      <div className="bg-white border border-slate-100 rounded-[28px] p-2 shadow-sm flex gap-2 max-w-xl">
+        <button type="button" onClick={()=>setShopUniverse('star')} className={`flex-1 px-5 py-4 rounded-2xl font-black text-sm transition-all ${shopUniverse==='star'?'bg-slate-900 text-white shadow-lg':'text-slate-500 hover:bg-slate-50'}`}>Boutique STAR</button>
+        <button type="button" onClick={()=>setShopUniverse('mascot')} className={`flex-1 px-5 py-4 rounded-2xl font-black text-sm transition-all ${shopUniverse==='mascot'?'bg-green-700 text-white shadow-lg':'text-slate-500 hover:bg-slate-50'}`}>Boutique Ma Poire</button>
+      </div>
+
       {/* Mon parcours */}
       <section className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -233,6 +293,7 @@ const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onCla
         </div>
       </section>
 
+      {shopUniverse==='star' ? (<>
       {/* Filtres */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -299,6 +360,41 @@ const BoutiqueView: React.FC<BoutiqueViewProps> = ({ currentUser, rewards, onCla
           );
         })}
       </div>
+
+      </>) : (
+        <section className="space-y-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-green-700">Pour Hermione</p>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">Accessoires Ma Poire</h2>
+            <p className="text-sm text-slate-500 mt-2">Les objets achetés sont ajoutés immédiatement à ton dressing.</p>
+          </div>
+          {availableMascotItems.length===0 ? (
+            <div className="bg-white border border-slate-100 rounded-[32px] p-12 text-center text-slate-400">Aucun accessoire n'est disponible à l'achat pour le moment.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {availableMascotItems.map(item=>{
+                const owned=ownedMascotIds.has(item.id); const canAfford=currentUser.points>=item.price_points;
+                const collection=mascotCollections.find(c=>c.id===item.collection_id);
+                return <div key={item.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm flex flex-col">
+                  <div className="h-52 bg-gradient-to-b from-green-50 to-amber-50 p-5 flex items-center justify-center relative">
+                    {item.image_url ? <img src={item.image_url} alt={item.name} className="w-full h-full object-contain"/> : <div className="text-5xl">🍐</div>}
+                    <span className="absolute top-4 left-4 px-3 py-1 bg-white/90 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-600">{item.rarity}</span>
+                  </div>
+                  <div className="p-6 flex-1 flex flex-col">
+                    {collection&&<p className="text-[10px] font-black uppercase tracking-widest text-green-700 mb-1">{collection.name}</p>}
+                    <h3 className="text-xl font-black text-slate-900">{item.name}</h3>
+                    {item.description&&<p className="text-sm text-slate-500 mt-2 flex-1">{item.description}</p>}
+                    <div className="flex items-center justify-between mt-5 mb-4"><span className="text-xs font-bold text-slate-400">Prix</span><span className="text-xl font-black text-green-700">{item.price_points} pts</span></div>
+                    <button type="button" disabled={owned||!canAfford||buyingMascotId===item.id} onClick={()=>void buyMascotItem(item)} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${owned?'bg-green-50 text-green-700 border border-green-100':!canAfford?'bg-slate-100 text-slate-400':'bg-green-600 text-white hover:bg-green-700 shadow-lg'}`}>
+                      {owned?'Déjà possédé':buyingMascotId===item.id?'Achat…':!canAfford?`Il te manque ${item.price_points-currentUser.points} pts`:'Acheter pour Ma Poire'}
+                    </button>
+                  </div>
+                </div>
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Modal Historique */}
       {showHistory && (

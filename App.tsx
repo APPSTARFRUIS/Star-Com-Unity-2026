@@ -2745,6 +2745,11 @@ const App: React.FC = () => {
             onUpdateOrgContact={async (id, changes) => { const payload:any={};if(changes.name!==undefined)payload.name=changes.name;if(changes.email!==undefined)payload.email=changes.email;if(changes.phone!==undefined)payload.phone=changes.phone;if(changes.jobTitle!==undefined)payload.job_title=changes.jobTitle;if(changes.avatarUrl!==undefined)payload.avatar_url=changes.avatarUrl;if(changes.about!==undefined)payload.about=changes.about;if(changes.sortOrder!==undefined)payload.sort_order=changes.sortOrder;const {error}=await supabase.from('org_contacts').update(payload).eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
             onDeleteOrgContact={async (id) => { const {error}=await supabase.from('org_contacts').delete().eq('id',id);if(error){addToast(error.message,'error');throw error;}await fetchOrganization(); }}
             transactions={transactions}
+            onMascotPurchase={(remainingPoints) => {
+              setCurrentUser(previous => previous ? { ...previous, points: remainingPoints } : previous);
+              addToast('Accessoire ajouté au dressing !');
+              void fetchViewData(currentViewRef.current, true);
+            }}
           />
         );
 
