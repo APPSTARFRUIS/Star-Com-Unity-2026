@@ -8,3 +8,10 @@
 .mascot-idle{animation:mascotIdle 4.8s ease-in-out infinite}.mascot-happy{animation:mascotHappy .75s ease-out}.mascot-celebrate{animation:mascotCelebrate 1.15s ease-out}.mascot-outfit{animation:mascotOutfit .7s ease-out}.mascot-tap{animation:mascotTap .65s ease-out}.mascot-sparkles span{position:absolute;font-weight:900;color:#d97706;animation:mascotHappy .9s ease-out infinite}.mascot-sparkles span:nth-child(1){left:18%;top:20%}.mascot-sparkles span:nth-child(2){left:75%;top:18%}.mascot-sparkles span:nth-child(3){left:82%;top:48%}.mascot-sparkles span:nth-child(4){left:14%;top:55%}.mascot-sparkles span:nth-child(5){left:68%;top:72%}
 @media (prefers-reduced-motion:reduce){.mascot-idle,.mascot-happy,.mascot-celebrate,.mascot-outfit,.mascot-tap,.mascot-sparkles span{animation:none!important}}
 @keyframes mascotSpeech{from{opacity:0;transform:translateY(7px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}.mascot-speech{animation:mascotSpeech .22s ease-out}
+
+/* V1.6.42 — humeurs de Ma Poire */
+@keyframes mascotSleepy{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(3px) rotate(-1deg)}}
+@keyframes mascotProud{0%,100%{transform:scale(1)}45%{transform:scale(1.035) translateY(-3px)}}
+@keyframes mascotCurious{0%,100%{transform:rotate(0)}35%{transform:rotate(-2.5deg)}70%{transform:rotate(2deg)}}
+.mascot-sleepy{animation:mascotSleepy 3.8s ease-in-out infinite}.mascot-proud{animation:mascotProud 2.2s ease-in-out infinite}.mascot-curious{animation:mascotCurious 1.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.mascot-sleepy,.mascot-proud,.mascot-curious{animation:none!important}}

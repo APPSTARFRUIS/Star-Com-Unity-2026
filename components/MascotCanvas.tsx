@@ -1,7 +1,8 @@
 import React,{useEffect,useState} from 'react';
 import MascotLayer,{MascotLayerItem} from './MascotLayer';
 
-type Mood='idle'|'happy'|'celebrate'|'outfit'|'tap';
+export type MascotMood='idle'|'happy'|'celebrate'|'outfit'|'tap'|'sleepy'|'proud'|'curious';
+type Mood=MascotMood;
 export default function MascotCanvas({items=[],className='',interactive=false,onPointerDown,onPointerMove,onPointerUp,onPointerCancel,canvasRef,mood='idle',onMascotClick}: {
  items?:MascotLayerItem[]; className?:string; interactive?:boolean; mood?:Mood; onMascotClick?:()=>void;
  onPointerDown?:React.PointerEventHandler<HTMLDivElement>; onPointerMove?:React.PointerEventHandler<HTMLDivElement>;
@@ -9,7 +10,7 @@ export default function MascotCanvas({items=[],className='',interactive=false,on
 }){
  const [blink,setBlink]=useState(false);
  useEffect(()=>{if(interactive)return;let timer:number;const schedule=()=>{timer=window.setTimeout(()=>{setBlink(true);window.setTimeout(()=>setBlink(false),140);schedule()},3500+Math.random()*4500)};schedule();return()=>window.clearTimeout(timer)},[interactive]);
- const anim=mood==='celebrate'?'mascot-celebrate':mood==='happy'?'mascot-happy':mood==='outfit'?'mascot-outfit':mood==='tap'?'mascot-tap':'mascot-idle';
+ const anim=mood==='celebrate'?'mascot-celebrate':mood==='happy'?'mascot-happy':mood==='outfit'?'mascot-outfit':mood==='tap'?'mascot-tap':mood==='sleepy'?'mascot-sleepy':mood==='proud'?'mascot-proud':mood==='curious'?'mascot-curious':'mascot-idle';
  return <div className={`relative aspect-square overflow-hidden bg-gradient-to-b from-green-50 to-amber-50 ${interactive?'touch-none select-none':''} ${className}`}
    ref={canvasRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onClick={!interactive?onMascotClick:undefined}>
    <div className={`absolute inset-0 ${anim}`}>
