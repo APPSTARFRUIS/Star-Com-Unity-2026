@@ -14,6 +14,8 @@ type CompletionRow = { game_id: string; best_score: number; passed: boolean; com
 type GameRow = { id: string; title: string; type: string; status: string; learning_path?: string | null; level_number?: number | null; sport_events?: any[] | null };
 type PredictionRow = { game_id: string; choice: string; submitted_at: string };
 type TransactionRow = { amount: number; type: string; reason: string; date: string };
+type PollRow = { id:string; title:string; responses?:Array<{userId?:string;user_id?:string}>; end_date?:string|null; audience_companies?:string[]|null };
+type EventRow = { id:string; title:string; date:string; attendees?:string[]; audience_companies?:string[]|null };
 
 const parsePrediction = (raw: string) => {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
@@ -25,22 +27,28 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
   const [games, setGames] = useState<GameRow[]>([]);
   const [predictions, setPredictions] = useState<PredictionRow[]>([]);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [polls, setPolls] = useState<PollRow[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       setLoading(true);
-      const [c, g, p, t] = await Promise.all([
+      const [c, g, p, t, po, ev] = await Promise.all([
         supabase.from('game_completions').select('game_id,best_score,passed,completed_at').eq('user_id', currentUser.id),
         supabase.from('games').select('id,title,type,status,learning_path,level_number,sport_events').in('status', ['Actif', 'Terminé']),
         supabase.from('game_predictions').select('game_id,choice,submitted_at').eq('user_id', currentUser.id).order('submitted_at', { ascending: false }),
-        supabase.from('transactions').select('amount,type,reason,date').eq('user_id', currentUser.id).order('date', { ascending: false }).limit(100)
+        supabase.from('transactions').select('amount,type,reason,date').eq('user_id', currentUser.id).order('date', { ascending: false }).limit(100),
+        supabase.from('polls').select('id,title,responses,end_date,audience_companies').order('created_at', { ascending: false }).limit(50),
+        supabase.from('events').select('id,title,date,attendees,audience_companies').gte('date', new Date().toISOString().slice(0,10)).order('date', { ascending: true }).limit(30)
       ]);
       if (!alive) return;
       setCompletions((c.data || []) as CompletionRow[]);
       setGames((g.data || []) as GameRow[]);
       setPredictions((p.data || []) as PredictionRow[]);
       setTransactions((t.data || []) as TransactionRow[]);
+      setPolls((po.data || []) as PollRow[]);
+      setEvents((ev.data || []) as EventRow[]);
       setLoading(false);
     };
     void load();
@@ -74,6 +82,19 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
     const learningRemaining = learningGames.filter(g => g.status === 'Actif' && !passedIds.has(g.id)).length;
     return { learningGames: learningGames.length, learningPassed, learningProgress, learningSuccessRate, earned, spent, exacts, predictionPoints, openPredictions, learningRemaining };
   }, [games, completions, predictions, transactions]);
+
+  const mascotReminder = useMemo(() => {
+    const now = Date.now();
+    const visibleForCompany = (aud?: string[] | null) => !aud?.length || aud.includes('ALL') || aud.includes(currentUser.company);
+    const pendingPoll = polls.find(p => visibleForCompany(p.audience_companies) && (!p.end_date || new Date(p.end_date).getTime() >= now) && !(p.responses || []).some(r => (r.userId || r.user_id) === currentUser.id));
+    const pendingEvent = events.find(e => visibleForCompany(e.audience_companies) && new Date(e.date).getTime() >= new Date(new Date().toDateString()).getTime() && !(e.attendees || []).includes(currentUser.id));
+    if (stats.learningRemaining > 0) return { id:'learning', text:`Tu as encore ${stats.learningRemaining} quiz ou niveau${stats.learningRemaining > 1 ? 'x' : ''} à terminer.`, label:'J’y vais', view:'jeux' as ViewType };
+    if (pendingPoll) return { id:`poll:${pendingPoll.id}`, text:`Le sondage « ${pendingPoll.title} » attend encore ta réponse.`, label:'Répondre', view:'sondages' as ViewType };
+    if (stats.openPredictions > 0) return { id:'predictions', text:`Tu as ${stats.openPredictions} pronostic${stats.openPredictions > 1 ? 's' : ''} encore ouvert${stats.openPredictions > 1 ? 's' : ''}.`, label:'Pronostiquer', view:'tempsforts' as ViewType };
+    if (pendingEvent) return { id:`event:${pendingEvent.id}`, text:`Tu n’as pas encore répondu pour « ${pendingEvent.title} ».`, label:'Voir l’événement', view:'evenements' as ViewType };
+    if (unreadNotifications > 0) return { id:'notifications', text:`Tu as ${unreadNotifications} notification${unreadNotifications > 1 ? 's' : ''} à consulter.`, label:'Voir', view:'notifications' as ViewType };
+    return null;
+  }, [polls, events, stats.learningRemaining, stats.openPredictions, unreadNotifications, currentUser.id, currentUser.company]);
 
   const badges = useMemo(() => [
     { label: 'Premier pas', unlocked: stats.earned > 0 },
@@ -117,7 +138,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
         ))}
       </div>
 
-      <MascotCard currentUser={currentUser} />
+      <MascotCard currentUser={currentUser} reminder={mascotReminder} onNavigate={onNavigate} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
