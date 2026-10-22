@@ -6,9 +6,9 @@ import {supabase} from '../supabaseClient';
 const labels:Record<string,string>={notifications:'Voir',social:'Voir',sondages:'Répondre',evenements:'Voir',jeux:'J’y vais',tempsforts:'Voir',boutique:'Découvrir',celebrations:'Voir'};
 
 export default function MascotNudge({currentUser,notifications,currentView,onNavigate}:{currentUser:User;notifications:AppNotification[];currentView:ViewType;onNavigate:(v:ViewType)=>void}){
- const [name,setName]=useState('Ma Poire');
+ const [name,setName]=useState('Madame Poire');
  const [dismissed,setDismissed]=useState<string[]>(()=>{try{return JSON.parse(sessionStorage.getItem('mascot_nudge_dismissed')||'[]')}catch{return []}});
- useEffect(()=>{let alive=true;(async()=>{if(!supabase)return;const {data}=await supabase.from('mascots').select('name').eq('user_id',currentUser.id).maybeSingle();if(alive&&data?.name)setName(data.name)})();return()=>{alive=false}},[currentUser.id]);
+ useEffect(()=>{let alive=true;setName('Madame Poire');(async()=>{if(!supabase)return;const {data,error}=await supabase.rpc('get_my_mascot_name');if(!alive)return;const resolved=typeof data==='string'?data.trim():'';if(!error&&resolved)setName(resolved);else {const fallback=await supabase.from('mascots').select('name').eq('user_id',currentUser.id).maybeSingle();const fallbackName=String(fallback.data?.name||'').trim();if(alive&&fallbackName)setName(fallbackName)}})();return()=>{alive=false}},[currentUser.id]);
  const item=useMemo(()=>notifications.filter(n=>!n.isRead&&!dismissed.includes(n.id)).sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime())[0]||null,[notifications,dismissed]);
  if(!item||currentView==='notifications')return null;
  const target=((item.linkView||'notifications') as ViewType);
