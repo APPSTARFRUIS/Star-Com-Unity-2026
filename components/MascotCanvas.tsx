@@ -13,9 +13,10 @@ export default function MascotCanvas({items=[],className='',interactive=false,on
  const anim=mood==='celebrate'?'mascot-celebrate':mood==='happy'?'mascot-happy':mood==='outfit'?'mascot-outfit':mood==='tap'?'mascot-tap':mood==='sleepy'?'mascot-sleepy':mood==='proud'?'mascot-proud':mood==='curious'?'mascot-curious':'mascot-idle';
  return <div className={`relative aspect-square overflow-hidden bg-gradient-to-b from-green-50 to-amber-50 ${interactive?'touch-none select-none':''} ${className}`}
    ref={canvasRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onClick={!interactive?onMascotClick:undefined}>
+   {items.filter(it=>it.category==='background').map((it,index)=><MascotLayer key={it.id||`bg-${index}`} item={it}/>)}
    <div className={`absolute inset-0 ${anim}`}>
     <img src="/mascot-pear.png" draggable={false} className={`absolute inset-0 w-full h-full object-contain z-[1] pointer-events-none transition-transform ${blink?'scale-y-[0.985]':''}`} alt="Ma Poire"/>
-    {items.map((it,index)=><MascotLayer key={it.id||index} item={it}/>)}
+    {items.filter(it=>it.category!=='background').map((it,index)=><MascotLayer key={it.id||index} item={it}/>)}
    </div>
    {mood==='celebrate'&&<div className="absolute inset-0 pointer-events-none z-[80] mascot-sparkles"><span>✦</span><span>•</span><span>✦</span><span>•</span><span>✦</span></div>}
  </div>;

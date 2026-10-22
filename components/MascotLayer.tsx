@@ -23,8 +23,9 @@ export function layerValues(item:MascotLayerItem){
 
 export default function MascotLayer({item}:{item:MascotLayerItem}){
   if(!item.image_url)return null;
+  if(item.category==='background') return <img src={item.image_url} alt="" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',pointerEvents:'none',zIndex:0}}/>;
   const v=layerValues(item);
-  const common:React.CSSProperties={position:'absolute',top:`${v.y}%`,width:`${v.width}%`,height:'auto',objectFit:'contain',pointerEvents:'none',zIndex:item.category==='background'?0:10};
+  const common:React.CSSProperties={position:'absolute',top:`${v.y}%`,width:`${v.width}%`,height:'auto',objectFit:'contain',pointerEvents:'none',zIndex:10};
   if(v.pair){
     return <>
       <img src={item.image_url} alt="" style={{...common,left:`calc(${v.x}% - ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${-v.rotation}deg) scaleX(-1)`}}/>
