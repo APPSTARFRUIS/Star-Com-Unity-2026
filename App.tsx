@@ -43,6 +43,7 @@ import {
 import Sidebar, { ViewType } from './components/Sidebar';
 import ExternalToolsView from './components/ExternalToolsView';
 import PostCard from './components/PostCard';
+import MascotNudge from './components/MascotNudge';
 import PostCreator from './components/PostCreator';
 import AdminPanel from './components/AdminPanel';
 import TeamView from './components/TeamView';
@@ -3329,12 +3330,18 @@ const App: React.FC = () => {
                   currentUserRole={currentUser.role}
                   onDelete={async (id) => { if (supabase) await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
                   onReact={async (id, reaction) => {
-                    const p = posts.find(x => x.id === id); if (!p || !supabase) return;
-                    const reactions = { ...(p.reactions || {}) }; const mine = new Set(reactions[reaction] || []);
-                    if (mine.has(currentUser.id)) mine.delete(currentUser.id); else mine.add(currentUser.id);
-                    reactions[reaction] = Array.from(mine); await supabase.from('posts').update({ reactions }).eq('id', id); void fetchViewData(currentViewRef.current, true);
+                    if (!supabase) return;
+                    // Optimistic UI: the reaction is visible immediately, then persisted through a secure RPC.
+                    setPosts(prev => prev.map(p => { if (p.id !== id) return p; const reactions={...(p.reactions||{})}; const mine=new Set(reactions[reaction]||[]); if(mine.has(currentUser.id)) mine.delete(currentUser.id); else mine.add(currentUser.id); reactions[reaction]=Array.from(mine); return {...p,reactions}; }));
+                    const { error } = await supabase.rpc('toggle_social_post_reaction', { p_post_id:id, p_reaction:reaction });
+                    if (error) { addToast('Réaction impossible : '+error.message,'error'); void fetchViewData(currentViewRef.current,true); }
                   }}
-                  onVote={async (id, option) => { const p=posts.find(x=>x.id===id); if(!p||!supabase)return; const poll_votes={...(p.pollVotes||{}),[currentUser.id]:option}; await supabase.from('posts').update({poll_votes}).eq('id',id); void fetchViewData(currentViewRef.current,true); }}
+                  onVote={async (id, option) => {
+                    if(!supabase)return;
+                    setPosts(prev=>prev.map(p=>p.id===id?{...p,pollVotes:{...(p.pollVotes||{}),[currentUser.id]:option}}:p));
+                    const {error}=await supabase.rpc('vote_social_poll',{p_post_id:id,p_option:option});
+                    if(error){addToast('Vote impossible : '+error.message,'error');void fetchViewData(currentViewRef.current,true);}
+                  }}
                   onPin={async (id, pinned) => { if(!supabase)return; await supabase.from('posts').update({is_pinned:pinned}).eq('id',id); void fetchViewData(currentViewRef.current,true); }}
                   onAddComment={async (id, text, attachment, parentId) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text, attachment: attachment || null, parent_id: parentId || null }); const mentioned=users.filter(u=>text.toLowerCase().includes(`@${u.name.toLowerCase()}`)&&u.id!==currentUser.id); if(mentioned.length) await supabase.from('notifications').insert(mentioned.map(u=>({user_id:u.id,kind:'post',title:'Mention dans un commentaire',message:`${currentUser.name} vous a mentionné(e) dans un commentaire.`,link_view:'social',entity_id:id,is_read:false}))); void fetchViewData(currentViewRef.current, true); } }}
                   onEditComment={async (commentId, text) => { if (supabase) { const {error}=await supabase.from('comments').update({text, edited_at:new Date().toISOString()}).eq('id',commentId).eq('user_id',currentUser.id); if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
@@ -3453,6 +3460,7 @@ const App: React.FC = () => {
           <main className="flex-1 md:ml-64 p-3 sm:p-4 md:p-8 w-full max-w-full overflow-x-hidden">
             {renderContent()}
           </main>
+          <MascotNudge currentUser={currentUser} notifications={notifications} currentView={view} onNavigate={setView} />
 
           {showFirstLoginOnboarding && (
             <FirstLoginOnboarding
