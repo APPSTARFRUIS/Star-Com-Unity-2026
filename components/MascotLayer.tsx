@@ -3,7 +3,8 @@ import React from 'react';
 export type MascotLayerItem = {
   id:string; image_url?:string; category:string;
   layer_x?:number|null; layer_y?:number|null; layer_width?:number|null;
-  layer_rotation?:number|null; pair_mode?:boolean|null; pair_gap?:number|null;
+  layer_rotation?:number|null; pair_mode?:boolean|null; pair_gap?:number|null; layer_z?:number|null;
+  equip_slot?:string|null; stackable?:boolean|null;
 };
 
 const defaults: Record<string,{x:number;y:number;width:number;rotation:number;pair:boolean;gap:number}> = {
@@ -25,7 +26,7 @@ export default function MascotLayer({item}:{item:MascotLayerItem}){
   if(!item.image_url)return null;
   if(item.category==='background') return <img src={item.image_url} alt="" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',pointerEvents:'none',zIndex:0}}/>;
   const v=layerValues(item);
-  const common:React.CSSProperties={position:'absolute',top:`${v.y}%`,width:`${v.width}%`,height:'auto',objectFit:'contain',pointerEvents:'none',zIndex:10};
+  const common:React.CSSProperties={position:'absolute',top:`${v.y}%`,width:`${v.width}%`,height:'auto',objectFit:'contain',pointerEvents:'none',zIndex:item.layer_z??10};
   if(v.pair){
     return <>
       <img src={item.image_url} alt="" style={{...common,left:`calc(${v.x}% - ${v.gap}%)`,transform:`translate(-50%,-50%) rotate(${-v.rotation}deg) scaleX(-1)`}}/>

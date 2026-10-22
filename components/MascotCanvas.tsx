@@ -11,16 +11,18 @@ export default function MascotCanvas({items=[],className='',interactive=false,on
  const [blink,setBlink]=useState(false);
  useEffect(()=>{if(interactive)return;let timer:number;const schedule=()=>{timer=window.setTimeout(()=>{setBlink(true);window.setTimeout(()=>setBlink(false),140);schedule()},3500+Math.random()*4500)};schedule();return()=>window.clearTimeout(timer)},[interactive]);
  const anim=mood==='celebrate'?'mascot-celebrate':mood==='happy'?'mascot-happy':mood==='outfit'?'mascot-outfit':mood==='tap'?'mascot-tap':mood==='sleepy'?'mascot-sleepy':mood==='proud'?'mascot-proud':mood==='curious'?'mascot-curious':'mascot-idle';
- const backgrounds=useMemo(()=>items.filter(it=>it.category==='background'),[items]);
- const foregrounds=useMemo(()=>items.filter(it=>it.category!=='background'),[items]);
- const hasUniverse=Boolean(backgroundUrl)||backgrounds.length>0;
- const backgroundStyle:React.CSSProperties=backgroundUrl?{backgroundImage:`url(\"${backgroundUrl}\")`,backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat'}:{};
- return <div style={backgroundStyle} className={`relative aspect-square overflow-hidden ${hasUniverse?'bg-white':'bg-gradient-to-b from-green-50 to-amber-50'} ${interactive?'touch-none select-none':''} ${className}`}
+ const personalBackgrounds=useMemo(()=>items.filter(it=>it.category==='background'),[items]);
+ const foregrounds=useMemo(()=>items.filter(it=>it.category!=='background').slice().sort((a,b)=>(a.layer_z??10)-(b.layer_z??10)),[items]);
+ const hasDecor=Boolean(backgroundUrl)||personalBackgrounds.length>0;
+ return <div className={`relative aspect-square overflow-hidden ${hasDecor?'bg-white':'bg-gradient-to-b from-green-50 to-amber-50'} ${interactive?'touch-none select-none':''} ${className}`}
    ref={canvasRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onClick={!interactive?onMascotClick:undefined}>
-   {backgrounds.map((it,index)=><MascotLayer key={it.id||`bg-${index}`} item={it}/>)}
-   {hasUniverse&&<div className="absolute inset-0 bg-gradient-to-t from-white/10 via-transparent to-white/5 pointer-events-none z-[1]"/>}
-   <div className={`absolute inset-0 z-[5] ${anim}`}>
-    <img src="/mascot-pear.png" draggable={false} className={`absolute pointer-events-none transition-all duration-300 ${hasUniverse?'left-[12%] top-[10%] w-[76%] h-[82%]':'inset-0 w-full h-full'} object-contain z-[1] ${blink?'scale-y-[0.985]':''}`} alt="Ma Poire"/>
+   {/* Personal decor: owned by the user. It remains equipped but is temporarily hidden by an admin universe. */}
+   {personalBackgrounds.map((it,index)=><MascotLayer key={it.id||`personal-bg-${index}`} item={it}/>)}
+   {/* Admin universe: always above personal decor, never part of the user's inventory. */}
+   {backgroundUrl&&<img key={backgroundUrl} src={backgroundUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[3]"/>}
+   {hasDecor&&<div className="absolute inset-0 bg-gradient-to-t from-black/5 via-transparent to-white/5 pointer-events-none z-[4]"/>}
+   <div className={`absolute inset-0 z-[10] ${anim}`}>
+    <img src="/mascot-pear.png" draggable={false} className={`absolute pointer-events-none transition-all duration-300 ${hasDecor?'left-[12%] top-[10%] w-[76%] h-[82%]':'inset-0 w-full h-full'} object-contain z-[5] ${blink?'scale-y-[0.985]':''}`} alt="Ma Poire"/>
     {foregrounds.map((it,index)=><MascotLayer key={it.id||index} item={it}/>)}
    </div>
    <MoodEffect mood={mood}/>

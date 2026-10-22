@@ -1,4 +1,4 @@
-const CACHE_NAME = 'star-comunity-v1.6.24';
+const CACHE_NAME = 'star-comunity-v1.6.44-mascot';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
