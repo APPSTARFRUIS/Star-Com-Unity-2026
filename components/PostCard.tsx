@@ -1,184 +1,23 @@
-
-import React, { useRef, useState } from 'react';
-import { uploadMediaToStorage } from '../storageUtils';
-import { Post, UserRole, Attachment } from '../types';
-
-interface PostCardProps {
-  post: Post;
-  currentUserRole: UserRole;
-  currentUserId: string;
-  onDelete: (id: string) => void;
-  onLike: (id: string) => void;
-  onAddComment: (postId: string, text: string, attachment?: Attachment) => void;
-  onEditComment: (commentId: string, text: string) => Promise<void>;
-  onDeleteComment: (commentId: string) => Promise<void>;
-}
-
-const PostCard: React.FC<PostCardProps> = ({ post, currentUserRole, currentUserId, onDelete, onLike, onAddComment, onEditComment, onDeleteComment }) => {
-  const [commentText, setCommentText] = useState('');
-  const [commentAttachment, setCommentAttachment] = useState<Attachment | undefined>();
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingCommentText, setEditingCommentText] = useState('');
-  const commentFileRef = useRef<HTMLInputElement>(null);
-  const canDelete = currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.MODERATOR || post.userId === currentUserId;
-
-  const handleSubmitComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentText.trim() && !commentAttachment) return;
-    onAddComment(post.id, commentText, commentAttachment);
-    setCommentText('');
-    setCommentAttachment(undefined);
-  };
-
-  const isImage = (file: Attachment) => {
-    return file.type.startsWith('image/') || 
-           /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
-  };
-
-  const isVideo = (file: Attachment) => {
-    return file.type.startsWith('video/') || 
-           /\.(mp4|webm|ogg|mov)$/i.test(file.name);
-  };
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Header */}
-      <div className="p-5 flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <img src={post.userAvatar} alt={post.userName} className="w-10 h-10 rounded-full border border-slate-100" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-slate-900">{post.userName}</h3>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                post.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-700' : 
-                post.role === UserRole.MODERATOR ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
-              }`}>
-                {post.role}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">{new Date(post.createdAt).toLocaleString('fr-FR')} • {post.category}</p>
-          </div>
-        </div>
-        {canDelete && (
-          <button onClick={() => onDelete(post.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="px-5 pb-4">
-        <h2 className="text-xl font-bold text-slate-900 mb-2">{post.title}</h2>
-        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{post.content}</p>
-      </div>
-
-      {/* Attachments Grid */}
-      {post.attachments && post.attachments.length > 0 && (
-        <div className={`w-full bg-slate-50 border-y border-slate-100 grid ${
-          post.attachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-        } gap-px`}>
-          {post.attachments.map((file, idx) => (
-            <div key={idx} className="relative group bg-white flex items-center justify-center overflow-hidden min-h-[200px]">
-              {isImage(file) ? (
-                <img 
-                  src={file.data} 
-                  className="w-full h-full object-cover max-h-[500px] cursor-pointer hover:scale-[1.02] transition-transform duration-500" 
-                  alt={file.name} 
-                  onClick={() => window.open(file.data, '_blank')}
-                />
-              ) : isVideo(file) ? (
-                <video controls className="w-full max-h-[500px] bg-black">
-                  <source src={file.data} type={file.type} />
-                </video>
-              ) : (
-                <div className="p-8 w-full flex flex-col items-center justify-center gap-4 text-center bg-slate-50">
-                   <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center justify-center text-blue-600">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                   </div>
-                   <div className="space-y-1 overflow-hidden w-full px-4">
-                      <p className="text-sm font-bold text-slate-800 truncate">{file.name}</p>
-                      <a 
-                        href={file.data} 
-                        download={file.name}
-                        className="inline-block mt-2 text-xs text-blue-600 font-bold hover:underline bg-blue-50 px-3 py-1 rounded-full"
-                      >
-                        Télécharger
-                      </a>
-                   </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="px-5 py-4 border-t border-slate-100 flex items-center gap-6">
-        <button onClick={() => onLike(post.id)} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors group">
-          <svg className="w-5 h-5 group-active:scale-125 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.757c1.246 0 2.25 1.004 2.25 2.25 0 .428-.12.828-.328 1.168L18.328 19c-.35.568-.973.918-1.642.918H10a1 1 0 01-1-1v-8a1 1 0 01.316-.727l5-5V2.422a1 1 0 011.664-.746l3.328 3.125a1 1 0 010 1.442L14.316 9.273A1 1 0 0114 10z" />
-          </svg>
-          <span className="font-bold text-sm">{post.likes}</span>
-        </button>
-        <div className="flex items-center gap-2 text-slate-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span className="font-bold text-sm">{post.comments.length}</span>
-        </div>
-      </div>
-
-      {/* Comments List */}
-      {post.comments.length > 0 && (
-        <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-4">
-          {post.comments.map(comment => (
-            <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
-              <img src={comment.userAvatar} className="w-8 h-8 rounded-full border border-slate-200" alt="" />
-              <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-bold text-xs text-slate-900">{comment.userName}</span>
-                  <span className="text-[10px] text-slate-400 font-medium">{new Date(comment.createdAt).toLocaleTimeString('fr-FR')}</span>
-                </div>
-                {editingCommentId === comment.id ? <div className="flex gap-2"><input className="flex-1 border rounded-lg px-2 py-1" value={editingCommentText} onChange={e=>setEditingCommentText(e.target.value)} /><button type="button" className="text-green-700 font-bold" onClick={async()=>{ if(editingCommentText.trim()){ await onEditComment(comment.id, editingCommentText.trim()); setEditingCommentId(null); }}}>OK</button></div> : <p className="text-sm text-slate-700">{comment.text}</p>}
-                {comment.attachment && <img src={comment.attachment.data} alt={comment.attachment.name} className="mt-2 max-h-64 rounded-xl object-contain cursor-pointer" onClick={()=>window.open(comment.attachment!.data,'_blank')} />}
-                {(comment.userId === currentUserId || currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.MODERATOR) && <div className="mt-2 flex gap-3 text-[10px]">{comment.userId === currentUserId && <button type="button" className="text-slate-400 hover:text-green-700" onClick={()=>{setEditingCommentId(comment.id);setEditingCommentText(comment.text)}}>Modifier</button>}<button type="button" className="text-slate-400 hover:text-red-600" onClick={async()=>{if(confirm('Supprimer ce commentaire ?')) await onDeleteComment(comment.id)}}>Supprimer</button></div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* New Comment Input */}
-      <form onSubmit={handleSubmitComment} className="p-4 border-t border-slate-100 bg-white">
-        {commentAttachment && <div className="mb-2 inline-flex items-center gap-2 bg-slate-50 border rounded-xl p-2 text-xs"><span>{commentAttachment.name}</span><button type="button" onClick={()=>setCommentAttachment(undefined)}>×</button></div>}
-        <div className="flex gap-2 items-center">
-        <button type="button" onClick={()=>setCommentText(v=>v+' 😊')} className="p-2 text-xl" title="Ajouter un emoji">😊</button>
-        <input ref={commentFileRef} type="file" accept="image/*,.gif" className="hidden" onChange={async e=>{const f=e.target.files?.[0]; if(!f)return; try{const url=await uploadMediaToStorage(f,'comments'); setCommentAttachment({name:f.name,type:f.type,data:url});}catch(err:any){alert(err?.message||'Upload impossible');} e.target.value='';}} />
-        <button type="button" onClick={()=>commentFileRef.current?.click()} className="p-2 text-slate-500" title="Ajouter une image ou un GIF">📎</button>
-        <input
-          type="text"
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-          placeholder="Écrire un commentaire..."
-          className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-        />
-        <button 
-          type="submit"
-          disabled={!commentText.trim() && !commentAttachment}
-          className="bg-blue-600 text-white rounded-full p-2.5 disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-sm active:scale-95 flex-shrink-0"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-        </button>
-        </div>
-      </form>
-    </div>
-  );
+import React,{useRef,useState} from 'react';
+import {Attachment,Post,User,UserRole} from '../types';
+import {uploadMediaToStorage} from '../storageUtils';
+interface Props{post:Post;users?:User[];currentUserRole:UserRole;currentUserId:string;onDelete:(id:string)=>void;onReact:(id:string,reaction:string)=>void;onVote:(id:string,option:string)=>void;onPin:(id:string,pinned:boolean)=>void;onAddComment:(id:string,text:string,a?:Attachment,parentId?:string|null)=>void;onEditComment:(id:string,text:string)=>Promise<void>;onDeleteComment:(id:string)=>Promise<void>}
+const REACTIONS=['👍','❤️','👏','😂','💡'];
+const yt=(url?:string)=>{if(!url)return null;const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{6,})/);return m?.[1]||null};
+const PostCard:React.FC<Props>=({post,currentUserRole,currentUserId,onDelete,onReact,onVote,onPin,onAddComment,onEditComment,onDeleteComment})=>{
+ const [text,setText]=useState(''),[attachment,setAttachment]=useState<Attachment>(),[replyTo,setReplyTo]=useState<string|null>(null),[editId,setEditId]=useState<string|null>(null),[editText,setEditText]=useState('');const fref=useRef<HTMLInputElement>(null);const canManage=[UserRole.ADMIN,UserRole.MODERATOR].includes(currentUserRole);const canDelete=canManage||post.userId===currentUserId;
+ const comments=post.comments||[], roots=comments.filter(c=>!c.parentId);const replies=(id:string)=>comments.filter(c=>c.parentId===id);const videoId=yt(post.linkUrl);const reactions=post.reactions||{};const totalReactions=Object.values(reactions).reduce((n,a)=>n+(a?.length||0),0);
+ const submit=(e:React.FormEvent)=>{e.preventDefault();if(!text.trim()&&!attachment)return;onAddComment(post.id,text,attachment,replyTo);setText('');setAttachment(undefined);setReplyTo(null)};
+ const renderComment=(c:any,child=false)=><div key={c.id} className={`flex gap-2 ${child?'ml-10 mt-2':''}`}><img src={c.userAvatar} className="w-8 h-8 rounded-full"/><div className="flex-1 bg-white border rounded-xl p-3"><div className="flex justify-between"><b className="text-xs">{c.userName}</b><span className="text-[10px] text-slate-400">{new Date(c.createdAt).toLocaleString('fr-FR')}</span></div>{editId===c.id?<div className="flex gap-2 mt-1"><input value={editText} onChange={e=>setEditText(e.target.value)} className="flex-1 border rounded px-2"/><button onClick={async()=>{await onEditComment(c.id,editText);setEditId(null)}}>OK</button></div>:<p className="text-sm mt-1 whitespace-pre-wrap">{c.text}</p>}{c.attachment&&<a href={c.attachment.data} target="_blank" rel="noreferrer" className="text-xs text-green-700 font-bold">📎 {c.attachment.name}</a>}<div className="flex gap-3 mt-2 text-[11px]"><button onClick={()=>setReplyTo(c.id)} className="text-green-700">Répondre</button>{c.userId===currentUserId&&<button onClick={()=>{setEditId(c.id);setEditText(c.text)}}>Modifier</button>}{(c.userId===currentUserId||canManage)&&<button onClick={()=>confirm('Supprimer ce commentaire ?')&&onDeleteComment(c.id)} className="text-red-600">Supprimer</button>}</div></div></div>;
+ return <article className={`bg-white rounded-2xl border shadow-sm overflow-hidden mb-6 ${post.isPinned?'ring-2 ring-amber-300':''}`}>
+  <header className="p-5 flex justify-between"><div className="flex gap-3"><img src={post.userAvatar} className="w-11 h-11 rounded-full"/><div><div className="flex gap-2 items-center"><b>{post.userName}</b>{post.isPinned&&<span className="text-xs bg-amber-100 px-2 py-1 rounded-full">📌 Épinglé</span>}</div><div className="text-xs text-slate-500">{new Date(post.createdAt).toLocaleString('fr-FR')} · {post.category} · {post.audienceCompanies?.length?post.audienceCompanies.join(', '):'Tout STAR GROUP'}</div></div></div><div className="flex gap-2">{canManage&&<button onClick={()=>onPin(post.id,!post.isPinned)} title="Épingler">📌</button>}{canDelete&&<button onClick={()=>confirm('Supprimer cette publication ?')&&onDelete(post.id)} className="text-red-500">✕</button>}</div></header>
+  <div className="px-5 pb-4"><span className="inline-block text-xs font-bold uppercase text-green-700 mb-2">{{publication:'Publication',question:'Question',poll:'Sondage',bravo:'Bravo'}[post.postType||'publication']}</span><h2 className="text-xl font-bold mb-2">{post.title}</h2><p className="whitespace-pre-wrap text-slate-700">{post.content}</p></div>
+  {post.attachments?.length?<div className={`grid ${post.attachments.length>1?'md:grid-cols-2':''} border-y`}>{post.attachments.map((a,i)=>{const img=a.type.startsWith('image/')||/\.(png|jpg|jpeg|gif|webp)$/i.test(a.name),vid=a.type.startsWith('video/')||/\.(mp4|webm|mov)$/i.test(a.name);return <div key={i} className="min-h-40 flex items-center justify-center bg-slate-50 overflow-hidden">{img?<img src={a.data} className="w-full max-h-[520px] object-contain"/>:vid?<video src={a.data} controls className="w-full max-h-[520px] bg-black"/>:<a href={a.data} target="_blank" rel="noreferrer" className="p-8 font-bold text-green-700">📄 {a.name}</a>}</div>})}</div>:null}
+  {post.linkUrl&&<div className="px-5 py-4 border-b">{videoId?<div className="aspect-video max-w-3xl"><iframe className="w-full h-full rounded-xl" src={`https://www.youtube.com/embed/${videoId}`} allowFullScreen/></div>:<a href={post.linkUrl} target="_blank" rel="noreferrer" className="block bg-slate-50 border rounded-xl p-4 text-green-700 font-bold break-all">🔗 {post.linkUrl}</a>}</div>}
+  {post.postType==='poll'&&post.pollOptions?.length?<div className="px-5 pb-5 space-y-2">{post.pollOptions.map(o=>{const votes=Object.values(post.pollVotes||{}).filter(v=>v===o).length,total=Object.keys(post.pollVotes||{}).length,pct=total?Math.round(votes*100/total):0;return <button key={o} onClick={()=>onVote(post.id,o)} className="w-full border rounded-xl p-3 text-left relative overflow-hidden"><span className="absolute inset-y-0 left-0 bg-green-50" style={{width:`${pct}%`}}/><span className="relative flex justify-between"><b>{o}</b><span>{votes} · {pct}%</span></span></button>})}</div>:null}
+  <div className="px-5 py-3 border-t flex flex-wrap gap-2 items-center">{REACTIONS.map(r=>{const n=reactions[r]?.length||0,active=reactions[r]?.includes(currentUserId);return <button key={r} onClick={()=>onReact(post.id,r)} className={`px-3 py-1.5 rounded-full border text-sm ${active?'bg-green-50 border-green-400':''}`}>{r}{n?` ${n}`:''}</button>})}<span className="text-xs text-slate-500 ml-2">{totalReactions} réaction(s) · {comments.length} commentaire(s)</span></div>
+  {comments.length>0&&<div className="bg-slate-50 border-t p-4 space-y-3">{roots.map(c=><div key={c.id}>{renderComment(c)}{replies(c.id).map(r=>renderComment(r,true))}</div>)}</div>}
+  <form onSubmit={submit} className="p-4 border-t">{replyTo&&<div className="text-xs mb-2 bg-green-50 p-2 rounded">Réponse à un commentaire <button type="button" onClick={()=>setReplyTo(null)}>×</button></div>}{attachment&&<div className="text-xs mb-2">📎 {attachment.name} <button type="button" onClick={()=>setAttachment(undefined)}>×</button></div>}<div className="flex gap-2"><button type="button" onClick={()=>setText(v=>v+' 😊')}>😊</button><input ref={fref} type="file" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(!f)return;try{const u=await uploadMediaToStorage(f,'comments');setAttachment({name:f.name,type:f.type,data:u})}catch(err:any){alert(err?.message||'Upload impossible')}e.target.value=''}}/><button type="button" onClick={()=>fref.current?.click()}>📎</button><input value={text} onChange={e=>setText(e.target.value)} placeholder="Écrire un commentaire ou @mentionner un collègue…" className="flex-1 bg-slate-50 border rounded-full px-4 py-2"/><button className="bg-green-700 text-white px-4 rounded-full">Publier</button></div></form>
+ </article>
 };
-
 export default PostCard;

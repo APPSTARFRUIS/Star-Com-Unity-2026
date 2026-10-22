@@ -231,7 +231,11 @@ export interface Comment {
   createdAt: string;
   attachment?: Attachment;
   editedAt?: string;
+  parentId?: string | null;
+  reactions?: Record<string, string[]>;
 }
+
+export type SocialPostType = 'publication' | 'question' | 'poll' | 'bravo';
 
 export interface Post {
   id: string;
@@ -247,6 +251,13 @@ export interface Post {
   comments: Comment[];
   createdAt: string;
   audienceCompanies?: string[];
+  postType?: SocialPostType;
+  reactions?: Record<string, string[]>;
+  pollOptions?: string[];
+  pollVotes?: Record<string, string>;
+  isPinned?: boolean;
+  linkUrl?: string;
+  mentionedUserIds?: string[];
 }
 
 export interface Message {

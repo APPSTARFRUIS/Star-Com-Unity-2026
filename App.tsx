@@ -533,7 +533,9 @@ const App: React.FC = () => {
       userAvatar: c.user_avatar,
       createdAt: c.created_at,
       attachment: c.attachment || undefined,
-      editedAt: c.edited_at || undefined
+      editedAt: c.edited_at || undefined,
+      parentId: c.parent_id || null,
+      reactions: c.reactions || {}
     }));
 
   const mapPosts = (rows: any[] | null | undefined, commentRows: any[] | null | undefined) =>
@@ -543,6 +545,14 @@ const App: React.FC = () => {
       userName: p.user_name,
       userAvatar: p.user_avatar,
       createdAt: p.created_at,
+      audienceCompanies: p.audience_companies || [],
+      postType: p.post_type || 'publication',
+      reactions: p.reactions || {},
+      pollOptions: p.poll_options || [],
+      pollVotes: p.poll_votes || {},
+      isPinned: !!p.is_pinned,
+      linkUrl: p.link_url || undefined,
+      mentionedUserIds: p.mentioned_user_ids || [],
       comments: mapComments(commentRows).filter((c: any) => c.post_id === p.id)
     }));
 
@@ -1445,6 +1455,8 @@ const App: React.FC = () => {
           userName: p.user_name,
           userAvatar: p.user_avatar,
           createdAt: p.created_at,
+          audienceCompanies: p.audience_companies || [],
+          postType: p.post_type || 'publication', reactions: p.reactions || {}, pollOptions: p.poll_options || [], pollVotes: p.poll_votes || {}, isPinned: !!p.is_pinned, linkUrl: p.link_url || undefined, mentionedUserIds: p.mentioned_user_ids || [],
           comments: commentsData
             ? commentsData
                 .filter((c: any) => c.post_id === p.id)
@@ -1453,7 +1465,7 @@ const App: React.FC = () => {
                   userId: c.user_id,
                   userName: c.user_name,
                   userAvatar: c.user_avatar,
-                  createdAt: c.created_at, attachment: c.attachment || undefined, editedAt: c.edited_at || undefined
+                  createdAt: c.created_at, attachment: c.attachment || undefined, editedAt: c.edited_at || undefined, parentId: c.parent_id || null, reactions: c.reactions || {}
                 }))
             : []
         })));
@@ -1974,7 +1986,7 @@ const App: React.FC = () => {
 
   const handleCreatePost = async (p: any) => {
     if (!currentUser || !supabase) return;
-    const { error } = await supabase.from('posts').insert({
+    const { data: createdPost, error } = await supabase.from('posts').insert({
       user_id: currentUser.id,
       user_name: currentUser.name,
       user_avatar: currentUser.avatar,
@@ -1982,8 +1994,18 @@ const App: React.FC = () => {
       title: p.title,
       content: p.content,
       category: p.category,
-      attachments: p.attachments || []
-    });
+      attachments: p.attachments || [],
+      post_type: p.postType || 'publication',
+      audience_companies: p.audienceCompanies || [],
+      link_url: p.linkUrl || null,
+      poll_options: p.pollOptions || [],
+      poll_votes: {},
+      reactions: {},
+      mentioned_user_ids: p.mentionedUserIds || []
+    }).select('id').single();
+    if (!error && createdPost?.id && p.mentionedUserIds?.length) {
+      await supabase.from('notifications').insert(p.mentionedUserIds.filter((id:string)=>id!==currentUser.id).map((id:string)=>({ user_id:id, kind:'post', title:'Vous avez été mentionné(e)', message:`${currentUser.name} vous a mentionné(e) dans une publication.`, link_view:'social', entity_id:createdPost.id, is_read:false })));
+    }
     if (error) addToast("Erreur", "error");
     else { addToast("Posté !"); void fetchViewData(currentViewRef.current, true); }
   };
@@ -3296,20 +3318,25 @@ const App: React.FC = () => {
         return (
           <div className="max-w-4xl mx-auto">
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-8">Social</h1>
-            <PostCreator currentUser={currentUser} onPostCreated={handleCreatePost} />
+            <PostCreator currentUser={currentUser} users={users} onPostCreated={handleCreatePost} />
             <div className="space-y-6">
-              {posts.map(post => (
+              {posts.filter(post => !post.audienceCompanies?.length || post.audienceCompanies.includes(currentUser.company)).sort((a,b) => Number(!!b.isPinned)-Number(!!a.isPinned)).map(post => (
                 <PostCard
                   key={post.id}
                   post={post}
+                  users={users}
                   currentUserId={currentUser.id}
                   currentUserRole={currentUser.role}
                   onDelete={async (id) => { if (supabase) await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
-                  onLike={async (id) => {
-                    const p = posts.find(x => x.id === id);
-                    if (supabase) { await supabase.from('posts').update({ likes: (p?.likes || 0) + 1 }).eq('id', id); void fetchViewData(currentViewRef.current, true); }
+                  onReact={async (id, reaction) => {
+                    const p = posts.find(x => x.id === id); if (!p || !supabase) return;
+                    const reactions = { ...(p.reactions || {}) }; const mine = new Set(reactions[reaction] || []);
+                    if (mine.has(currentUser.id)) mine.delete(currentUser.id); else mine.add(currentUser.id);
+                    reactions[reaction] = Array.from(mine); await supabase.from('posts').update({ reactions }).eq('id', id); void fetchViewData(currentViewRef.current, true);
                   }}
-                  onAddComment={async (id, text, attachment) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text, attachment: attachment || null }); void fetchViewData(currentViewRef.current, true); } }}
+                  onVote={async (id, option) => { const p=posts.find(x=>x.id===id); if(!p||!supabase)return; const poll_votes={...(p.pollVotes||{}),[currentUser.id]:option}; await supabase.from('posts').update({poll_votes}).eq('id',id); void fetchViewData(currentViewRef.current,true); }}
+                  onPin={async (id, pinned) => { if(!supabase)return; await supabase.from('posts').update({is_pinned:pinned}).eq('id',id); void fetchViewData(currentViewRef.current,true); }}
+                  onAddComment={async (id, text, attachment, parentId) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text, attachment: attachment || null, parent_id: parentId || null }); const mentioned=users.filter(u=>text.toLowerCase().includes(`@${u.name.toLowerCase()}`)&&u.id!==currentUser.id); if(mentioned.length) await supabase.from('notifications').insert(mentioned.map(u=>({user_id:u.id,kind:'post',title:'Mention dans un commentaire',message:`${currentUser.name} vous a mentionné(e) dans un commentaire.`,link_view:'social',entity_id:id,is_read:false}))); void fetchViewData(currentViewRef.current, true); } }}
                   onEditComment={async (commentId, text) => { if (supabase) { const {error}=await supabase.from('comments').update({text, edited_at:new Date().toISOString()}).eq('id',commentId).eq('user_id',currentUser.id); if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
                   onDeleteComment={async (commentId) => { if (supabase) { const q=supabase.from('comments').delete().eq('id',commentId); if(currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.MODERATOR) q.eq('user_id',currentUser.id); const {error}=await q; if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
                 />

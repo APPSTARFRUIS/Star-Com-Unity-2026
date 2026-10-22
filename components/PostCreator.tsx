@@ -1,233 +1,40 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { CATEGORIES } from '../constants';
-import { geminiService } from '../geminiService';
-import { Post, User, Attachment } from '../types';
+import { Post, User, Attachment, SocialPostType } from '../types';
 import { uploadMediaToStorage } from '../storageUtils';
 
-interface PostCreatorProps {
-  currentUser: User;
-  onPostCreated: (post: Omit<Post, 'id' | 'likes' | 'comments' | 'createdAt' | 'userName' | 'userAvatar' | 'role' | 'userId'>) => void;
-}
-
-const PostCreator: React.FC<PostCreatorProps> = ({ currentUser, onPostCreated }) => {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [showFullCreator, setShowFullCreator] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [uploadingFileName, setUploadingFileName] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  if (!currentUser) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title || !content) return;
-    onPostCreated({ title, content, category, attachments: attachments.length > 0 ? attachments : undefined });
-    setTitle('');
-    setContent('');
-    setAttachments([]);
-    setShowFullCreator(false);
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const newAttachments: Attachment[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        setUploadingFileName(file.name);
-        setUploadProgress(0);
-        const url = await uploadMediaToStorage(file, 'posts', percent => setUploadProgress(percent));
-        newAttachments.push({
-          name: file.name,
-          type: file.type,
-          data: url
-        });
-      } catch (error: any) {
-        alert(error?.message || `Erreur lors de l’upload du fichier ${file.name}.`);
-      } finally {
-        setUploadProgress(null);
-        setUploadingFileName('');
-      }
-    }
-    
-    setAttachments([...attachments, ...newAttachments]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
-  };
-
-  const handleAiRefine = async () => {
-    if (!content) return;
-    setIsAiLoading(true);
-    try {
-      const refined = await geminiService.refinePostContent(content);
-      setContent(refined);
-      if (!title) {
-        const generatedTitle = await geminiService.generatePostTitle(refined);
-        setTitle(generatedTitle);
-      }
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const firstName = currentUser.name ? currentUser.name.split(' ')[0] : 'Collègue';
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-8">
-      {!showFullCreator ? (
-        <div className="flex items-center gap-4">
-          <img src={currentUser.avatar} className="w-10 h-10 rounded-full" alt="" />
-          <button 
-            onClick={() => setShowFullCreator(true)}
-            className="flex-1 text-left bg-slate-50 border border-slate-200 rounded-full px-5 py-3 text-slate-500 hover:bg-slate-100 transition-colors"
-          >
-            Quoi de neuf, {firstName} ?
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800">Nouvelle Publication</h3>
-            <button type="button" onClick={() => setShowFullCreator(false)} className="text-slate-400 hover:text-slate-600">
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Titre"
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-              required
-            />
-            
-            <div className="relative">
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Partagez quelque chose avec votre équipe..."
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px]"
-                required
-              />
-              <button
-                type="button"
-                onClick={handleAiRefine}
-                disabled={isAiLoading || !content}
-                className="absolute right-3 bottom-3 flex items-center gap-1 text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors disabled:opacity-50"
-              >
-                {isAiLoading ? (
-                   <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                   </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                )}
-                Affinage par IA
-              </button>
-            </div>
-
-            {uploadProgress !== null && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                <div className="flex items-center justify-between gap-3 text-sm font-bold text-green-800">
-                  <span className="truncate">Téléversement : {uploadingFileName}</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-green-100">
-                  <div className="h-full bg-green-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-                </div>
-                <p className="mt-2 text-xs text-green-700">Vous pouvez laisser cette fenêtre ouverte pendant l’envoi de la vidéo.</p>
-              </div>
-            )}
-
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-3 py-2">
-                {attachments.map((file, idx) => (
-                  <div key={idx} className="relative w-20 h-20 group border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                    {file.type.startsWith('image/') ? (
-                      <img src={file.data} className="w-full h-full object-cover" alt="" />
-                    ) : file.type.startsWith('video/') ? (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400">
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400 p-2 text-center text-[10px]">
-                        {file.name}
-                      </div>
-                    )}
-                    <button 
-                      type="button" 
-                      onClick={() => removeAttachment(idx)}
-                      className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Catégorie</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
-                >
-                  {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
-              <div className="pt-5">
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  multiple 
-                  className="hidden" 
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadProgress !== null}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  Charger des fichiers
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={uploadProgress !== null}
-              className="bg-blue-600 text-white px-8 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
-            >
-              Publier
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
+interface Props { currentUser: User; users?: User[]; onPostCreated: (post: any) => void; }
+const TYPES: {id:SocialPostType;label:string;icon:string}[] = [
+  {id:'publication',label:'Publication',icon:'💬'}, {id:'question',label:'Question',icon:'❓'},
+  {id:'poll',label:'Sondage',icon:'📊'}, {id:'bravo',label:'Bravo',icon:'👏'}
+];
+const PostCreator: React.FC<Props> = ({ currentUser, users = [], onPostCreated }) => {
+  const [open,setOpen]=useState(false), [postType,setPostType]=useState<SocialPostType>('publication');
+  const [title,setTitle]=useState(''), [content,setContent]=useState(''), [category,setCategory]=useState(CATEGORIES[0]);
+  const [attachments,setAttachments]=useState<Attachment[]>([]), [uploadProgress,setUploadProgress]=useState<number|null>(null);
+  const [uploadingFileName,setUploadingFileName]=useState(''), [linkUrl,setLinkUrl]=useState('');
+  const [audience,setAudience]=useState<string[]>([]), [pollOptions,setPollOptions]=useState(['','']);
+  const fileRef=useRef<HTMLInputElement>(null);
+  const companies=useMemo(()=>Array.from(new Set(users.map(u=>u.company).filter(Boolean))).sort(),[users]);
+  const mentions=useMemo(()=>users.filter(u=>content.toLowerCase().includes(`@${u.name.toLowerCase()}`)).map(u=>u.id),[content,users]);
+  const submit=(e:React.FormEvent)=>{e.preventDefault(); if(!content.trim() && !title.trim())return; const opts=pollOptions.map(x=>x.trim()).filter(Boolean); if(postType==='poll'&&opts.length<2){alert('Ajoutez au moins 2 choix.');return;} onPostCreated({title:title.trim()||({question:'Question',poll:'Sondage',bravo:'Bravo',publication:'Publication'} as any)[postType],content,category,attachments:attachments.length?attachments:undefined,postType,audienceCompanies:audience,linkUrl:linkUrl.trim()||undefined,pollOptions:postType==='poll'?opts:undefined,mentionedUserIds:mentions}); setTitle('');setContent('');setAttachments([]);setLinkUrl('');setPollOptions(['','']);setAudience([]);setOpen(false); };
+  const upload=async(e:React.ChangeEvent<HTMLInputElement>)=>{const fs=e.target.files;if(!fs)return;const out:Attachment[]=[];for(const f of Array.from(fs)){try{setUploadingFileName(f.name);setUploadProgress(0);const url=await uploadMediaToStorage(f,'posts',setUploadProgress);out.push({name:f.name,type:f.type,data:url});}catch(err:any){alert(err?.message||`Upload impossible : ${f.name}`)}finally{setUploadProgress(null);setUploadingFileName('')}}setAttachments(v=>[...v,...out]);e.target.value='';};
+  return <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6">
+    {!open?<div className="flex gap-3 items-center"><img src={currentUser.avatar} className="w-10 h-10 rounded-full"/><button onClick={()=>setOpen(true)} className="flex-1 text-left bg-slate-50 border rounded-full px-5 py-3 text-slate-500">Partager des nouvelles, une question ou un bravo…</button></div>:
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex justify-between items-center"><b>Créer une publication</b><button type="button" onClick={()=>setOpen(false)}>✕</button></div>
+      <div className="flex flex-wrap gap-2">{TYPES.map(t=><button type="button" key={t.id} onClick={()=>setPostType(t.id)} className={`px-3 py-2 rounded-xl border text-sm font-bold ${postType===t.id?'bg-green-700 text-white border-green-700':'bg-white'}`}>{t.icon} {t.label}</button>)}</div>
+      <input value={title} onChange={e=>setTitle(e.target.value)} placeholder={postType==='bravo'?'Ex. Bravo à l’équipe commerciale !':'Titre (facultatif)'} className="w-full border rounded-xl px-4 py-2"/>
+      <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Écrivez votre message… Utilisez @Nom Prénom pour mentionner un collègue." className="w-full min-h-32 border rounded-xl px-4 py-3"/>
+      <div className="flex flex-wrap gap-2 items-center text-sm"><span className="font-bold text-slate-500">Mise en forme</span><button type="button" onClick={()=>setContent(v=>v+' **texte**') } className="border rounded px-2 py-1 font-bold">B</button><button type="button" onClick={()=>setContent(v=>v+' *texte*') } className="border rounded px-2 py-1 italic">I</button><button type="button" onClick={()=>setContent(v=>v+'\n• ') } className="border rounded px-2 py-1">☷ Liste</button><button type="button" onClick={()=>setContent(v=>v+' [lien](https://)') } className="border rounded px-2 py-1">🔗 Lien</button><select defaultValue="" onChange={e=>{if(e.target.value){setContent(v=>`${v}${v&&!v.endsWith(' ')?' ':''}@${e.target.value} `);e.currentTarget.value=''}}} className="border rounded px-2 py-1"><option value="">@ Mentionner…</option>{users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}</select></div>
+      {postType==='poll'&&<div className="space-y-2"><b className="text-sm">Choix du sondage</b>{pollOptions.map((o,i)=><div key={i} className="flex gap-2"><input value={o} onChange={e=>setPollOptions(v=>v.map((x,j)=>j===i?e.target.value:x))} placeholder={`Choix ${i+1}`} className="flex-1 border rounded-lg px-3 py-2"/>{pollOptions.length>2&&<button type="button" onClick={()=>setPollOptions(v=>v.filter((_,j)=>j!==i))}>✕</button>}</div>)}<button type="button" onClick={()=>setPollOptions(v=>[...v,''])} className="text-green-700 font-bold text-sm">+ Ajouter un choix</button></div>}
+      <div className="grid md:grid-cols-2 gap-3"><div><label className="text-xs font-bold text-slate-500">CATÉGORIE</label><select value={category} onChange={e=>setCategory(e.target.value)} className="w-full border rounded-lg px-3 py-2">{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div><div><label className="text-xs font-bold text-slate-500">AUDIENCE</label><select value={audience[0]||''} onChange={e=>setAudience(e.target.value?[e.target.value]:[])} className="w-full border rounded-lg px-3 py-2"><option value="">Tout STAR GROUP</option>{companies.map(c=><option key={c}>{c}</option>)}</select></div></div>
+      <input value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} placeholder="Lien web ou vidéo YouTube (facultatif)" className="w-full border rounded-xl px-4 py-2"/>
+      {uploadProgress!==null&&<div className="bg-green-50 rounded-xl p-3 text-sm"><b>{uploadingFileName}</b> — {uploadProgress}%<div className="h-2 bg-green-100 rounded mt-2"><div className="h-2 bg-green-600 rounded" style={{width:`${uploadProgress}%`}}/></div></div>}
+      {attachments.length>0&&<div className="flex flex-wrap gap-2">{attachments.map((a,i)=><span key={i} className="bg-slate-100 rounded-lg px-3 py-2 text-xs">{a.name} <button type="button" onClick={()=>setAttachments(v=>v.filter((_,j)=>j!==i))}>×</button></span>)}</div>}
+      <div className="flex flex-wrap gap-2 items-center"><input ref={fileRef} type="file" multiple className="hidden" onChange={upload}/><button type="button" onClick={()=>fileRef.current?.click()} className="px-4 py-2 bg-slate-100 rounded-xl font-bold text-sm">📎 Photo / GIF / document / vidéo depuis l’ordinateur</button><button type="button" onClick={()=>setContent(v=>v+' 😊')} className="px-3 py-2 bg-slate-100 rounded-xl">😊</button><span className="text-xs text-slate-500">Vidéo locale conservée (jusqu’à 500 Mo selon le stockage configuré).</span></div>
+      <div className="flex justify-end"><button disabled={uploadProgress!==null} className="bg-green-700 text-white px-7 py-2.5 rounded-xl font-bold">Publier</button></div>
+    </form>}
+  </div>
 };
-
 export default PostCreator;
