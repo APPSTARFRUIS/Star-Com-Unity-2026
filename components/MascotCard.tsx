@@ -11,7 +11,7 @@ type Item = MascotLayerItem & { name:string; description?:string; collection_id?
 type Owned = { item_id:string; acquisition_method:string; equipped:boolean; acquired_at?:string };
 type Phrase={id:string;context:string;text:string;weight:number};
 type Mood=MascotMood;
-type Experience={id:string;name:string;mood:Mood;message?:string|null;starts_at?:string|null;ends_at?:string|null;item_id?:string|null;active:boolean};
+type Experience={id:string;name:string;mood:Mood;message?:string|null;starts_at?:string|null;ends_at?:string|null;item_id?:string|null;decor_image_url?:string|null;all_users?:boolean;companies?:string[]|null;active:boolean};
 const CATS: Record<string,string> = { glasses:'Lunettes', hat:'Chapeaux', clothing:'Vêtements', shoes:'Chaussures', accessory:'Accessoires', background:'Décors', souvenir:'Souvenirs' };
 const METHOD:Record<string,string>={purchase:'Acheté',unlock:'Débloqué',gift:'Offert'};
 
@@ -27,9 +27,9 @@ export default function MascotCard({currentUser,reminder,onNavigate}:{currentUse
  useEffect(()=>{if(!mascot||!reminder)return;const key=`mascot-reminder-${currentUser.id}-${reminder.id}`;const last=Number(localStorage.getItem(key)||0);if(Date.now()-last<24*60*60*1000)return;const t=window.setTimeout(()=>{setSpeech('');setReminderVisible(true);setMood('happy');window.setTimeout(()=>setMood('idle'),1200)},900);return()=>window.clearTimeout(t)},[mascot?.id,reminder?.id,currentUser.id]);
  const dismissReminder=()=>{if(reminder)localStorage.setItem(`mascot-reminder-${currentUser.id}-${reminder.id}`,String(Date.now()));setReminderVisible(false)};
 
- const activeExperience=useMemo(()=>{const now=Date.now();return experiences.find(x=>(!x.starts_at||new Date(x.starts_at).getTime()<=now)&&(!x.ends_at||new Date(x.ends_at).getTime()>=now))||null},[experiences]);
+ const activeExperience=useMemo(()=>{const now=Date.now();return experiences.find(x=>(!x.starts_at||new Date(x.starts_at).getTime()<=now)&&(!x.ends_at||new Date(x.ends_at).getTime()>=now)&&(x.all_users!==false||(x.companies||[]).includes(currentUser.company)))||null},[experiences,currentUser.company]);
  useEffect(()=>{if(!activeExperience)return;setMood(activeExperience.mood||'happy');if(activeExperience.message){const k=`mascot-experience-${currentUser.id}-${activeExperience.id}`;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');setSpeech(activeExperience.message)}}},[activeExperience?.id,currentUser.id]);
- const canvasItems=useMemo(()=>{const base=owned.filter(x=>x.equipped).map(o=>items.find(i=>i.id===o.item_id)).filter((it):it is Item=>!!it?.image_url);const seasonal=activeExperience?.item_id?items.find(i=>i.id===activeExperience.item_id):null;return seasonal?.image_url?[seasonal,...base.filter(i=>i.id!==seasonal.id)]:base},[owned,items,activeExperience?.item_id]);
+ const canvasItems=useMemo(()=>{const base=owned.filter(x=>x.equipped).map(o=>items.find(i=>i.id===o.item_id)).filter((it):it is Item=>!!it?.image_url);const seasonal=activeExperience?.item_id?items.find(i=>i.id===activeExperience.item_id):null;const decor=activeExperience?.decor_image_url?({id:`experience-${activeExperience.id}`,image_url:activeExperience.decor_image_url,category:'background'} as Item):null;return [decor,seasonal,...base.filter(i=>i.id!==seasonal?.id)].filter((it):it is Item=>!!it?.image_url)},[owned,items,activeExperience?.item_id,activeExperience?.decor_image_url,activeExperience?.id]);
  const tapMascot=()=>{const n=tapCount+1;setTapCount(n);if(n%5===0){setSpeech(`Tu comptes continuer longtemps ?`);setMood('curious');window.setTimeout(()=>setMood(activeExperience?.mood||'idle'),1400);return}speak('tap','tap',true)};
  const ownedIds=useMemo(()=>new Set(owned.map(x=>x.item_id)),[owned]),equipped=useMemo(()=>new Set(owned.filter(x=>x.equipped).map(x=>x.item_id)),[owned]);
  const create=async()=>{if(!name.trim())return;setBusy(true);const{error}=await supabase.from('mascots').insert({user_id:currentUser.id,name:name.trim(),origin:'STAR_COMMUNITY'});setBusy(false);if(!error)void load()};
