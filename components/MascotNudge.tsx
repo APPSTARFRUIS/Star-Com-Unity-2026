@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {AppNotification,User,ViewType} from '../types';
+import {AppNotification,User} from '../types';
+import type {ViewType} from './Sidebar';
 import {supabase} from '../supabaseClient';
 
 const labels:Record<string,string>={notifications:'Voir',social:'Voir',sondages:'Répondre',evenements:'Voir',jeux:'J’y vais',tempsforts:'Voir',boutique:'Découvrir',celebrations:'Voir'};
