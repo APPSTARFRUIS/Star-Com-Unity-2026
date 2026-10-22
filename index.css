@@ -15,3 +15,12 @@
 @keyframes mascotCurious{0%,100%{transform:rotate(0)}35%{transform:rotate(-2.5deg)}70%{transform:rotate(2deg)}}
 .mascot-sleepy{animation:mascotSleepy 3.8s ease-in-out infinite}.mascot-proud{animation:mascotProud 2.2s ease-in-out infinite}.mascot-curious{animation:mascotCurious 1.8s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.mascot-sleepy,.mascot-proud,.mascot-curious{animation:none!important}}
+
+/* V1.6.42 FINAL VISUAL FIX — humeurs réellement visibles */
+@keyframes mascotMoodFloat{0%,100%{transform:translateY(0);opacity:.75}50%{transform:translateY(-10px);opacity:1}}
+@keyframes mascotMoodPop{0%{transform:scale(.6);opacity:0}35%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:.9}}
+.mascot-mood-float{animation:mascotMoodFloat 1.8s ease-in-out infinite}
+.mascot-mood-sparkles span{position:absolute;color:#d97706;font-size:1.7rem;animation:mascotMoodPop 1.4s ease-in-out infinite}
+.mascot-mood-sparkles span:nth-child(1){left:12%;top:20%}.mascot-mood-sparkles span:nth-child(2){right:12%;top:28%;animation-delay:.25s}.mascot-mood-sparkles span:nth-child(3){right:20%;bottom:16%;animation-delay:.5s}
+.mascot-mood-hearts span{position:absolute;color:#ef476f;font-size:1.5rem;animation:mascotMoodFloat 1.5s ease-in-out infinite}.mascot-mood-hearts span:nth-child(1){left:12%;top:18%}.mascot-mood-hearts span:nth-child(2){right:12%;top:24%;animation-delay:.45s}
+@media (prefers-reduced-motion:reduce){.mascot-mood-float,.mascot-mood-sparkles span,.mascot-mood-hearts span{animation:none!important}}
