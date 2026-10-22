@@ -3,8 +3,8 @@ import MascotLayer,{MascotLayerItem} from './MascotLayer';
 
 export type MascotMood='idle'|'happy'|'celebrate'|'outfit'|'tap'|'sleepy'|'proud'|'curious';
 type Mood=MascotMood;
-export default function MascotCanvas({items=[],className='',interactive=false,onPointerDown,onPointerMove,onPointerUp,onPointerCancel,canvasRef,mood='idle',onMascotClick}: {
- items?:MascotLayerItem[]; className?:string; interactive?:boolean; mood?:Mood; onMascotClick?:()=>void;
+export default function MascotCanvas({items=[],className='',interactive=false,onPointerDown,onPointerMove,onPointerUp,onPointerCancel,canvasRef,mood='idle',onMascotClick,backgroundUrl}: {
+ items?:MascotLayerItem[]; className?:string; interactive?:boolean; mood?:Mood; onMascotClick?:()=>void; backgroundUrl?:string|null;
  onPointerDown?:React.PointerEventHandler<HTMLDivElement>; onPointerMove?:React.PointerEventHandler<HTMLDivElement>;
  onPointerUp?:React.PointerEventHandler<HTMLDivElement>; onPointerCancel?:React.PointerEventHandler<HTMLDivElement>; canvasRef?:React.Ref<HTMLDivElement>;
 }){
@@ -13,8 +13,9 @@ export default function MascotCanvas({items=[],className='',interactive=false,on
  const anim=mood==='celebrate'?'mascot-celebrate':mood==='happy'?'mascot-happy':mood==='outfit'?'mascot-outfit':mood==='tap'?'mascot-tap':mood==='sleepy'?'mascot-sleepy':mood==='proud'?'mascot-proud':mood==='curious'?'mascot-curious':'mascot-idle';
  const backgrounds=useMemo(()=>items.filter(it=>it.category==='background'),[items]);
  const foregrounds=useMemo(()=>items.filter(it=>it.category!=='background'),[items]);
- const hasUniverse=backgrounds.length>0;
- return <div className={`relative aspect-square overflow-hidden ${hasUniverse?'bg-white':'bg-gradient-to-b from-green-50 to-amber-50'} ${interactive?'touch-none select-none':''} ${className}`}
+ const hasUniverse=Boolean(backgroundUrl)||backgrounds.length>0;
+ const backgroundStyle:React.CSSProperties=backgroundUrl?{backgroundImage:`url(\"${backgroundUrl}\")`,backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat'}:{};
+ return <div style={backgroundStyle} className={`relative aspect-square overflow-hidden ${hasUniverse?'bg-white':'bg-gradient-to-b from-green-50 to-amber-50'} ${interactive?'touch-none select-none':''} ${className}`}
    ref={canvasRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onClick={!interactive?onMascotClick:undefined}>
    {backgrounds.map((it,index)=><MascotLayer key={it.id||`bg-${index}`} item={it}/>)}
    {hasUniverse&&<div className="absolute inset-0 bg-gradient-to-t from-white/10 via-transparent to-white/5 pointer-events-none z-[1]"/>}
