@@ -97,7 +97,7 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
 
   return <div className="max-w-6xl mx-auto p-4 md:p-8 text-left space-y-7">
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div><p className="text-xs font-black uppercase tracking-[.25em] text-green-700">Ressources & Jeux</p><h1 className="text-3xl md:text-4xl font-black text-slate-900 mt-1">Ressources</h1><p className="text-slate-500 mt-2">Retrouvez les contenus utiles pour apprendre, comprendre et préparer les quiz.</p></div>
+      <div><p className="text-xs font-black uppercase tracking-[.25em] text-green-700">E-learning</p><h1 className="text-3xl md:text-4xl font-black text-slate-900 mt-1">Ressources</h1><p className="text-slate-500 mt-2">Retrouvez les contenus utiles pour apprendre, comprendre et préparer les quiz.</p></div>
       <div className="flex rounded-2xl bg-slate-100 p-1 w-fit"><button className="px-5 py-2.5 rounded-xl bg-white shadow-sm font-black text-green-800">Ressources</button><button onClick={onOpenGames} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 hover:text-green-800">Jeux</button></div>
     </div>
     <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm flex flex-col md:flex-row gap-3">

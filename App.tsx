@@ -965,6 +965,9 @@ const App: React.FC = () => {
 
             setEvents(mappedEvents);
             setViewCache('events', mappedEvents);
+            // Les Temps forts font désormais partie de la vue Événements.
+            // On charge leur contenu avec le pipeline existant, sans modifier l'Admin ni les tables.
+            void fetchViewData('tempsforts');
             break;
           }
 
@@ -2412,7 +2415,7 @@ const App: React.FC = () => {
                       Disponible le {new Date(featuredHighlight.startDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
                     </p>
                   )}
-                  <button onClick={() => setView('tempsforts')} className="mt-6 w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 text-white font-black hover:bg-purple-700 transition-colors">
+                  <button onClick={() => setView('evenements')} className="mt-6 w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 text-white font-black hover:bg-purple-700 transition-colors">
                     {featuredIsUpcoming ? 'Voir les temps forts' : featuredHighlight.type === 'advent' ? 'Ouvrir le calendrier' : featuredHighlight.type === 'raffle' ? 'Participer' : 'Découvrir'}
                   </button>
                 </div>
@@ -2959,19 +2962,221 @@ const App: React.FC = () => {
 
       case 'evenements':
         return (
-          <EventsView
-            currentUser={currentUser}
-            events={events}
-            onToggleParticipation={async (id) => {
-              const ev = events.find(e => e.id === id);
-              if (!ev || !supabase) return;
-              const next = ev.attendees.includes(currentUser.id) ? ev.attendees.filter(a => a !== currentUser.id) : [...ev.attendees, currentUser.id];
-              await supabase.from('events').update({ attendees: next }).eq('id', id);
-              void fetchViewData(currentViewRef.current, true);
-            }}
-            onDeleteEvent={async (id) => { if (supabase) await supabase.from('events').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
-            onOpenCreateModal={() => setIsEventModalOpen(true)}
-          />
+          <div className="space-y-12">
+            <EventsView
+              currentUser={currentUser}
+              events={events}
+              onToggleParticipation={async (id) => {
+                const ev = events.find(e => e.id === id);
+                if (!ev || !supabase) return;
+                const next = ev.attendees.includes(currentUser.id) ? ev.attendees.filter(a => a !== currentUser.id) : [...ev.attendees, currentUser.id];
+                await supabase.from('events').update({ attendees: next }).eq('id', id);
+                void fetchViewData(currentViewRef.current, true);
+              }}
+              onDeleteEvent={async (id) => { if (supabase) await supabase.from('events').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
+              onOpenCreateModal={() => setIsEventModalOpen(true)}
+            />
+            <div className="border-t border-slate-200 pt-10">
+              <EngagementView
+          users={users}
+          currentUser={currentUser}
+          transactions={transactions}
+          posts={posts}
+          ideas={ideas}
+          polls={polls}
+          animations={engagementAnimations}
+          adventOpenings={adventOpenings}
+          games={games}
+          predictions={predictions}
+          section="highlights"
+          onAddPrediction={async (gameId, eventId, homeScore, awayScore, answer) => {
+            const { error } = await supabase.rpc('submit_game_prediction_v2', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore ?? null, p_away_score: awayScore ?? null, p_answer: answer ?? null });
+            if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }
+            addToast('Pronostic enregistré !');
+            void fetchViewData(currentViewRef.current, true);
+          }}
+          onEarnPoints={async (uid, amount, reason) => {
+            const { data } = await supabase.from('profiles').select('points').eq('id', uid).single();
+            await supabase.from('profiles').update({ points: (data?.points || 0) + amount }).eq('id', uid);
+            await supabase.from('transactions').insert({ user_id: uid, amount, reason, type: 'earn', date: new Date().toISOString() });
+            fetchUserProfile(uid); void fetchViewData(currentViewRef.current, true);
+          }}
+          onJoinAnimation={async (animation) => {
+            if ((animation.participants || []).includes(currentUser.id)) return;
+            const cost = animation.type === 'raffle' ? (animation.pointsCost || 0) : 0;
+            if (cost > currentUser.points) { addToast('Vous n’avez pas assez de points.', 'error'); return; }
+            const nextParticipants = [...(animation.participants || []), currentUser.id];
+            const { error } = await supabase.from('engagement_animations').update({ participants: nextParticipants }).eq('id', animation.id);
+            if (error) { addToast(`Erreur : ${error.message}`, 'error'); return; }
+            if (cost > 0) {
+              const { error: spendError } = await supabase.rpc('spend_own_points', {
+                p_amount: cost,
+                p_reason: `Ticket : ${animation.title}`
+              });
+              if (spendError) {
+                addToast(`Débit des points impossible : ${spendError.message}`, 'error');
+                return;
+              }
+              await fetchUserProfile(currentUser.id);
+            }
+            addToast('Participation enregistrée.'); void fetchViewData(currentViewRef.current, true);
+          }}
+          onOpenAdventDay={async (animation, dayNumber, outcome = {}) => {
+            const day = (animation.config?.days || []).find(
+              (item: any) => Number(item.day) === Number(dayNumber)
+            );
+
+            if (!day) {
+              addToast('Cette case est introuvable dans le calendrier.', 'error');
+              return null;
+            }
+
+            const buildOpening = (result: any): AdventOpening => ({
+              id: result.opening_id || result.id,
+              animationId: animation.id,
+              userId: currentUser.id,
+              dayNumber: Number(dayNumber),
+              outcome: result.outcome || {},
+              pointsAwarded: Number(result.points_awarded ?? result.pointsAwarded ?? 0),
+              openedAt: result.opened_at || result.openedAt || new Date().toISOString()
+            });
+
+            const registerOpeningLocally = async (): Promise<AdventOpening | null> => {
+              const dayType = day.type || 'gift';
+              const receivedAnswer = String(outcome.answer || '').trim();
+              const expectedAnswer = String(day.correctAnswer || '').trim();
+
+              let calculatedOutcome: Record<string, any> = { opened: true };
+              let pointsAwarded = Math.max(Number(day.rewardPoints || 0), 0);
+
+              if (dayType === 'quiz' || dayType === 'mystery') {
+                const isCorrect =
+                  expectedAnswer.length > 0 &&
+                  expectedAnswer.localeCompare(receivedAnswer, undefined, { sensitivity: 'accent' }) === 0;
+
+                calculatedOutcome = { isCorrect, answer: receivedAnswer };
+                if (!isCorrect) pointsAwarded = 0;
+              }
+
+              if (dayType === 'instant') {
+                const probability = Math.min(Math.max(Number(day.winProbability || 0), 0), 100);
+                const instantWin = Math.random() * 100 < probability;
+                calculatedOutcome = { instantWin };
+                if (!instantWin) pointsAwarded = 0;
+              }
+
+              const openingPayload = {
+                animation_id: animation.id,
+                user_id: currentUser.id,
+                day_number: Number(dayNumber),
+                outcome: calculatedOutcome,
+                points_awarded: pointsAwarded
+              };
+
+              const { data: insertedOpening, error: insertError } = await supabase
+                .from('advent_openings')
+                .insert(openingPayload)
+                .select('*')
+                .single();
+
+              if (insertError) {
+                const duplicate =
+                  insertError.code === '23505' ||
+                  insertError.message?.toLowerCase().includes('duplicate') ||
+                  insertError.message?.toLowerCase().includes('unique');
+
+                if (duplicate) {
+                  addToast('Cette case a déjà été ouverte avec votre compte.', 'info');
+                } else {
+                  addToast(`Impossible d’ouvrir la case : ${insertError.message}`, 'error');
+                }
+                return null;
+              }
+
+              if (pointsAwarded > 0) {
+                const newPoints = Number(currentUser.points || 0) + pointsAwarded;
+
+                const [{ error: profileError }, { error: transactionError }] = await Promise.all([
+                  supabase.from('profiles').update({ points: newPoints }).eq('id', currentUser.id),
+                  supabase.from('transactions').insert({
+                    user_id: currentUser.id,
+                    amount: pointsAwarded,
+                    reason: `Calendrier de l’Avent · jour ${dayNumber} : ${animation.title}`,
+                    type: 'earn',
+                    date: new Date().toISOString()
+                  })
+                ]);
+
+                if (profileError) console.error('Mise à jour des points impossible :', profileError);
+                if (transactionError) console.error('Historique des points impossible :', transactionError);
+              }
+
+              return buildOpening(insertedOpening);
+            };
+
+            let opening: AdventOpening | null = null;
+
+            try {
+              const { data, error } = await supabase.rpc('open_advent_day', {
+                p_animation_id: animation.id,
+                p_user_id: currentUser.id,
+                p_day_number: Number(dayNumber),
+                p_answer: outcome.answer || null
+              });
+
+              if (!error) {
+                const result = Array.isArray(data) ? data[0] : data;
+                if (result) opening = buildOpening(result);
+              } else {
+                const duplicate =
+                  error.code === '23505' ||
+                  error.message?.toLowerCase().includes('déjà') ||
+                  error.message?.toLowerCase().includes('duplicate');
+
+                if (duplicate) {
+                  addToast('Cette case a déjà été ouverte avec votre compte.', 'info');
+                  return null;
+                }
+
+                // Certaines anciennes bases n'ont pas encore la bonne signature RPC.
+                // Le fallback direct conserve alors l'ouverture unique grâce à la contrainte SQL.
+                console.warn('RPC open_advent_day indisponible, fallback direct :', error);
+                opening = await registerOpeningLocally();
+              }
+            } catch (rpcException) {
+              console.warn('Erreur réseau RPC, fallback direct :', rpcException);
+              opening = await registerOpeningLocally();
+            }
+
+            if (!opening) {
+              addToast('La case n’a pas pu être ouverte. Vérifiez la migration Supabase.', 'error');
+              return null;
+            }
+
+            setAdventOpenings(previous => [
+              opening,
+              ...previous.filter(item =>
+                !(item.animationId === opening!.animationId && item.dayNumber === opening!.dayNumber)
+              )
+            ]);
+
+            if (opening.pointsAwarded > 0) {
+              addToast(`Case ouverte : +${opening.pointsAwarded} points !`);
+              await fetchUserProfile(currentUser.id);
+            } else if (opening.outcome?.instantWin === false) {
+              addToast('Pas gagné cette fois, mais la case est validée.', 'info');
+            } else if (opening.outcome?.isCorrect === false) {
+              addToast('Réponse enregistrée. La case est maintenant validée.', 'info');
+            } else {
+              addToast('Case ouverte !');
+            }
+
+            loadedViewsRef.current.delete('tempsforts');
+            return opening;
+          }}
+        />
+            </div>
+          </div>
         );
 
       case 'humeur':

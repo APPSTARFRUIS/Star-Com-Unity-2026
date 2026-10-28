@@ -19,7 +19,7 @@ const slides = [
   },
   {
     title: "Apprenez à votre rythme",
-    text: "Ressources & Jeux regroupe les contenus utiles pour mieux connaître le groupe, ses métiers, son histoire et ses marques.",
+    text: "E-learning regroupe les contenus utiles pour mieux connaître le groupe, ses métiers, son histoire et ses marques.",
     bullets: ["Ressources pédagogiques", "Parcours et quiz", "Progression visible dans Mon espace"]
   },
   {

@@ -90,7 +90,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
     const pendingEvent = events.find(e => visibleForCompany(e.audience_companies) && new Date(e.date).getTime() >= new Date(new Date().toDateString()).getTime() && !(e.attendees || []).includes(currentUser.id));
     if (stats.learningRemaining > 0) return { id:'learning', text:`Tu as encore ${stats.learningRemaining} quiz ou niveau${stats.learningRemaining > 1 ? 'x' : ''} à terminer.`, label:'J’y vais', view:'jeux' as ViewType };
     if (pendingPoll) return { id:`poll:${pendingPoll.id}`, text:`Le sondage « ${pendingPoll.title} » attend encore ta réponse.`, label:'Répondre', view:'sondages' as ViewType };
-    if (stats.openPredictions > 0) return { id:'predictions', text:`Tu as ${stats.openPredictions} pronostic${stats.openPredictions > 1 ? 's' : ''} encore ouvert${stats.openPredictions > 1 ? 's' : ''}.`, label:'Pronostiquer', view:'tempsforts' as ViewType };
+    if (stats.openPredictions > 0) return { id:'predictions', text:`Tu as ${stats.openPredictions} pronostic${stats.openPredictions > 1 ? 's' : ''} encore ouvert${stats.openPredictions > 1 ? 's' : ''}.`, label:'Pronostiquer', view:'jeux' as ViewType };
     if (pendingEvent) return { id:`event:${pendingEvent.id}`, text:`Tu n’as pas encore répondu pour « ${pendingEvent.title} ».`, label:'Voir l’événement', view:'evenements' as ViewType };
     if (unreadNotifications > 0) return { id:'notifications', text:`Tu as ${unreadNotifications} notification${unreadNotifications > 1 ? 's' : ''} à consulter.`, label:'Voir', view:'notifications' as ViewType };
     return null;
@@ -149,7 +149,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
             <button onClick={() => onNavigate('jeux')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
               <div><p className="font-black text-slate-800">Parcours e-learning</p><p className="text-sm text-slate-500">{stats.learningRemaining ? `${stats.learningRemaining} niveau(x) actif(s) à valider` : 'Vous êtes à jour'}</p></div><span className="text-green-700 font-black">→</span>
             </button>
-            <button onClick={() => onNavigate('tempsforts')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
+            <button onClick={() => onNavigate('jeux')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
               <div><p className="font-black text-slate-800">Pronostics</p><p className="text-sm text-slate-500">{stats.openPredictions ? `${stats.openPredictions} pronostic(s) ouvert(s) non joué(s)` : 'Aucun pronostic en attente'}</p></div><span className="text-green-700 font-black">→</span>
             </button>
             <button onClick={() => onNavigate('notifications')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
@@ -175,7 +175,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
       <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Mes pronostics</p><h2 className="text-xl font-black text-slate-900 mt-1">Mon suivi</h2></div>
-          <button onClick={() => onNavigate('tempsforts')} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-black">Voir les pronostics</button>
+          <button onClick={() => onNavigate('jeux')} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-black">Voir les pronostics</button>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5">
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-2xl font-black">{predictions.length}</p><p className="text-xs text-slate-500">joués</p></div>
