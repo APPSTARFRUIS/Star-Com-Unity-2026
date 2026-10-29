@@ -1266,7 +1266,7 @@ const App: React.FC = () => {
             break;
           }
 
-          case 'jeux': {
+          case 'elearning-jeux': {
             const [gamesResult, completionsResult] = await Promise.all([
               supabase
                 .from('games')
@@ -1288,6 +1288,22 @@ const App: React.FC = () => {
             if (!completionsResult.error && completionsResult.data) {
               setGameCompletions(mapGameCompletions(completionsResult.data));
             }
+            break;
+          }
+
+          case 'jeux': {
+            const [engagementResult, gamesResult, predictionsResult, transactionsResult, openingsResult] = await Promise.all([
+              supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(100),
+              supabase.from('games').select('*').order('created_at', { ascending: false }).limit(100),
+              supabase.from('game_predictions').select('*').order('submitted_at', { ascending: false }).limit(500),
+              supabase.from('transactions').select('*').order('date', { ascending: false }).limit(400),
+              supabase.from('advent_openings').select('*').eq('user_id', currentUserRef.current!.id).order('opened_at', { ascending: false }).limit(100)
+            ]);
+            if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
+            if (gamesResult.data) setGames(mapGames(gamesResult.data));
+            if (predictionsResult.data) setPredictions(mapPredictions(predictionsResult.data));
+            if (transactionsResult.data) setTransactions(transactionsResult.data.map((t: any) => ({ ...t, userId: t.user_id, date: t.date })));
+            if (openingsResult.data) setAdventOpenings(mapAdventOpenings(openingsResult.data));
             break;
           }
 
@@ -3191,9 +3207,9 @@ const App: React.FC = () => {
       case 'bienetre': return <BienEtreView contents={wellnessContents} challenges={wellnessChallenges} />;
 
       case 'ressources':
-        return <ResourcesView currentUser={currentUser} onOpenGames={() => setView('jeux')} />;
+        return <ResourcesView currentUser={currentUser} onOpenGames={() => setView('elearning-jeux')} />;
 
-      case 'jeux':
+      case 'elearning-jeux':
         return (
           <JeuxView
             games={games}
@@ -3239,7 +3255,7 @@ const App: React.FC = () => {
 
               await Promise.all([
                 fetchUserProfile(uid),
-                fetchViewData('jeux', true)
+                fetchViewData('elearning-jeux', true)
               ]);
 
               return awarded;
@@ -3247,6 +3263,7 @@ const App: React.FC = () => {
           />
         );
 
+      case 'jeux':
       case 'tempsforts':
       case 'engagement':
         return <EngagementView
@@ -3260,7 +3277,7 @@ const App: React.FC = () => {
           adventOpenings={adventOpenings}
           games={games}
           predictions={predictions}
-          section={view === 'tempsforts' ? 'highlights' : 'rankings'}
+          section={view === 'jeux' ? 'games' : view === 'tempsforts' ? 'highlights' : 'rankings'}
           onAddPrediction={async (gameId, eventId, homeScore, awayScore, answer) => {
             const { error } = await supabase.rpc('submit_game_prediction_v2', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore ?? null, p_away_score: awayScore ?? null, p_answer: answer ?? null });
             if (error) { addToast(`Pronostic refusé : ${error.message}`, 'error'); return; }

@@ -18,7 +18,7 @@ interface EngagementViewProps {
   adventOpenings: AdventOpening[];
   onJoinAnimation: (animation: EngagementAnimation) => Promise<void>;
   onOpenAdventDay: (animation: EngagementAnimation, dayNumber: number, outcome?: AdventOutcome) => Promise<AdventOpening | null>;
-  section?: 'rankings' | 'highlights';
+  section?: 'rankings' | 'highlights' | 'games';
   games: CompanyGame[];
   predictions: GamePrediction[];
   onAddPrediction: (gameId: string, eventId: string, homeScore?: number, awayScore?: number, answer?: string) => void;
@@ -60,7 +60,7 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   const getOpening = (animationId: string, dayNumber: number) =>
     allAdventOpenings.find(opening => opening.animationId === animationId && Number(opening.dayNumber) === Number(dayNumber));
   const generalRanking = useMemo(() => [...users].sort((a, b) => (b.points || 0) - (a.points || 0)), [users]);
-  const visibleAnimations = useMemo(() => animations.filter(animation => animation.status === 'active'), [animations]);
+  const visibleAnimations = useMemo(() => animations.filter(animation => animation.status === 'active' && (section === 'highlights' ? animation.type === 'countdown' : section === 'games' ? animation.type !== 'countdown' : true)), [animations, section]);
 
   const contributors = useMemo(() => users.map(user => {
     const userPosts = posts.filter(p => p.userId === user.id).length;
@@ -186,18 +186,18 @@ const EngagementView: React.FC<EngagementViewProps> = ({
   return <div className="max-w-6xl mx-auto pb-16">
     <div className="mb-8">
       <p className="text-xs font-black uppercase tracking-[0.2em] text-green-700">Engagement</p>
-      <h1 className="text-3xl md:text-4xl font-black text-slate-900">{section === 'rankings' ? 'Classements' : 'Temps forts'}</h1>
-      <p className="text-slate-500 mt-2">{section === 'rankings' ? 'Podiums et contributions.' : 'Calendriers, tirages au sort, concours, missions et saisons en cours.'}</p>
+      <h1 className="text-3xl md:text-4xl font-black text-slate-900">{section === 'rankings' ? 'Classements' : section === 'games' ? 'Jeux' : 'Temps forts'}</h1>
+      <p className="text-slate-500 mt-2">{section === 'rankings' ? 'Podiums et contributions.' : section === 'games' ? 'Pronostics, tirages au sort, concours, calendriers, missions et saisons.' : 'Les grands rendez-vous et leurs comptes à rebours.'}</p>
     </div>
     {section === 'rankings' && <>
       <div className="flex gap-2 overflow-x-auto pb-2 mb-6">{[['general','Classement général'],['contributors','Top contributeurs']].map(([id,label]) => <button key={id} onClick={() => setTab(id as Exclude<Tab, 'animations'>)} className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-black ${tab === id ? 'bg-[#14532d] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{label}</button>)}</div>
       {tab === 'general' && renderRanking(generalRanking)}
       {tab === 'contributors' && <div className="space-y-3"><div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-2xl p-4 text-sm">Score automatique : publication 5 pts, idée 4 pts, commentaire 2 pts, réponse à un sondage 2 pts.</div>{contributors.map((entry, index) => <div key={entry.user.id} className={`bg-white border rounded-2xl p-4 flex items-center gap-4 ${entry.user.id === currentUser.id ? 'border-green-500' : 'border-slate-100'}`}><div className="w-9 text-center font-black text-slate-400">#{index + 1}</div><img src={entry.user.avatar} alt="" className="w-11 h-11 rounded-full" /><div className="flex-1 min-w-0"><p className="font-black truncate">{entry.user.name}</p><p className="text-xs text-slate-500">{entry.userPosts} publications · {entry.comments} commentaires · {entry.userIdeas} idées · {entry.pollAnswers} sondages</p></div><div className="font-black text-xl text-blue-700">{entry.score}</div></div>)}</div>}
     </>}
-    {section === 'highlights' && <>
+    {(section === 'highlights' || section === 'games') && <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        <div><JeuxView games={games} currentUser={currentUser} users={users} predictions={predictions} onAddPrediction={onAddPrediction} onEarnPoints={onEarnPoints} mode="predictions" /></div>
-        <div className="contents">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">Aucun temps fort actif pour le moment.</div>}{visibleAnimations.map(animation => {
+        {section === 'games' && <div><JeuxView games={games} currentUser={currentUser} users={users} predictions={predictions} onAddPrediction={onAddPrediction} onEarnPoints={onEarnPoints} mode="predictions" /></div>}
+        <div className="contents">{visibleAnimations.length === 0 && <div className="md:col-span-2 bg-white rounded-2xl p-12 text-center text-slate-400">{section === 'games' ? 'Aucun jeu actif pour le moment.' : 'Aucun temps fort actif pour le moment.'}</div>}{visibleAnimations.map(animation => {
       const joined = (animation.participants || []).includes(currentUser.id); const winners = users.filter(u => (animation.winnerIds || []).includes(u.id));
       const adventDays = animation.type === 'advent' ? (animation.config?.days || []) : [];
       const openedCount = allAdventOpenings.filter(opening => opening.animationId === animation.id).length;

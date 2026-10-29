@@ -4,7 +4,7 @@ import { UserRole, AppConfig } from '../types';
 export type ViewType =
   | 'accueil' | 'mon-espace' | 'evenements' | 'equipe' | 'messages' | 'idees'
   | 'documents' | 'sondages' | 'humeur' | 'celebrations' | 'bienetre'
-  | 'social' | 'outils' | 'newsletter' | 'notifications' | 'ressources' | 'jeux' | 'engagement' | 'tempsforts' | 'boutique' | 'parametres' | 'admin';
+  | 'social' | 'outils' | 'newsletter' | 'notifications' | 'ressources' | 'elearning-jeux' | 'jeux' | 'engagement' | 'tempsforts' | 'boutique' | 'parametres' | 'admin';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -104,13 +104,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 if (onClose) onClose();
               }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium ${
-                (currentView === item.id || (item.id === 'ressources' && currentView === 'jeux')) 
+                (currentView === item.id || (item.id === 'ressources' && currentView === 'elearning-jeux')) 
                   ? 'bg-[#14532d] text-white' 
                   : 'text-slate-700 hover:bg-slate-50'
               }`}
             >
               <svg 
-                className={`w-5 h-5 ${(currentView === item.id || (item.id === 'ressources' && currentView === 'jeux')) ? 'text-green-400' : 'text-slate-400'}`} 
+                className={`w-5 h-5 ${(currentView === item.id || (item.id === 'ressources' && currentView === 'elearning-jeux')) ? 'text-green-400' : 'text-slate-400'}`} 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"

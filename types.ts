@@ -307,7 +307,7 @@ export interface DocumentFile {
   analyzedAt?: string;
 }
 
-export type EventType = 'Réunion' | 'Formation' | 'Événement social' | 'Autre';
+export type EventType = 'Réunion' | 'Formation' | 'Événement social' | 'Temps fort' | 'Autre';
 
 export interface CompanyEvent {
   id: string;
