@@ -24,6 +24,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
   const [endTime, setEndTime] = useState('10:00');
   const [participants, setParticipants] = useState<string[]>(['Toute l\'équipe']);
   const [audienceCompany, setAudienceCompany] = useState('ALL');
+  const [showCountdown, setShowCountdown] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +43,8 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
       startTime,
       endTime,
       participants,
-      audienceCompanies: [audienceCompany]
+      audienceCompanies: [audienceCompany],
+      showCountdown: type === 'Temps fort' ? showCountdown : false
     });
   };
 
@@ -116,6 +118,21 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
               </div>
             </div>
           </div>
+
+          {type === 'Temps fort' && (
+            <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-green-100 bg-green-50/60 cursor-pointer">
+              <div>
+                <p className="font-bold text-slate-800">Afficher un compte à rebours</p>
+                <p className="text-xs text-slate-500 mt-1">Le décompte s’affichera jusqu’à la date et l’heure de début du temps fort.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={showCountdown}
+                onChange={(e) => setShowCountdown(e.target.checked)}
+                className="w-5 h-5 accent-green-600 flex-shrink-0"
+              />
+            </label>
+          )}
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Titre</label>

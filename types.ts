@@ -323,6 +323,7 @@ export interface CompanyEvent {
   createdBy: string;
   attendees: string[];
   audienceCompanies?: string[];
+  showCountdown?: boolean;
 }
 
 export type MoodValue = 1 | 2 | 3 | 4 | 5;
