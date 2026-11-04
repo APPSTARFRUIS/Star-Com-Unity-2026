@@ -88,7 +88,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
     const visibleForCompany = (aud?: string[] | null) => !aud?.length || aud.includes('ALL') || aud.includes(currentUser.company);
     const pendingPoll = polls.find(p => visibleForCompany(p.audience_companies) && (!p.end_date || new Date(p.end_date).getTime() >= now) && !(p.responses || []).some(r => (r.userId || r.user_id) === currentUser.id));
     const pendingEvent = events.find(e => visibleForCompany(e.audience_companies) && new Date(e.date).getTime() >= new Date(new Date().toDateString()).getTime() && !(e.attendees || []).includes(currentUser.id));
-    if (stats.learningRemaining > 0) return { id:'learning', text:`Tu as encore ${stats.learningRemaining} quiz ou niveau${stats.learningRemaining > 1 ? 'x' : ''} à terminer.`, label:'J’y vais', view:'jeux' as ViewType };
+    if (stats.learningRemaining > 0) return { id:'learning', text:`Tu as encore ${stats.learningRemaining} quiz ou niveau${stats.learningRemaining > 1 ? 'x' : ''} à terminer.`, label:'J’y vais', view:'ressources' as ViewType };
     if (pendingPoll) return { id:`poll:${pendingPoll.id}`, text:`Le sondage « ${pendingPoll.title} » attend encore ta réponse.`, label:'Répondre', view:'sondages' as ViewType };
     if (stats.openPredictions > 0) return { id:'predictions', text:`Tu as ${stats.openPredictions} pronostic${stats.openPredictions > 1 ? 's' : ''} encore ouvert${stats.openPredictions > 1 ? 's' : ''}.`, label:'Pronostiquer', view:'jeux' as ViewType };
     if (pendingEvent) return { id:`event:${pendingEvent.id}`, text:`Tu n’as pas encore répondu pour « ${pendingEvent.title} ».`, label:'Voir l’événement', view:'evenements' as ViewType };
@@ -146,7 +146,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
             <div><p className="text-xs font-black uppercase tracking-widest text-green-700">À faire</p><h2 className="text-xl font-black text-slate-900 mt-1">Mes prochaines actions</h2></div>
           </div>
           <div className="space-y-3">
-            <button onClick={() => onNavigate('jeux')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
+            <button onClick={() => onNavigate('ressources')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">
               <div><p className="font-black text-slate-800">Parcours e-learning</p><p className="text-sm text-slate-500">{stats.learningRemaining ? `${stats.learningRemaining} niveau(x) actif(s) à valider` : 'Vous êtes à jour'}</p></div><span className="text-green-700 font-black">→</span>
             </button>
             <button onClick={() => onNavigate('jeux')} className="w-full text-left p-4 rounded-2xl bg-slate-50 hover:bg-green-50 transition-colors flex justify-between items-center">

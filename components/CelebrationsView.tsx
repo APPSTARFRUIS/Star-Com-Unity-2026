@@ -109,10 +109,19 @@ const CelebrationsView: React.FC<CelebrationsViewProps> = ({
 
   const toggleBirthdayLike = async (birthdayUserId: string) => {
     if (!supabase) return;
-    const existing = birthdayLikes.find(l => l.birthday_user_id === birthdayUserId && l.user_id === currentUser.id);
-    if (existing) await supabase.from('birthday_likes').delete().eq('id', existing.id);
-    else await supabase.from('birthday_likes').insert({ birthday_user_id: birthdayUserId, user_id: currentUser.id });
-    await loadBirthdayInteractions();
+    const previous = birthdayLikes;
+    const existing = previous.find(l => l.birthday_user_id === birthdayUserId && l.user_id === currentUser.id);
+    if (existing) {
+      setBirthdayLikes(items => items.filter(l => l.id !== existing.id));
+      const { error } = await supabase.from('birthday_likes').delete().eq('id', existing.id);
+      if (error) setBirthdayLikes(previous);
+    } else {
+      const optimistic = { id: `pending-${Date.now()}`, birthday_user_id: birthdayUserId, user_id: currentUser.id };
+      setBirthdayLikes(items => [...items, optimistic]);
+      const { data, error } = await supabase.from('birthday_likes').insert({ birthday_user_id: birthdayUserId, user_id: currentUser.id }).select('*').single();
+      if (error) setBirthdayLikes(previous);
+      else if (data) setBirthdayLikes(items => items.map(l => l.id === optimistic.id ? data : l));
+    }
   };
 
   useEffect(() => {

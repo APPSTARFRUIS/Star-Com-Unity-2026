@@ -25,11 +25,19 @@ const MessagesView: React.FC<MessagesViewProps> = ({ currentUser, users, message
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const contacts = useMemo(() => {
-    return users.filter(u => u.id !== currentUser.id && 
-      (u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const lastMessageAt = new Map<string, number>();
+    messages.forEach(message => {
+      const contactId = message.senderId === currentUser.id ? message.receiverId : message.receiverId === currentUser.id ? message.senderId : null;
+      if (!contactId) return;
+      const timestamp = new Date(message.createdAt).getTime();
+      if (timestamp > (lastMessageAt.get(contactId) || 0)) lastMessageAt.set(contactId, timestamp);
+    });
+
+    return users.filter(u => u.id !== currentUser.id &&
+      (u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
        u.department.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }, [users, currentUser, searchQuery]);
+    ).sort((a, b) => (lastMessageAt.get(b.id) || 0) - (lastMessageAt.get(a.id) || 0));
+  }, [users, currentUser.id, searchQuery, messages]);
 
   const selectedUser = useMemo(() => 
     users.find(u => u.id === selectedUserId), [users, selectedUserId]

@@ -1780,10 +1780,23 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefresh('wellness_challenges'))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefresh('wellness_contents'))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
-          if (currentUser && payload.new.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
+          const row = payload.new;
+          const mapped: Message = {
+            ...row,
+            senderId: row.sender_id,
+            receiverId: row.receiver_id,
+            createdAt: row.created_at,
+            editedAt: row.edited_at,
+            deletedAt: row.deleted_at
+          };
+          setMessages(previous => previous.some(message => message.id === mapped.id) ? previous : [...previous, mapped]);
+          // Keep the conversation list and currently opened thread in sync even when
+          // the notification arrives before the realtime row is rendered.
+          loadedViewsRef.current.delete('messages');
+          if (currentViewRef.current === 'messages') scheduleRealtimeRefresh('messages');
+          if (currentUser && row.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
           }
-          scheduleRealtimeRefresh('messages');
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefresh('rewards'))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => scheduleRealtimeRefresh('transactions'))
@@ -1838,11 +1851,19 @@ const App: React.FC = () => {
           }
           scheduleRealtimeRefresh('polls');
         })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'celebrations' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.celebrations || currentUser.notification_settings?.birthdays)) {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'celebrations' }, (payload: any) => {
+          if (payload.eventType === 'INSERT' && currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.celebrations || currentUser.notification_settings?.birthdays)) {
             addToast(`Une nouvelle célébration a été publiée : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh('celebrations');
+          // Likes are optimistic locally; realtime UPDATE keeps every other client
+          // aligned immediately instead of waiting for the next full refresh.
+          if (payload.eventType === 'UPDATE' && payload.new?.id) {
+            const row = payload.new;
+            setCelebrations(previous => previous.map(item => item.id === row.id ? { ...item, likes: row.likes || [] } : item));
+            loadedViewsRef.current.delete('celebrations');
+          } else {
+            scheduleRealtimeRefresh('celebrations');
+          }
         })
         .subscribe();
 
@@ -2864,8 +2885,22 @@ const App: React.FC = () => {
               void fetchViewData(currentViewRef.current, true);
             }}
             onSendMessage={async (rid, text, att) => {
-              await supabase.from('messages').insert({ sender_id: currentUser.id, receiver_id: rid, text, attachments: att || [] });
-              void fetchViewData(currentViewRef.current, true);
+              const { data, error } = await supabase.from('messages')
+                .insert({ sender_id: currentUser.id, receiver_id: rid, text, attachments: att || [] })
+                .select('*')
+                .single();
+              if (error) { addToast(`Message non envoyé : ${error.message}`, 'error'); return; }
+              if (data) {
+                const mapped: Message = {
+                  ...data,
+                  senderId: data.sender_id,
+                  receiverId: data.receiver_id,
+                  createdAt: data.created_at,
+                  editedAt: data.edited_at,
+                  deletedAt: data.deleted_at
+                };
+                setMessages(previous => previous.some(message => message.id === mapped.id) ? previous : [...previous, mapped]);
+              }
             }}
           />
         );
@@ -3527,9 +3562,14 @@ const App: React.FC = () => {
             onLikeCelebration={async (id) => {
               const cel = celebrations.find(x => x.id === id);
               if (!cel || !supabase) return;
-              const next = (cel.likes || []).includes(currentUser.id) ? (cel.likes || []).filter(v => v !== currentUser.id) : [...(cel.likes || []), currentUser.id];
-              await supabase.from('celebrations').update({ likes: next }).eq('id', id);
-              void fetchViewData(currentViewRef.current, true);
+              const previousLikes = cel.likes || [];
+              const next = previousLikes.includes(currentUser.id) ? previousLikes.filter(v => v !== currentUser.id) : [...previousLikes, currentUser.id];
+              setCelebrations(previous => previous.map(item => item.id === id ? { ...item, likes: next } : item));
+              const { error } = await supabase.from('celebrations').update({ likes: next }).eq('id', id);
+              if (error) {
+                setCelebrations(previous => previous.map(item => item.id === id ? { ...item, likes: previousLikes } : item));
+                addToast(`Réaction non enregistrée : ${error.message}`, 'error');
+              }
             }}
             onDeleteCelebration={async (id) => { if (supabase) await supabase.from('celebrations').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             preSelectedUserId={wishingBirthdayForId}
