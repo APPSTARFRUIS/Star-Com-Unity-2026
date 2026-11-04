@@ -124,6 +124,7 @@ const App: React.FC = () => {
   const automaticPushCursorRef = useRef<string | null>(null);
   const automaticPushBusyRef = useRef(false);
   const loadedViewsRef = useRef<Set<ViewType>>(new Set());
+  const viewLoadedAtRef = useRef<Map<ViewType, number>>(new Map());
   const viewFetchesRef = useRef<Map<ViewType, Promise<void>>>(new Map());
   const profilesFetchInFlightRef = useRef<Promise<User[] | null> | null>(null);
   const currentProfileFetchRef = useRef<Map<string, Promise<User | null>>>(new Map());
@@ -269,6 +270,7 @@ const App: React.FC = () => {
     let disposed = false;
     const manualUserId = localStorage.getItem('star_community_user_id');
 
+    let lastAuthUserId: string | null = null;
     const bootstrapTimer = window.setTimeout(() => {
       if (!disposed) setIsLoading(false);
     }, 3000);
@@ -284,6 +286,7 @@ const App: React.FC = () => {
         if (disposed) return;
         const initialSession = sessionResult?.data?.session || null;
         setSession(initialSession);
+        lastAuthUserId = initialSession?.user?.id || null;
 
         if (initialSession?.user) {
           await fetchUserProfile(initialSession.user.id, initialSession.user);
@@ -300,15 +303,28 @@ const App: React.FC = () => {
       }
     })();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    // V1.6.52 — Stabilité connexion :
+    // 1) Supabase émet TOKEN_REFRESHED / SIGNED_IN à chaque retour sur l'onglet ou l'app.
+    //    Remplacer `session` à chaque fois recréait le canal temps réel et relançait un
+    //    rechargement complet de toutes les données. On ne met à jour l'état que si
+    //    l'utilisateur change réellement (le client Supabase gère seul le jeton).
+    // 2) Appeler une requête Supabase directement dans ce callback peut bloquer le verrou
+    //    d'authentification (requêtes figées jusqu'au timeout). On diffère donc l'appel.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (disposed) return;
-      setSession(nextSession);
-      if (nextSession?.user) {
-        void fetchUserProfile(nextSession.user.id, nextSession.user);
-      } else if (!manualUserId) {
-        setCurrentUser(null);
-        setIsLoading(false);
-      }
+      const nextUserId = nextSession?.user?.id || null;
+      if (event !== 'SIGNED_OUT' && nextUserId && nextUserId === lastAuthUserId) return;
+      lastAuthUserId = nextUserId;
+      setSession(previous => (previous?.user?.id && previous.user.id === nextUserId ? previous : nextSession));
+      window.setTimeout(() => {
+        if (disposed) return;
+        if (nextSession?.user) {
+          void fetchUserProfile(nextSession.user.id, nextSession.user);
+        } else if (!manualUserId) {
+          setCurrentUser(null);
+          setIsLoading(false);
+        }
+      }, 0);
     });
 
     return () => {
@@ -888,7 +904,11 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!force && loadedViewsRef.current.has(targetView)) return;
+    // V1.6.52 — les tables très actives (commentaires, profils, humeurs, points…) ne sont
+    // plus écoutées en temps réel : une rubrique est donc rechargée à l'ouverture si
+    // ses données ont plus de 2 minutes.
+    const loadedAt = viewLoadedAtRef.current.get(targetView) || 0;
+    if (!force && loadedViewsRef.current.has(targetView) && Date.now() - loadedAt < 120_000) return;
 
     const existing = viewFetchesRef.current.get(targetView);
     if (existing) {
@@ -1372,6 +1392,7 @@ const App: React.FC = () => {
 
         if (viewLoadedSuccessfully) {
           loadedViewsRef.current.add(targetView);
+          viewLoadedAtRef.current.set(targetView, Date.now());
         }
       } catch (error) {
         // Une rubrique en erreur n'est jamais considérée comme chargée.
@@ -1755,31 +1776,22 @@ const App: React.FC = () => {
     }, 700);
   }, [fetchViewData]);
 
+  // V1.6.52 — références stables : le canal temps réel n'est plus détruit/recréé à chaque
+  // changement d'identité de ces fonctions (cause de reconnexions et de rechargements complets).
+  const scheduleRealtimeRefreshRef = useRef(scheduleRealtimeRefresh);
+  scheduleRealtimeRefreshRef.current = scheduleRealtimeRefresh;
+  const fetchCoreDataRef = useRef(fetchCoreData);
+  fetchCoreDataRef.current = fetchCoreData;
+  const fetchViewDataRef = useRef(fetchViewData);
+  fetchViewDataRef.current = fetchViewData;
+
   useEffect(() => {
     if (session || currentUser) {
-      void fetchCoreData(true);
+      void fetchCoreDataRef.current(true);
 
-      const dataChannel = supabase.channel('global-changes')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
-          if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
-            addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
-          }
-          scheduleRealtimeRefresh('posts');
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => scheduleRealtimeRefresh('ideas'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => scheduleRealtimeRefresh('profiles'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => scheduleRealtimeRefresh('comments'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, () => scheduleRealtimeRefresh('moods'))
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
-          if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
-            addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
-          }
-          scheduleRealtimeRefresh('events');
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => scheduleRealtimeRefresh('documents'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefresh('wellness_challenges'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefresh('wellness_contents'))
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload: any) => {
+      // V1.6.52 — chaque utilisateur ne reçoit plus que SES messages (avant : tous les messages
+      // de l'entreprise transitaient vers chaque appareil connecté).
+      const handleRealtimeMessage = (payload: any) => {
           const row = payload.new;
           const mapped: Message = {
             ...row,
@@ -1793,16 +1805,34 @@ const App: React.FC = () => {
           // Keep the conversation list and currently opened thread in sync even when
           // the notification arrives before the realtime row is rendered.
           loadedViewsRef.current.delete('messages');
-          if (currentViewRef.current === 'messages') scheduleRealtimeRefresh('messages');
+          if (currentViewRef.current === 'messages') scheduleRealtimeRefreshRef.current('messages');
           if (currentUser && row.receiver_id === currentUser.id && currentUser.notification_settings?.messages) {
             addToast("Vous avez reçu un nouveau message !", "info");
           }
+      };
+
+      const dataChannel = supabase.channel('global-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
+          if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
+            addToast(`Nouveau post sur le mur social de ${payload.new.user_name} !`, "info");
+          }
+          scheduleRealtimeRefreshRef.current('posts');
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefresh('rewards'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => scheduleRealtimeRefresh('transactions'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefresh('games'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefresh('engagement_animations'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, () => scheduleRealtimeRefresh('advent_openings'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ideas' }, () => scheduleRealtimeRefreshRef.current('ideas'))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload: any) => {
+          if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.events) {
+            addToast(`Un nouvel événement a été ajouté à l'agenda : ${payload.new.title}`, "info");
+          }
+          scheduleRealtimeRefreshRef.current('events');
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => scheduleRealtimeRefreshRef.current('documents'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_challenges' }, () => scheduleRealtimeRefreshRef.current('wellness_challenges'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefreshRef.current('wellness_contents'))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUser?.id}` }, (payload: any) => handleRealtimeMessage(payload))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${currentUser?.id}` }, (payload: any) => handleRealtimeMessage(payload))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefreshRef.current('rewards'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefreshRef.current('games'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefreshRef.current('engagement_animations'))
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -1843,13 +1873,13 @@ const App: React.FC = () => {
           if (currentUser && currentUser.notification_settings?.newsletters) {
             addToast(`La nouvelle édition de la newsletter est parue : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh('newsletters');
+          scheduleRealtimeRefreshRef.current('newsletters');
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' }, (payload: any) => {
           if (currentUser && payload.new.created_by !== currentUser.id && currentUser.notification_settings?.polls) {
             addToast(`Nouveau sondage disponible : ${payload.new.title}`, "info");
           }
-          scheduleRealtimeRefresh('polls');
+          scheduleRealtimeRefreshRef.current('polls');
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'celebrations' }, (payload: any) => {
           if (payload.eventType === 'INSERT' && currentUser && payload.new.created_by !== currentUser.id && (currentUser.notification_settings?.celebrations || currentUser.notification_settings?.birthdays)) {
@@ -1862,7 +1892,7 @@ const App: React.FC = () => {
             setCelebrations(previous => previous.map(item => item.id === row.id ? { ...item, likes: row.likes || [] } : item));
             loadedViewsRef.current.delete('celebrations');
           } else {
-            scheduleRealtimeRefresh('celebrations');
+            scheduleRealtimeRefreshRef.current('celebrations');
           }
         })
         .subscribe();
@@ -1875,12 +1905,14 @@ const App: React.FC = () => {
         }
       };
     }
-  }, [session, currentUser?.id, scheduleRealtimeRefresh, fetchCoreData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(session), currentUser?.id]);
 
   useEffect(() => {
     if (!session && !currentUser) return;
-    void fetchViewData(view);
-  }, [view, session, currentUser?.id, fetchViewData]);
+    void fetchViewDataRef.current(view);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, Boolean(session), currentUser?.id]);
 
   // Équipe doit rester autonome : Safari/iOS peut laisser expirer une requête Supabase
   // pendant la vague de chargement initiale. Tant que profils/structures ne sont pas là,
