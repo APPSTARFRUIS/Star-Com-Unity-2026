@@ -1811,6 +1811,104 @@ const App: React.FC = () => {
           }
       };
 
+      // V1.6.52 — Mises à jour instantanées SANS rechargement :
+      // pour les tables très actives, on applique directement la ligne reçue à l'écran
+      // au lieu de retélécharger toute la rubrique chez chaque utilisateur connecté.
+      const upsertComment = (list: any[] | undefined, comment: any) => {
+        const current = list || [];
+        return current.some(c => c.id === comment.id)
+          ? current.map(c => (c.id === comment.id ? { ...c, ...comment } : c))
+          : [...current, comment];
+      };
+
+      const handleRealtimeComment = (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = payload.old?.id;
+          if (!removedId) return;
+          const strip = (items: any[]) => items.map(item =>
+            (item.comments || []).some((c: any) => c.id === removedId)
+              ? { ...item, comments: item.comments.filter((c: any) => c.id !== removedId) }
+              : item
+          );
+          setPosts(previous => strip(previous) as any);
+          setIdeas(previous => strip(previous) as any);
+          return;
+        }
+        const comment = mapComments([payload.new])[0] as any;
+        if (!comment) return;
+        if (comment.post_id) {
+          setPosts(previous => previous.map(post =>
+            post.id === comment.post_id ? { ...post, comments: upsertComment((post as any).comments, comment) } : post
+          ) as any);
+        }
+        if (comment.idea_id) {
+          setIdeas(previous => previous.map(idea =>
+            idea.id === comment.idea_id ? { ...idea, comments: upsertComment((idea as any).comments, comment) } : idea
+          ) as any);
+        }
+      };
+
+      // Seuls les champs publics du profil sont repris (jamais de champ sensible).
+      const PUBLIC_PROFILE_FIELDS = ['points', 'name', 'avatar', 'department', 'company', 'job_function', 'birthday'] as const;
+      const handleRealtimeProfile = (payload: any) => {
+        if (payload.eventType !== 'UPDATE' || !payload.new?.id) {
+          scheduleRealtimeRefreshRef.current('profiles');
+          return;
+        }
+        const row = payload.new;
+        const patch: Record<string, any> = {};
+        PUBLIC_PROFILE_FIELDS.forEach(field => {
+          if (row[field] !== undefined) patch[field] = row[field];
+        });
+        setUsers(previous => previous.map(user => (user.id === row.id ? { ...user, ...patch } : user)));
+        setCurrentUser(previous => (previous && previous.id === row.id ? { ...previous, ...patch } : previous));
+      };
+
+      const mapMoodRow = (m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at });
+      const handleRealtimeMood = (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = payload.old?.id;
+          if (removedId) setMoods(previous => previous.filter(mood => mood.id !== removedId));
+          return;
+        }
+        const mood = mapMoodRow(payload.new);
+        setMoods(previous => previous.some(m => m.id === mood.id)
+          ? previous.map(m => (m.id === mood.id ? { ...m, ...mood } : m))
+          : [mood, ...previous]);
+      };
+
+      const mapTransactionRow = (t: any) => ({
+        ...t,
+        userId: t.user_id,
+        date: t.date,
+        orderStatus: t.order_status || 'pending',
+        distributedAt: t.distributed_at || null
+      });
+      const handleRealtimeTransaction = (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = payload.old?.id;
+          if (removedId) setTransactions(previous => previous.filter(t => t.id !== removedId));
+          return;
+        }
+        const transaction = mapTransactionRow(payload.new);
+        setTransactions(previous => previous.some(t => t.id === transaction.id)
+          ? previous.map(t => (t.id === transaction.id ? { ...t, ...transaction } : t))
+          : [transaction, ...previous]);
+      };
+
+      const handleRealtimeAdventOpening = (payload: any) => {
+        if (payload.eventType === 'DELETE') {
+          const removedId = payload.old?.id;
+          if (removedId) setAdventOpenings(previous => previous.filter(o => o.id !== removedId));
+          return;
+        }
+        const opening = mapAdventOpenings([payload.new])[0];
+        if (!opening) return;
+        setAdventOpenings(previous => previous.some(o => o.id === opening.id)
+          ? previous.map(o => (o.id === opening.id ? opening : o))
+          : [...previous, opening]);
+      };
+
       const dataChannel = supabase.channel('global-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload: any) => {
           if (currentUser && payload.new.user_id !== currentUser.id && currentUser.notification_settings?.posts) {
@@ -1830,6 +1928,11 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'wellness_contents' }, () => scheduleRealtimeRefreshRef.current('wellness_contents'))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${currentUser?.id}` }, (payload: any) => handleRealtimeMessage(payload))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${currentUser?.id}` }, (payload: any) => handleRealtimeMessage(payload))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, handleRealtimeComment)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimeProfile)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, handleRealtimeMood)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, handleRealtimeTransaction)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, handleRealtimeAdventOpening)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefreshRef.current('rewards'))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => scheduleRealtimeRefreshRef.current('games'))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'engagement_animations' }, () => scheduleRealtimeRefreshRef.current('engagement_animations'))

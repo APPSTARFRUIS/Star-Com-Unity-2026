@@ -26,20 +26,24 @@ Base : V1.6.51 BETA FIXES. Un seul fichier modifié : `App.tsx`. Aucune migratio
 - Le chargement du profil est différé hors du callback d'authentification.
 - Le canal temps réel est créé une seule fois par utilisateur connecté (références stables), et n'est plus
   recréé à chaque rafraîchissement de jeton.
-- Retrait de l'écoute temps réel sur `profiles`, `comments`, `moods`, `transactions`, `advent_openings`.
+- `profiles`, `comments`, `moods`, `transactions`, `advent_openings` restent en temps réel, mais la ligne
+  reçue est appliquée directement à l'écran (nouveau commentaire, nouveaux points, nouvelle humeur…) au lieu
+  de déclencher un rechargement complet de la rubrique chez chaque utilisateur connecté.
+- Profils : seuls les champs publics (points, nom, avatar, service, société, fonction, anniversaire) sont
+  appliqués depuis le temps réel.
 - Messages : chaque utilisateur n'écoute plus que ses propres conversations (`receiver_id` / `sender_id`).
-- Pour compenser, une rubrique est rechargée à l'ouverture si ses données ont plus de 2 minutes.
+- Filet de sécurité : une rubrique est rechargée à l'ouverture si ses données ont plus de 2 minutes.
 
 ## Ce qui reste en temps réel
 
-Notifications personnelles, messages reçus et envoyés, nouveaux posts, événements, sondages, newsletters,
-célébrations (et leurs likes), idées, documents, bien-être, boutique, jeux, animations.
+Tout ce qui l'était en V1.6.51 : notifications, messages, posts, commentaires, points, humeurs, commandes,
+calendrier de l'Avent, événements, sondages, newsletters, célébrations, idées, documents, bien-être,
+boutique, jeux, animations.
 
 ## Effet visible pour les utilisateurs
 
 - Plus de rechargement complet en revenant sur l'appli.
-- Un nouveau commentaire ou un changement de points d'un collègue apparaît à la prochaine ouverture de la
-  rubrique (au plus 2 minutes de décalage) au lieu d'instantanément.
+- Les mises à jour restent instantanées, sans écran qui se recharge.
 
 ## Déploiement
 
