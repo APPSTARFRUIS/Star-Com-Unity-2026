@@ -227,13 +227,14 @@ export default async function handler(request, response) {
             .from('profiles').select('id, avatar').eq('id', id).maybeSingle();
           if (rowError || !row?.avatar?.startsWith('data:')) continue;
 
-          const match = row.avatar.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
-          if (!match || !match[2]) {
+          const commaIndex = row.avatar.indexOf(',');
+          const header = commaIndex > 0 ? row.avatar.slice(5, commaIndex) : '';
+          if (!header.toLowerCase().includes(';base64')) {
             results.push({ id, ok: false, error: 'format non pris en charge' });
             continue;
           }
-          const mime = (match[1] || 'image/jpeg').toLowerCase();
-          const buffer = Buffer.from(match[3], 'base64');
+          const mime = (header.split(';')[0] || 'image/jpeg').toLowerCase();
+          const buffer = Buffer.from(row.avatar.slice(commaIndex + 1), 'base64');
           const path = `avatars/${id}-${Date.now()}.${extensionFor(mime)}`;
 
           const { error: uploadError } = await adminClient.storage
@@ -243,9 +244,10 @@ export default async function handler(request, response) {
 
           const publicUrl = adminClient.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
 
-          // Mise à jour conditionnelle : on ne remplace que si l'avatar n'a pas changé entre-temps.
+          // On ne remplace que si l'avatar est toujours en base64 (filtre court : ne jamais
+          // mettre la photo elle-même dans l'URL de la requête, sinon erreur 414).
           const { error: updateError } = await adminClient
-            .from('profiles').update({ avatar: publicUrl }).eq('id', id).eq('avatar', row.avatar);
+            .from('profiles').update({ avatar: publicUrl }).eq('id', id).like('avatar', 'data:%');
           if (updateError) throw updateError;
 
           // Copies de l'avatar dans les publications / commentaires / idées / célébrations.

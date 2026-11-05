@@ -1,5 +1,6 @@
 # Star Com'Unity V1.6.54 — Annuaire léger (photos de profil)
 
+Correctif V1.6.55 : la mise à jour du profil ne met plus la photo dans l URL (erreur 414).
 Inclut V1.6.52 (connexion/temps réel) et V1.6.53 (SQL performance RLS).
 
 ## Cause
