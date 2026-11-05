@@ -203,6 +203,86 @@ export default async function handler(request, response) {
       });
     }
 
+    // V1.6.54 — Convertit les photos de profil stockées en base64 dans la table
+    // profiles (plusieurs Mo) en fichiers Storage, et remplace partout le texte
+    // base64 par un simple lien. Idempotent : ne traite que les avatars "data:".
+    if (action === 'migrate_avatars') {
+      const MEDIA_BUCKET = 'star-community-media';
+      const COPY_TABLES = ['posts', 'comments', 'ideas', 'celebrations'];
+      const extensionFor = (mime) => ({
+        'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+        'image/gif': 'gif', 'image/svg+xml': 'svg'
+      }[mime] || 'jpg');
+
+      const { data: heavyProfiles, error: listError } = await adminClient
+        .from('profiles')
+        .select('id')
+        .like('avatar', 'data:%');
+      if (listError) throw listError;
+
+      const results = [];
+      for (const { id } of heavyProfiles || []) {
+        try {
+          const { data: row, error: rowError } = await adminClient
+            .from('profiles').select('id, avatar').eq('id', id).maybeSingle();
+          if (rowError || !row?.avatar?.startsWith('data:')) continue;
+
+          const match = row.avatar.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+          if (!match || !match[2]) {
+            results.push({ id, ok: false, error: 'format non pris en charge' });
+            continue;
+          }
+          const mime = (match[1] || 'image/jpeg').toLowerCase();
+          const buffer = Buffer.from(match[3], 'base64');
+          const path = `avatars/${id}-${Date.now()}.${extensionFor(mime)}`;
+
+          const { error: uploadError } = await adminClient.storage
+            .from(MEDIA_BUCKET)
+            .upload(path, buffer, { contentType: mime, cacheControl: '31536000', upsert: false });
+          if (uploadError) throw uploadError;
+
+          const publicUrl = adminClient.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
+
+          // Mise à jour conditionnelle : on ne remplace que si l'avatar n'a pas changé entre-temps.
+          const { error: updateError } = await adminClient
+            .from('profiles').update({ avatar: publicUrl }).eq('id', id).eq('avatar', row.avatar);
+          if (updateError) throw updateError;
+
+          // Copies de l'avatar dans les publications / commentaires / idées / célébrations.
+          for (const table of COPY_TABLES) {
+            const { error: copyError } = await adminClient
+              .from(table).update({ user_avatar: publicUrl }).eq('user_id', id).like('user_avatar', 'data:%');
+            if (copyError) console.warn(`migrate_avatars: copie ${table} ignorée`, copyError.message);
+          }
+
+          results.push({ id, ok: true, bytes: buffer.length });
+        } catch (error) {
+          results.push({ id, ok: false, error: error?.message || String(error) });
+        }
+      }
+
+      // Copies orphelines restantes (ex. ancienne photo d'un utilisateur déjà changée) :
+      // on les remplace par la photo actuelle de l'auteur.
+      for (const table of COPY_TABLES) {
+        const { data: leftovers } = await adminClient
+          .from(table).select('id, user_id').like('user_avatar', 'data:%').limit(500);
+        for (const item of leftovers || []) {
+          if (!item.user_id) continue;
+          const { data: author } = await adminClient
+            .from('profiles').select('avatar').eq('id', item.user_id).maybeSingle();
+          if (author?.avatar && !author.avatar.startsWith('data:')) {
+            await adminClient.from(table).update({ user_avatar: author.avatar }).eq('id', item.id);
+          }
+        }
+      }
+
+      return response.status(200).json({
+        ok: true,
+        migrated: results.filter(r => r.ok).length,
+        failed: results.filter(r => !r.ok)
+      });
+    }
+
     if (action === 'adjust_points') {
       const userId = String(body.userId || '').trim();
       const delta = Number(body.delta || 0);

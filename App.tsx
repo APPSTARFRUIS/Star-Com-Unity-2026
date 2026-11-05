@@ -2210,7 +2210,7 @@ const App: React.FC = () => {
   });
 
   const callAdminUsers = async (
-    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders' | 'mark_order_distributed' | 'delete_order',
+    action: 'create' | 'update' | 'delete' | 'adjust_points' | 'list_orders' | 'mark_order_distributed' | 'delete_order' | 'migrate_avatars',
     payload: Record<string, any>
   ) => {
     if (!supabase) throw new Error('Supabase non configuré.');
@@ -2231,7 +2231,7 @@ const App: React.FC = () => {
               userId: String(payload.userId || '').slice(0, 160),
               delta: Number(payload.delta || 0)
             }
-          : action === 'list_orders'
+          : action === 'list_orders' || action === 'migrate_avatars'
             ? { action }
             : action === 'mark_order_distributed' || action === 'delete_order'
               ? {
@@ -2272,6 +2272,39 @@ const App: React.FC = () => {
     localStorage.removeItem('star_community_profiles_cache');
     await fetchViewData('admin', true);
   };
+
+  // V1.6.54 — Conversion unique des photos de profil base64 (plusieurs Mo dans l'annuaire)
+  // en fichiers Storage. Lancée automatiquement, une seule fois, à l'ouverture par un admin.
+  const avatarMigrationStartedRef = useRef(false);
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'ADMIN' || avatarMigrationStartedRef.current) return;
+    let alreadyDone = false;
+    try { alreadyDone = localStorage.getItem('star_community_avatars_migrated_v1654') === '1'; } catch {}
+    if (alreadyDone) return;
+    avatarMigrationStartedRef.current = true;
+
+    void (async () => {
+      try {
+        const result = await callAdminUsers('migrate_avatars', {});
+        if (!result?.failed?.length) {
+          try { localStorage.setItem('star_community_avatars_migrated_v1654', '1'); } catch {}
+        } else {
+          console.warn('Conversion des photos : certaines ont échoué', result.failed);
+        }
+        if (result?.migrated > 0) {
+          try { localStorage.removeItem('star_community_profiles_cache'); } catch {}
+          loadedViewsRef.current.delete('equipe');
+          loadedViewsRef.current.delete('accueil');
+          loadedViewsRef.current.delete('social');
+          await fetchProfilesWithRetry(1);
+          addToast(`${result.migrated} photo(s) de profil optimisée(s) : l'annuaire est maintenant beaucoup plus léger.`, 'info');
+        }
+      } catch (error) {
+        console.warn('Conversion des photos de profil indisponible', error);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentUser?.role]);
 
   const handleAddUser = async (user: User) => {
     try {
