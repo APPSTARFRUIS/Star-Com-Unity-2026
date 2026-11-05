@@ -3783,7 +3783,11 @@ const App: React.FC = () => {
           </div>
         );
 
-      case 'mon-espace': return <MySpaceView currentUser={currentUser} unreadNotifications={notifications.filter(item => !item.isRead).length} onNavigate={setView} />;
+      case 'mon-espace': return <MySpaceView currentUser={currentUser} unreadNotifications={notifications.filter(item => !item.isRead).length} onNavigate={setView} onPointsChange={(remainingPoints) => {
+        setCurrentUser(previous => previous ? { ...previous, points: remainingPoints } : previous);
+        setUsers(previous => previous.map(user => user.id === currentUser.id ? { ...user, points: remainingPoints } : user));
+        loadedViewsRef.current.delete('boutique');
+      }} />;
 
       case 'parametres': return <Settings user={currentUser} onSave={handleSelfUpdateProfile} />;
 

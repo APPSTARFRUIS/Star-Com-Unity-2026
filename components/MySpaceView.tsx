@@ -5,6 +5,7 @@ import { ViewType } from './Sidebar';
 import MascotCard from './MascotCard';
 
 interface Props {
+  onPointsChange?: (remainingPoints: number) => void;
   currentUser: User;
   unreadNotifications: number;
   onNavigate: (view: ViewType) => void;
@@ -21,7 +22,7 @@ const parsePrediction = (raw: string) => {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
 };
 
-const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavigate }) => {
+const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavigate, onPointsChange }) => {
   const [loading, setLoading] = useState(true);
   const [completions, setCompletions] = useState<CompletionRow[]>([]);
   const [games, setGames] = useState<GameRow[]>([]);
@@ -138,7 +139,7 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
         ))}
       </div>
 
-      <MascotCard currentUser={currentUser} reminder={mascotReminder} onNavigate={onNavigate} />
+      <MascotCard currentUser={currentUser} reminder={mascotReminder} onNavigate={onNavigate} onPointsChange={onPointsChange} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
