@@ -1,3 +1,4 @@
+import { MESSAGES_VISIBLE } from './featureFlags';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -108,7 +109,17 @@ const App: React.FC = () => {
   const [publicGamificationStats, setPublicGamificationStats] = useState<Record<string, { earned: number; purchases: number; gains: number }>>({});
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
-  const [view, setView] = useState<ViewType>('accueil');
+  const [view, setRawView] = useState<ViewType>('accueil');
+  const setView = (next: ViewType) => setRawView(!MESSAGES_VISIBLE && next === 'messages' ? 'accueil' : next);
+  const [previousVisit, setPreviousVisit] = useState<string | null>(null);
+  useEffect(() => {
+    if (!currentUser?.id) { setPreviousVisit(null); return; }
+    const key = `star-comunity:last-visit:${currentUser.id}`;
+    try {
+      setPreviousVisit(localStorage.getItem(key));
+      localStorage.setItem(key, new Date().toISOString());
+    } catch { setPreviousVisit(null); }
+  }, [currentUser?.id]);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -2524,6 +2535,7 @@ const App: React.FC = () => {
     const monthlyBirthdays = users.filter(u => { if (!u.birthday) return false; const parts=u.birthday.split('-'); const month=parts.length===3?parts[1]:parts[0]; return month === (today.getMonth()+1).toString().padStart(2,'0'); });
     const welcomeTitle = (appConfig.welcomeTitle || INITIAL_CONFIG.welcomeTitle).replace('{name}', currentUser?.name ? currentUser.name.split(' ')[0] : '');
     const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
+    const recentUpdates = notifications.filter(n => n.userId === currentUser?.id && (MESSAGES_VISIBLE || n.linkView !== 'messages') && (!n.isRead || (previousVisit !== null && Date.parse(n.createdAt) > Date.parse(previousVisit)))).sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     const now = Date.now();
     const publishedHighlights = engagementAnimations.filter(animation => {
       if (animation.status !== 'active') return false;
@@ -2572,6 +2584,21 @@ const App: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-8">
+            <section className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-xl font-black text-slate-800">{previousVisit ? 'Depuis votre dernière visite' : 'Vos nouveautés'}</h2>
+                <button onClick={() => setView('notifications')} className="text-sm font-bold text-green-700">Toutes les notifications</button>
+              </div>
+              <p className="text-sm text-slate-500 mb-3">Les nouveautés et notifications encore non lues, au même endroit.</p>
+              {recentUpdates.length === 0 ? <p className="text-sm text-slate-500">Aucune nouveauté à afficher pour le moment.</p> : recentUpdates.slice(0, 5).map(n => (
+                <button key={n.id} onClick={() => setView((n.linkView || 'notifications') as ViewType)} className="w-full text-left border-t border-slate-100 py-3 flex items-start gap-3 hover:bg-slate-50 rounded-lg">
+                  <span className={`mt-2 w-2 h-2 rounded-full shrink-0 ${n.isRead ? 'bg-slate-300' : 'bg-green-600'}`} />
+                  <span className="flex-1 min-w-0"><span className="block font-bold text-slate-800">{n.title}</span><span className="block text-sm text-slate-500 line-clamp-2">{n.message}</span></span>
+                  <span className="text-xs text-slate-400 shrink-0">{new Date(n.createdAt).toLocaleDateString('fr-FR')}</span>
+                </button>
+              ))}
+              {recentUpdates.length > 5 && <button className="text-sm font-bold text-green-700 mt-3" onClick={() => setView('notifications')}>Voir les {recentUpdates.length} nouveautés</button>}
+            </section>
             <section>
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-1">Actions rapides</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -2582,7 +2609,7 @@ const App: React.FC = () => {
                   { label: 'Social', color: 'bg-pink-50 text-pink-600', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', action: () => setView('social') },
                   { label: 'Boîte à idées', color: 'bg-amber-50 text-amber-600', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z', action: () => setView('idees') },
                   { label: 'Bien-être', color: 'bg-indigo-50 text-indigo-600', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z', action: () => setView('bienetre') }
-                ].map((item, idx) => (
+                ].filter(item => MESSAGES_VISIBLE || item.label !== 'Messages').map((item, idx) => (
                   <button
                     key={idx}
                     onClick={item.action}

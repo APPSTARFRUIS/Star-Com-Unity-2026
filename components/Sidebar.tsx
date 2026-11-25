@@ -1,3 +1,4 @@
+import { MESSAGES_VISIBLE } from '../featureFlags';
 import React from 'react';
 import { UserRole, AppConfig } from '../types';
 
@@ -96,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto scrollbar-hide text-left">
-          {menuItems.map(item => (
+          {menuItems.filter(item => MESSAGES_VISIBLE || item.id !== 'messages').map(item => (
             <button
               key={item.id}
               onClick={() => {
