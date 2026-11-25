@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { label: 'La vie du Groupe', ids: ['social', 'evenements', 'celebrations', 'newsletter'] },
     { label: 'Apprendre & découvrir', ids: ['apprendre', 'ressources', 'elearning-jeux'] },
     { label: 'Participer', ids: ['sondages', 'idees', 'jeux', 'bienetre', 'humeur'] },
-    { label: 'Mon espace', ids: ['mon-espace', 'boutique', 'parametres'] },
+    { label: 'Mon espace', ids: ['mon-espace', 'boutique', 'parametres', 'outils', 'notifications'] },
   ];
   const [expanded, setExpanded] = React.useState<string[]>([]);
   React.useEffect(() => {
@@ -130,8 +130,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               {open && <div className="pl-2 pb-2">{group.ids.map(renderItem)}</div>}
             </div>;
           })}
-          {renderItem('outils')}
-          {renderItem('notifications')}
           {renderItem('messages')}
 
           {(userRole === UserRole.ADMIN || userRole === UserRole.MODERATOR) && (
@@ -155,6 +153,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50">
+          <button type="button" aria-label="Notifications" title="Notifications" onClick={() => { setView('notifications'); onClose?.(); }} className="hidden md:flex items-center gap-2 p-2 text-slate-700 hover:bg-white rounded-lg">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">{menuItems.find(x => x.id === 'notifications')?.icon}</svg>
+            {unreadNotifications > 0 && <span className="rounded-full bg-red-500 text-white px-2 text-xs">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}
+          </button>
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-bold"

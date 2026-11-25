@@ -3899,11 +3899,12 @@ const App: React.FC = () => {
         <>
           <div className="md:hidden bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
             <div className="flex items-center gap-2"><img src="/brand-logo.png" alt="Star Com'Unity" className="w-9 h-9 object-contain" /><span className="font-bold text-slate-800">{appConfig.appName}</span></div>
+            <div className="flex items-center gap-1"><button type="button" aria-label="Notifications" onClick={() => setView('notifications')} className="relative p-2 text-slate-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{notifications.some(n => !n.isRead) && <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full px-1">{Math.min(99, notifications.filter(n => !n.isRead).length)}</span>}</button>
             <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
               </svg>
-            </button>
+            </button></div>
           </div>
 
           <Sidebar
