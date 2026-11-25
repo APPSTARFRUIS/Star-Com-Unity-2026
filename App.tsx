@@ -3819,9 +3819,22 @@ const App: React.FC = () => {
                     if(error){addToast('Vote impossible : '+error.message,'error');void fetchViewData(currentViewRef.current,true);}
                   }}
                   onPin={async (id, pinned) => { if(!supabase)return; await supabase.from('posts').update({is_pinned:pinned}).eq('id',id); void fetchViewData(currentViewRef.current,true); }}
-                  onAddComment={async (id, text, attachment, parentId) => { if (supabase) { await supabase.from('comments').insert({ post_id: id, user_id: currentUser.id, user_name: currentUser.name, user_avatar: currentUser.avatar, text, attachment: attachment || null, parent_id: parentId || null }); const mentioned=users.filter(u=>text.toLowerCase().includes(`@${u.name.toLowerCase()}`)&&u.id!==currentUser.id); if(mentioned.length) await supabase.from('notifications').insert(mentioned.map(u=>({user_id:u.id,kind:'post',title:'Mention dans un commentaire',message:`${currentUser.name} vous a mentionné(e) dans un commentaire.`,link_view:'social',entity_id:id,is_read:false}))); void fetchViewData(currentViewRef.current, true); } }}
-                  onEditComment={async (commentId, text) => { if (supabase) { const {error}=await supabase.from('comments').update({text, edited_at:new Date().toISOString()}).eq('id',commentId).eq('user_id',currentUser.id); if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
-                  onDeleteComment={async (commentId) => { if (supabase) { const q=supabase.from('comments').delete().eq('id',commentId); if(currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.MODERATOR) q.eq('user_id',currentUser.id); const {error}=await q; if(error) addToast(error.message,'error'); else void fetchViewData(currentViewRef.current,true); } }}
+                  onAddComment={async (id, text, attachment, parentId) => {
+                    if (!supabase) throw new Error('Connexion indisponible');
+                    const {error}=await supabase.from('comments').insert({post_id:id,user_id:currentUser.id,user_name:currentUser.name,user_avatar:currentUser.avatar,text,attachment:attachment||null,parent_id:parentId||null});
+                    if(error){addToast(error.message,'error');throw error;}
+                    const mentioned=users.filter(u=>text.toLowerCase().includes(`@${u.name.toLowerCase()}`)&&u.id!==currentUser.id);
+                    if(mentioned.length) await supabase.from('notifications').insert(mentioned.map(u=>({user_id:u.id,kind:'post',title:'Mention dans un commentaire',message:`${currentUser.name} vous a mentionné(e) dans un commentaire.`,link_view:'social',entity_id:id,is_read:false})));
+                    await fetchViewData(currentViewRef.current,true);
+                  }}
+                  onReactComment={async (commentId,reaction)=>{
+                    if(!supabase)throw new Error('Connexion indisponible');
+                    const {data,error}=await supabase.rpc('toggle_social_comment_reaction',{p_comment_id:commentId,p_reaction:reaction});
+                    if(error){addToast(error.message,'error');throw error;}
+                    setPosts(prev=>prev.map(p=>({...p,comments:(p.comments||[]).map(c=>c.id===commentId?{...c,reactions:data}:c)})));
+                  }}
+                  onEditComment={async (commentId,text)=>{if(!supabase)throw new Error('Connexion indisponible');const {error}=await supabase.from('comments').update({text,edited_at:new Date().toISOString()}).eq('id',commentId).eq('user_id',currentUser.id).select('id').single();if(error){addToast(error.message,'error');throw error;}await fetchViewData(currentViewRef.current,true);}}
+                  onDeleteComment={async (commentId)=>{if(!supabase)throw new Error('Connexion indisponible');const q=supabase.from('comments').delete().eq('id',commentId);if(currentUser.role!==UserRole.ADMIN&&currentUser.role!==UserRole.MODERATOR)q.eq('user_id',currentUser.id);const {error}=await q.select('id').single();if(error){addToast(error.message,'error');throw error;}await fetchViewData(currentViewRef.current,true);}}
                 />
               ))}
             </div>
