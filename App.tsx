@@ -23,8 +23,6 @@ import {
   DocumentFile,
   Poll,
   PollResponse,
-  MoodEntry,
-  MoodValue,
   Celebration,
   Newsletter,
   AppConfig,
@@ -94,7 +92,6 @@ const App: React.FC = () => {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
-  const [moods, setMoods] = useState<MoodEntry[]>([]);
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   const [appConfig, setAppConfig] = useState<AppConfig>(INITIAL_CONFIG);
@@ -1213,11 +1210,7 @@ const App: React.FC = () => {
             break;
           }
 
-          case 'humeur': {
-            const { data } = await supabase.from('moods').select('*').order('created_at', { ascending: false }).limit(120);
-            if (data) setMoods(data.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at })));
-            break;
-          }
+          case 'humeur': break;
 
           case 'celebrations': {
             const cachedProfiles = getCachedProfiles();
@@ -1456,7 +1449,6 @@ const App: React.FC = () => {
         { data: rewardsData },
         { data: newsData },
         { data: commentsData },
-        { data: moodsData },
         { data: wellContentsData },
         { data: challengesData },
         { data: messagesData },
@@ -1475,7 +1467,6 @@ const App: React.FC = () => {
         supabase.from('rewards').select('*').order('cost', { ascending: true }).limit(100),
         supabase.from('newsletters').select('*').order('published_at', { ascending: false }).limit(30),
         supabase.from('comments').select('*').order('created_at', { ascending: false }).limit(400),
-        supabase.from('moods').select('*').order('created_at', { ascending: false }).limit(120),
         supabase.from('wellness_contents').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('wellness_challenges').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(250),
@@ -1561,7 +1552,6 @@ const App: React.FC = () => {
       })) as any);
       if (rewardsData) setRewards(rewardsData as any);
       if (newsData) setNewsletters(newsData.map((n: any) => ({ ...n, coverImage: n.cover_image, publishedAt: n.published_at, authorName: n.author_name, readCount: n.read_count, articles: n.articles })));
-      if (moodsData) setMoods(moodsData.map((m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at })));
       if (wellContentsData) setWellnessContents(wellContentsData.map((c: any) => ({ ...c, mediaUrl: c.media_url, createdAt: c.created_at })));
       if (challengesData) setWellnessChallenges(challengesData.map((c: any) => ({ ...c, isActive: c.is_active })));
       if (messagesData) setMessages(
@@ -1757,7 +1747,6 @@ const App: React.FC = () => {
     events: ['accueil', 'evenements', 'admin'],
     ideas: ['idees', 'engagement', 'admin'],
     profiles: ['equipe', 'messages', 'celebrations', 'engagement', 'admin'],
-    moods: ['humeur', 'admin'],
     documents: ['documents', 'admin'],
     wellness_challenges: ['bienetre', 'admin'],
     wellness_contents: ['bienetre', 'admin'],
@@ -1880,19 +1869,6 @@ const App: React.FC = () => {
         setCurrentUser(previous => (previous && previous.id === row.id ? { ...previous, ...patch } : previous));
       };
 
-      const mapMoodRow = (m: any) => ({ ...m, userId: m.user_id, createdAt: m.created_at, editedAt: m.edited_at, deletedAt: m.deleted_at });
-      const handleRealtimeMood = (payload: any) => {
-        if (payload.eventType === 'DELETE') {
-          const removedId = payload.old?.id;
-          if (removedId) setMoods(previous => previous.filter(mood => mood.id !== removedId));
-          return;
-        }
-        const mood = mapMoodRow(payload.new);
-        setMoods(previous => previous.some(m => m.id === mood.id)
-          ? previous.map(m => (m.id === mood.id ? { ...m, ...mood } : m))
-          : [mood, ...previous]);
-      };
-
       const mapTransactionRow = (t: any) => ({
         ...t,
         userId: t.user_id,
@@ -1946,7 +1922,6 @@ const App: React.FC = () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${currentUser?.id}` }, (payload: any) => handleRealtimeMessage(payload))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, handleRealtimeComment)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimeProfile)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'moods' }, handleRealtimeMood)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, handleRealtimeTransaction)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'advent_openings' }, handleRealtimeAdventOpening)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, () => scheduleRealtimeRefreshRef.current('rewards'))
@@ -2788,7 +2763,6 @@ const App: React.FC = () => {
             onDeletePost={async (id) => { await supabase.from('posts').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
             ideas={ideas}
             onUpdateIdeaStatus={async (id, s) => { await supabase.from('ideas').update({ status: s }).eq('id', id); addToast("Statut mis à jour."); void fetchViewData(currentViewRef.current, true); }}
-            moods={moods}
             wellnessContents={wellnessContents}
             onAddWellnessContent={async (c) => { await supabase.from('wellness_contents').insert({ type: c.type, title: c.title, summary: c.summary, content: c.content, category: c.category, author: c.author, duration: c.duration, media_url: c.mediaUrl }); addToast("Contenu publié."); void fetchViewData(currentViewRef.current, true); }}
             onDeleteWellnessContent={async (id) => { await supabase.from('wellness_contents').delete().eq('id', id); void fetchViewData(currentViewRef.current, true); }}
@@ -3441,14 +3415,7 @@ const App: React.FC = () => {
           </div>
         );
 
-      case 'humeur':
-        return (
-          <MoodView
-            currentUser={currentUser}
-            moods={moods}
-            onAddMood={async (v, c) => { if (supabase) { await supabase.from('moods').insert({ user_id: currentUser.id, value: v, comment: c, department: currentUser.department }); void fetchViewData(currentViewRef.current, true); } }}
-          />
-        );
+      case 'humeur': return <MoodView key={currentUser.id} />;
 
       case 'bienetre': return <BienEtreView contents={wellnessContents} challenges={wellnessChallenges} />;
 

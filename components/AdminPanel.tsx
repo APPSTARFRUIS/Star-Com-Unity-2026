@@ -1,6 +1,7 @@
+import { PulseStats } from './MoodView';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { User, UserRole, Newsletter, Post, Idea, MoodEntry, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation, OrgEntity, OrgService, OrgContact } from '../types';
+import { User, UserRole, Newsletter, Post, Idea, IdeaStatus, AppConfig, WellnessContent, WellnessCategory, WellnessChallenge, CompanyGame, GameType, GameCategory, Reward, GamePrediction, QuizQuestion, QuizType, TimelineItem, HiddenObject, NewsletterBlock, NewsletterArticle, NewsletterBlockType, PointsTransaction, SportFixture, EngagementAnimation, OrgEntity, OrgService, OrgContact } from '../types';
 import { DEPARTMENTS } from '../constants';
 import OrganizationAdmin from './OrganizationAdmin';
 import { uploadMediaToStorage } from '../storageUtils';
@@ -25,7 +26,6 @@ interface AdminPanelProps {
   onDeletePost: (id: string) => void;
   ideas: Idea[];
   onUpdateIdeaStatus: (id: string, status: IdeaStatus) => void;
-  moods: MoodEntry[];
   newsletters: Newsletter[];
   onCreateNewsletter: (n: Omit<Newsletter, 'id' | 'readCount' | 'publishedAt'>) => void;
   onDeleteNewsletter: (id: string) => void;
@@ -102,7 +102,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   users, onUpdateRole, onDeleteUser, onUpdateUser, onAdjustPoints, onToggleOrderStatus, onDeleteOrder, onAddUser,
   posts, onDeletePost,
   ideas, onUpdateIdeaStatus,
-  moods,
   newsletters, onCreateNewsletter, onDeleteNewsletter,
   wellnessContents, onAddWellnessContent, onDeleteWellnessContent,
   wellnessChallenges, onAddWellnessChallenge, onDeleteWellnessChallenge, onToggleWellnessChallenge,
@@ -740,7 +739,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </div>
 
       {activeTab === 'stats' && (
-        <AdminStatsDashboard users={users} posts={posts} ideas={ideas} newsletters={newsletters} games={games} predictions={predictions} />
+        <><PulseStats /><AdminStatsDashboard users={users} posts={posts} ideas={ideas} newsletters={newsletters} games={games} predictions={predictions} /></>
       )}
 
       {/* --- UTILISATEURS --- */}

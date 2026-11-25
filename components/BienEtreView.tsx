@@ -26,6 +26,9 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
     }, 250);
     return () => window.clearInterval(timer);
   }, [isBreathing, duration]);
+  useEffect(() => {
+    if (isBreathing) document.getElementById('wellness-breathing-session')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [isBreathing]);
   const [breathPhase, setBreathPhase] = useState<'Inhale' | 'Exhale' | 'Hold'>('Inhale');
   const [acceptedChallengeId, setAcceptedChallengeId] = useState<string | null>(null);
 
@@ -72,25 +75,11 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
           <p className="text-slate-500 font-medium mt-1">Prenez soin de vous au quotidien.</p>
         </div>
         
-        {/* Breathing Quick Tool */}
-        <div className="bg-white rounded-3xl border border-slate-100 p-4 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 shrink-0">
-             <svg className={`w-6 h-6 ${isBreathing ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-          </div>
-          <div>
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">Micro-pause</p>
-            <button 
-              onClick={() => isBreathing ? setIsBreathing(false) : startBreathing(60)}
-              className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              {isBreathing ? 'Arrêter la séance' : 'Démarrer 1 min de respiration'}
-            </button>
-          </div>
-        </div>
+
       </div>
 
       {isBreathing && (
-        <div className="bg-blue-600 rounded-[40px] p-12 flex flex-col items-center justify-center text-center text-white space-y-8 animate-in zoom-in duration-500 relative overflow-hidden shadow-2xl">
+        <div id="wellness-breathing-session" className="bg-blue-600 rounded-[40px] p-12 flex flex-col items-center justify-center text-center text-white space-y-8 animate-in zoom-in duration-500 relative overflow-hidden shadow-2xl">
           <div className="absolute inset-0 opacity-10 pointer-events-none">
              <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent animate-pulse" />
           </div>
@@ -124,7 +113,21 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
             ))}
           </div>
 
-          {(activeTab === 'Mental' || activeTab === 'Tous') && <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6"><h2 className="text-xl font-black text-slate-800">Respirer 5 minutes</h2><p className="text-sm text-slate-600 mt-2">Une pause guidée pour ralentir et retrouver votre calme. Respirez sans forcer.</p><button disabled={isBreathing} onClick={() => { startBreathing(300); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="mt-4 rounded-xl bg-blue-700 text-white px-5 py-3 font-bold disabled:opacity-50">{isBreathing ? 'Séance en cours' : 'Commencer →'}</button></div>}
+          {(activeTab === 'Mental' || activeTab === 'Tous') && (
+            <section className="bg-blue-50 border border-blue-100 rounded-3xl p-6 space-y-4">
+              <h2 className="text-xl font-black text-slate-800">Prenez le temps de respirer</h2>
+              <p className="text-sm text-slate-600">Une pause guidée pour ralentir, relâcher les tensions et retrouver votre calme. Respirez sans forcer.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[{ seconds: 60, title: '1 minute', subtitle: 'Micro-pause' }, { seconds: 300, title: '5 minutes', subtitle: 'Pause détente' }].map(option => (
+                  <div key={option.seconds} className="bg-white rounded-2xl p-4 text-center flex flex-col gap-2">
+                    <h3 className="text-lg font-black text-slate-800">{option.title}</h3>
+                    <p className="text-sm text-slate-600">{option.subtitle}</p>
+                    <button type="button" disabled={isBreathing} onClick={() => startBreathing(option.seconds)} className="mt-2 rounded-xl bg-blue-700 text-white px-4 py-3 font-bold disabled:opacity-50">{isBreathing && duration === option.seconds ? 'Séance en cours' : 'Commencer'}</button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {filteredContents.map(content => (
               <div 
