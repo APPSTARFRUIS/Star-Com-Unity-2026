@@ -1,3 +1,4 @@
+import { canViewAudience } from './audience';
 import { MESSAGES_VISIBLE } from './featureFlags';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -749,7 +750,7 @@ const App: React.FC = () => {
     // Les profils ne bloquent plus l'accueil : mise à jour en arrière-plan.
     void fetchProfilesWithRetry(2);
 
-    const [configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult, notificationsResult] =
+    const [configResult, postsResult, commentsResult, eventsResult, celebrationsResult, engagementResult, notificationsResult, homePollsResult] =
       await Promise.all([
         supabase.from('app_config').select('*').maybeSingle(),
         supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(12),
@@ -757,7 +758,8 @@ const App: React.FC = () => {
         supabase.from('events').select('*').order('date', { ascending: true }).limit(30),
         supabase.from('celebrations').select('*').order('date', { ascending: false }).limit(60),
         supabase.from('engagement_animations').select('*').order('created_at', { ascending: false }).limit(30),
-        supabase.from('notifications').select('*').eq('user_id', currentUserRef.current!.id).order('created_at', { ascending: false }).limit(100)
+        supabase.from('notifications').select('*').eq('user_id', currentUserRef.current!.id).order('created_at', { ascending: false }).limit(100),
+        supabase.from('polls').select('*').gt('end_date', new Date().toISOString()).order('end_date').limit(100)
       ]);
 
     if (configResult.data) {
@@ -785,6 +787,7 @@ const App: React.FC = () => {
       setNotifications(currentUserRef.current?.notification_settings?.inApp === false ? [] : mapNotifications(notificationsResult.data));
     }
 
+    if (homePollsResult.data) setPolls(homePollsResult.data.map((p: any) => ({ ...p, endDate: p.end_date, createdBy: p.created_by, createdByName: p.created_by_name, createdAt: p.created_at, targetDepartments: p.target_departments, audienceCompanies: p.audience_companies || ['Star Fruits'] })));
     loadedViewsRef.current.add('accueil');
     lastFullFetchAtRef.current = Date.now();
   }, [session, purgeExpiredReadNotifications]);
@@ -1763,7 +1766,7 @@ const App: React.FC = () => {
     engagement_animations: ['accueil', 'tempsforts', 'admin'],
     advent_openings: ['tempsforts'],
     newsletters: ['newsletter', 'admin'],
-    polls: ['sondages', 'engagement', 'admin'],
+    polls: ['accueil', 'sondages', 'engagement', 'admin'],
     celebrations: ['accueil', 'celebrations', 'admin']
   };
 
@@ -2534,7 +2537,8 @@ const App: React.FC = () => {
     const today = new Date();
     const monthlyBirthdays = users.filter(u => { if (!u.birthday) return false; const parts=u.birthday.split('-'); const month=parts.length===3?parts[1]:parts[0]; return month === (today.getMonth()+1).toString().padStart(2,'0'); });
     const welcomeTitle = (appConfig.welcomeTitle || INITIAL_CONFIG.welcomeTitle).replace('{name}', currentUser?.name ? currentUser.name.split(' ')[0] : '');
-    const upcomingEvents = events.filter(e => new Date(e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 2);
+    const upcomingEvents = events.filter(e => currentUser && canViewAudience(currentUser, e.audienceCompanies) && new Date(e.endDate || e.date) >= new Date(new Date().setHours(0, 0, 0, 0))).sort((a,b) => a.date.localeCompare(b.date)).slice(0, 2);
+    const pendingPolls = polls.filter(p => currentUser && canViewAudience(currentUser, p.audienceCompanies) && Date.parse(p.endDate) > Date.now() && !(p.responses || []).some(r => r.userId === currentUser.id));
     const recentUpdates = notifications.filter(n => n.userId === currentUser?.id && (MESSAGES_VISIBLE || n.linkView !== 'messages') && (!n.isRead || (previousVisit !== null && Date.parse(n.createdAt) > Date.parse(previousVisit)))).sort((a,b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     const now = Date.now();
     const publishedHighlights = engagementAnimations.filter(animation => {
@@ -2598,6 +2602,15 @@ const App: React.FC = () => {
                 </button>
               ))}
               {recentUpdates.length > 5 && <button className="text-sm font-bold text-green-700 mt-3" onClick={() => setView('notifications')}>Voir les {recentUpdates.length} nouveautés</button>}
+            </section>
+            <section className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-sm">
+              <h2 className="text-xl font-black text-slate-800 mb-3">À faire & à découvrir</h2>
+              {pendingPolls.slice(0, 3).map(p => <button key={p.id} onClick={() => setView('sondages')} className="block w-full text-left p-3 border-b border-slate-100 hover:bg-slate-50"><span className="text-xs font-bold text-green-700">Sondage en attente</span><span className="block font-bold text-slate-800">{p.title}</span></button>)}
+              {pendingPolls.length > 3 && <button onClick={() => setView('sondages')} className="text-sm text-green-700 font-bold py-2">Voir les {pendingPolls.length} sondages</button>}
+              <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                <button onClick={() => setView('ressources')} className="text-left rounded-xl bg-green-50 p-4"><strong className="block text-green-900">Ressources</strong><span className="text-sm text-slate-600">Explorer les contenus pédagogiques</span></button>
+                <button onClick={() => setView('elearning-jeux')} className="text-left rounded-xl bg-slate-50 p-4"><strong className="block text-slate-800">Quiz & parcours</strong><span className="text-sm text-slate-600">Continuer à apprendre</span></button>
+              </div>
             </section>
             <section>
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-1">Actions rapides</h2>

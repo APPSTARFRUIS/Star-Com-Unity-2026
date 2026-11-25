@@ -36,11 +36,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   }> = [
     { id: 'accueil', label: 'Accueil', icon: <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /> },
     { id: 'mon-espace', label: 'Mon espace', icon: <path d="M5.121 17.804A9 9 0 1118.88 17.8M15 11a3 3 0 11-6 0 3 3 0 016 0zm-8.5 7.5a7.5 7.5 0 0111 0" /> },
-    { id: 'evenements', label: 'Événements', icon: <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-    { id: 'equipe', label: 'Équipe', icon: <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
+    { id: 'evenements', label: 'Événements & Temps forts', icon: <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+    { id: 'equipe', label: 'Entreprises, équipes & métiers', icon: <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
     { id: 'messages', label: 'Messages', icon: <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2-0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /> },
     { id: 'idees', label: 'Boîte à idées', icon: <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /> },
-    { id: 'documents', label: 'Documents', icon: <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> },
+    { id: 'documents', label: 'Documents utiles', icon: <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /> },
     { id: 'outils', label: 'Mes outils', icon: <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-6-4L20 4m0 0h-6m6 0v6" /> },
     {
       id: 'sondages',
@@ -58,9 +58,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     { id: 'social', label: 'Social', icon: <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /> },
     { id: 'newsletter', label: 'Newsletter', icon: <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
     { id: 'notifications', label: 'Notifications', icon: <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /> },
-    { id: 'ressources', label: 'E-learning', icon: <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v15H6.5A2.5 2.5 0 004 19.5v-15z" /> },
+    { id: 'ressources', label: 'Ressources', icon: <path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 4.5A2.5 2.5 0 016.5 2H20v15H6.5A2.5 2.5 0 004 19.5v-15z" /> },
     { id: 'engagement', label: 'Classements', icon: <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zm0 2H4a2 2 0 002 4h1m10-4h3a2 2 0 01-2 4h-1" /> },
-    { id: 'jeux', label: 'Jeux', icon: <path d="M12 2l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 7.8h6.1L12 2z" /> },
+    { id: 'jeux', label: 'Jeux & pronostics', icon: <path d="M12 2l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 7.8h6.1L12 2z" /> },
     { id: 'boutique', label: 'Boutique', icon: <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /> },
     {
       id: 'parametres',
@@ -73,6 +73,28 @@ const Sidebar: React.FC<SidebarProps> = ({
       )
     }
   ];
+
+  const groups: { label: string; ids: ViewType[] }[] = [
+    { label: 'Le Groupe', ids: ['equipe', 'documents'] },
+    { label: 'La vie du Groupe', ids: ['social', 'evenements', 'celebrations', 'newsletter'] },
+    { label: 'Apprendre & découvrir', ids: ['ressources', 'elearning-jeux'] },
+    { label: 'Participer', ids: ['sondages', 'idees', 'jeux', 'bienetre', 'humeur'] },
+    { label: 'Mon espace', ids: ['mon-espace', 'engagement', 'boutique', 'parametres'] },
+  ];
+  const [expanded, setExpanded] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    const group = groups.find(g => g.ids.includes(currentView) || (currentView === 'tempsforts' && g.ids.includes('evenements')));
+    if (group) setExpanded(old => old.includes(group.label) ? old : [...old, group.label]);
+  }, [currentView]);
+  const renderItem = (id: ViewType) => {
+    const item = menuItems.find(x => x.id === id) || (id === 'elearning-jeux' ? { id, label: 'Quiz & parcours', icon: <path d="M5 4h14v16H5zM8 9h8M8 13h8" /> } : undefined);
+    if (!item || (!MESSAGES_VISIBLE && id === 'messages')) return null;
+    const active = currentView === id || (id === 'evenements' && currentView === 'tempsforts');
+    return <button key={id} aria-current={active ? 'page' : undefined} onClick={() => { setView(id); onClose?.(); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${active ? 'bg-[#14532d] text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
+      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">{item.icon}</svg><span className="flex-1 text-left">{id === 'mon-espace' ? 'Ma Poire & profil' : item.label}</span>
+      {id === 'notifications' && unreadNotifications > 0 && <span className="rounded-full bg-red-500 text-white px-2 text-xs">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}
+    </button>;
+  };
 
   return (
     <>
@@ -97,37 +119,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto scrollbar-hide text-left">
-          {menuItems.filter(item => MESSAGES_VISIBLE || item.id !== 'messages').map(item => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setView(item.id);
-                if (onClose) onClose();
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium ${
-                (currentView === item.id || (item.id === 'ressources' && currentView === 'elearning-jeux')) 
-                  ? 'bg-[#14532d] text-white' 
-                  : 'text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <svg 
-                className={`w-5 h-5 ${(currentView === item.id || (item.id === 'ressources' && currentView === 'elearning-jeux')) ? 'text-green-400' : 'text-slate-400'}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                {item.icon}
-              </svg>
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.id === 'notifications' && unreadNotifications > 0 && (
-                <span className={`min-w-5 h-5 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${
-                  currentView === item.id ? 'bg-white text-green-800' : 'bg-red-500 text-white'
-                }`}>
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
-          ))}
+          {renderItem('accueil')}
+          {groups.map(group => {
+            const open = expanded.includes(group.label);
+            return <div key={group.label} className="border-t border-slate-100 pt-1">
+              <button type="button" aria-expanded={open} onClick={() => setExpanded(old => open ? old.filter(x => x !== group.label) : [...old, group.label])} className="w-full flex items-center justify-between px-3 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 rounded-lg">
+                {group.label}<svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              {open && <div className="pl-2 pb-2">{group.ids.map(renderItem)}</div>}
+            </div>;
+          })}
+          {renderItem('outils')}
+          {renderItem('notifications')}
+          {renderItem('messages')}
 
           {(userRole === UserRole.ADMIN || userRole === UserRole.MODERATOR) && (
             <div className="pt-4 mt-4 border-t border-slate-100">
