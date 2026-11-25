@@ -80,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     { label: 'La vie du Groupe', ids: ['social', 'evenements', 'celebrations', 'newsletter'] },
     { label: 'Apprendre & découvrir', ids: ['apprendre', 'ressources', 'elearning-jeux'] },
     { label: 'Participer', ids: ['sondages', 'idees', 'jeux', 'bienetre', 'humeur'] },
-    { label: 'Mon espace', ids: ['mon-espace', 'engagement', 'boutique', 'parametres'] },
+    { label: 'Mon espace', ids: ['mon-espace', 'boutique', 'parametres'] },
   ];
   const [expanded, setExpanded] = React.useState<string[]>([]);
   React.useEffect(() => {
@@ -92,7 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (!item || (!MESSAGES_VISIBLE && id === 'messages')) return null;
     const active = currentView === id || (id === 'evenements' && currentView === 'tempsforts');
     return <button key={id} aria-current={active ? 'page' : undefined} onClick={() => { setView(id); onClose?.(); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${active ? 'bg-[#14532d] text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
-      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">{item.icon}</svg><span className="flex-1 text-left">{id === 'mon-espace' ? 'Ma Poire & profil' : item.label}</span>
+      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">{item.icon}</svg><span className="flex-1 text-left">{id === 'mon-espace' ? 'Ma Poire & progression' : item.label}</span>
       {id === 'notifications' && unreadNotifications > 0 && <span className="rounded-full bg-red-500 text-white px-2 text-xs">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}
     </button>;
   };

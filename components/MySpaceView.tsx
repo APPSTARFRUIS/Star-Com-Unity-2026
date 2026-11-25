@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { User } from '../types';
 import { ViewType } from './Sidebar';
 import MascotCard from './MascotCard';
+import CollectiveChallenges from './CollectiveChallenges';
 
 interface Props {
   onPointsChange?: (remainingPoints: number) => void;
@@ -57,7 +58,9 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
   }, [currentUser.id]);
 
   const stats = useMemo(() => {
-    const learningGames = games.filter(g => !!g.learning_path);
+    const learningGames = games.filter(g => !!g.learning_path?.trim() && g.type !== 'Pari');
+    const paths = new Map<string, GameRow[]>();
+    learningGames.forEach(g => { const key = g.learning_path!.trim().toLowerCase(); paths.set(key, [...(paths.get(key) || []), g]); });
     const passedIds = new Set(completions.filter(c => c.passed).map(c => c.game_id));
     const learningPassed = learningGames.filter(g => passedIds.has(g.id)).length;
     const learningProgress = learningGames.length ? Math.round((learningPassed / learningGames.length) * 100) : 0;
@@ -81,7 +84,8 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
       });
     });
     const learningRemaining = learningGames.filter(g => g.status === 'Actif' && !passedIds.has(g.id)).length;
-    return { learningGames: learningGames.length, learningPassed, learningProgress, learningSuccessRate, earned, spent, exacts, predictionPoints, openPredictions, learningRemaining };
+    const finishedPaths = [...paths.values()].filter(gs => gs.every(g => passedIds.has(g.id))).length;
+    return { finishedPaths, totalPaths: paths.size, learningGames: learningGames.length, learningPassed, learningProgress, learningSuccessRate, earned, spent, exacts, predictionPoints, openPredictions, learningRemaining };
   }, [games, completions, predictions, transactions]);
 
   const mascotReminder = useMemo(() => {
@@ -161,7 +165,8 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
 
         <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
           <p className="text-xs font-black uppercase tracking-widest text-purple-700">Progression</p>
-          <h2 className="text-xl font-black text-slate-900 mt-1">Mon parcours</h2>
+          <h2 className="text-xl font-black text-slate-900 mt-1">Ma progression</h2>
+          <p className="mt-2 text-sm text-slate-600">{stats.finishedPaths}/{stats.totalPaths} parcours terminés</p>
           <div className="mt-5">
             <div className="flex justify-between text-sm font-bold"><span>E-learning</span><span>{stats.learningProgress} %</span></div>
             <div className="h-3 bg-slate-100 rounded-full mt-2 overflow-hidden"><div className="h-full bg-green-600 rounded-full transition-all" style={{ width: `${stats.learningProgress}%` }} /></div>
@@ -169,10 +174,12 @@ const MySpaceView: React.FC<Props> = ({ currentUser, unreadNotifications, onNavi
           <div className="grid grid-cols-2 gap-3 mt-6">
             {badges.map(badge => <div key={badge.label} className={`rounded-2xl border p-3 ${badge.unlocked ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100 opacity-50'}`}><p className="text-xs font-black text-slate-800">{badge.unlocked ? '★ ' : '☆ '}{badge.label}</p></div>)}
           </div>
-          <button onClick={() => onNavigate('boutique')} className="mt-5 text-sm font-black text-green-700 hover:underline">Voir ma progression et la boutique →</button>
+          <button onClick={() => onNavigate('boutique')} className="mt-5 text-sm font-black text-green-700 hover:underline">Accéder à la boutique →</button>
         </section>
       </div>
 
+      <CollectiveChallenges userId={currentUser.id} />
+      <details className="bg-white rounded-2xl border p-5"><summary className="cursor-pointer font-bold text-slate-600">Classements individuels (facultatif)</summary><button onClick={() => onNavigate('engagement')} className="mt-3 text-green-800 font-bold">Consulter les classements →</button></details>
       <section className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Mes pronostics</p><h2 className="text-xl font-black text-slate-900 mt-1">Mon suivi</h2></div>

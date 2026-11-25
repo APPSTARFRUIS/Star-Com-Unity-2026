@@ -1,0 +1,8 @@
+import React, {useEffect,useState} from 'react';
+import {supabase} from '../supabaseClient';
+type Challenge={path:string;percent:number;target:number};
+export default function CollectiveChallenges({userId}:{userId:string}) {
+ const [rows,setRows]=useState<Challenge[]|null>(null); const [error,setError]=useState(false);
+ useEffect(()=>{let alive=true;setRows(null);setError(false);void (async()=>{try{const {data,error}=await supabase.rpc('collective_learning_challenges');if(error)throw error;if(alive)setRows(data||[]);}catch{if(alive)setError(true);}})();return()=>{alive=false;};},[userId]);
+ return <section className="bg-white rounded-3xl border border-slate-100 p-6 space-y-4"><h2 className="text-xl font-black text-slate-900">Défis collectifs — STAR GROUP</h2><p className="text-sm text-slate-500">Progressons ensemble dans les parcours pédagogiques.</p>{error?<p>Statistiques collectives indisponibles.</p>:rows===null?<p>Chargement…</p>:rows.length===0?<p>Aucun défi collectif disponible.</p>:rows.map(r=><article key={r.path} className="bg-green-50 rounded-2xl p-4"><h3 className="font-bold text-green-900">{r.path}</h3><p className="text-sm mt-2">{r.percent} % des collaborateurs ont terminé le parcours · Objectif : {r.target} %</p><div role="progressbar" aria-label={r.path} aria-valuenow={r.percent} aria-valuemin={0} aria-valuemax={100} className="h-3 mt-3 rounded-full bg-green-100 overflow-hidden"><div className="h-full bg-green-700" style={{width:`${r.percent}%`}}/></div>{r.percent>=r.target&&<p className="mt-2 font-bold text-green-800">Objectif atteint !</p>}</article>)}</section>;
+}
