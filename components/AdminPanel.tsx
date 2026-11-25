@@ -9,6 +9,7 @@ import EngagementAdmin from './EngagementAdmin';
 import ExternalToolsAdmin from './ExternalToolsAdmin';
 import ResourcesAdmin from './ResourcesAdmin';
 import AdminStatsDashboard from './AdminStatsDashboard';
+import {EditorialSelection} from "./EditorialSelection";
 import { supabase } from '../supabaseClient';
 import { registerPushSubscription } from '../notificationUtils';
 import MascotAdmin from './MascotAdmin';
@@ -1811,6 +1812,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               }} className="px-6 py-2.5 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 shadow-lg">Nouvelle édition</button>
            </div>
            <div className="space-y-4">
+              {currentUser.role===UserRole.ADMIN&&<EditorialSelection/>}
               {newsletters.map(n => (
                 <div key={n.id} className="bg-white p-6 rounded-3xl border border-slate-200 grid grid-cols-[1fr_auto] items-center justify-between group shadow-sm transition-all hover:shadow-md">
                    <div className="flex items-center gap-4 overflow-hidden">

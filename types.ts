@@ -324,6 +324,7 @@ export interface CompanyEvent {
   attendees: string[];
   audienceCompanies?: string[];
   showCountdown?: boolean;
+  participationMode?: "open" | "info";
 }
 
 export type MoodValue = 1 | 2 | 3 | 4 | 5;

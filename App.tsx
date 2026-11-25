@@ -778,7 +778,7 @@ const App: React.FC = () => {
     }
 
     if (postsResult.data) setPosts(mapPosts(postsResult.data, commentsResult.data));
-    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'], showCountdown: e.show_countdown ?? true })));
+    if (eventsResult.data) setEvents(eventsResult.data.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, audienceCompanies: e.audience_companies || ['Star Fruits'], participationMode: e.participation_mode || "open", showCountdown: e.show_countdown ?? true })));
     if (celebrationsResult.data) setCelebrations(mapCelebrations(celebrationsResult.data));
     if (engagementResult.data) setEngagementAnimations(mapEngagementAnimations(engagementResult.data));
     if (notificationsResult.data) {
@@ -993,7 +993,7 @@ const App: React.FC = () => {
               endTime: e.end_time,
               createdBy: e.created_by,
               audienceCompanies: e.audience_companies || ['Star Fruits'],
-              showCountdown: e.show_countdown ?? true
+              participationMode: e.participation_mode || "open", showCountdown: e.show_countdown ?? true
             }));
 
             setEvents(mappedEvents);
@@ -1530,7 +1530,7 @@ const App: React.FC = () => {
       } else {
         console.error('Impossible de rafraîchir les profils après plusieurs tentatives : conservation de la liste déjà affichée.');
       }
-      if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, showCountdown: e.show_countdown ?? true })));
+      if (eventsData) setEvents(eventsData.map((e: any) => ({ ...e, endDate: e.end_date || e.date, startTime: e.start_time, endTime: e.end_time, createdBy: e.created_by, participationMode: e.participation_mode || "open", showCountdown: e.show_countdown ?? true })));
       if (ideasData) setIdeas(ideasData.map((i: any) => ({
         ...i,
         userId: i.user_id,
@@ -3204,7 +3204,7 @@ const App: React.FC = () => {
               events={events}
               onToggleParticipation={async (id) => {
                 const ev = events.find(e => e.id === id);
-                if (!ev || !supabase) return;
+                if (!ev || !supabase || ev.participationMode === "info") return;
                 const next = ev.attendees.includes(currentUser.id) ? ev.attendees.filter(a => a !== currentUser.id) : [...ev.attendees, currentUser.id];
                 await supabase.from('events').update({ attendees: next }).eq('id', id);
                 void fetchViewData(currentViewRef.current, true);
@@ -3957,7 +3957,8 @@ const App: React.FC = () => {
                     end_time: e.endTime,
                     participants: e.participants,
                     created_by: currentUser.id,
-                    attendees: [currentUser.id],
+                    attendees: e.participationMode === "info" ? [] : [currentUser.id],
+                    participation_mode: e.participationMode || "open",
                     audience_companies: e.audienceCompanies || ['ALL'],
                     show_countdown: e.showCountdown ?? false
                   });

@@ -106,7 +106,7 @@ const EventsView: React.FC<EventsViewProps> = ({
                           </svg>
                         </div>
                         <div className="space-y-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{event.type}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{event.type} · {event.participationMode === "info" ? "Information Groupe" : "Ouvert à tous"}</span>
                           <h3 className="text-xl font-bold text-slate-800">{event.title}</h3>
                           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
                             <span className="flex items-center gap-1.5">
@@ -128,7 +128,7 @@ const EventsView: React.FC<EventsViewProps> = ({
                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" /></svg>
                            </button>
                          )}
-                         <button 
+                         {event.participationMode !== "info" && <><button 
                            onClick={() => onToggleParticipation(event.id)}
                            className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
                              event.attendees.includes(currentUser.id)
@@ -138,7 +138,7 @@ const EventsView: React.FC<EventsViewProps> = ({
                          >
                            {event.attendees.includes(currentUser.id) ? 'Je participe' : 'Participer'}
                          </button>
-                         <span className="text-[10px] font-bold text-slate-400 uppercase">{event.attendees.length} participants</span>
+                         <span className="text-[10px] font-bold text-slate-400 uppercase">{event.attendees.length} participants</span></>}
                       </div>
                     </div>
                   </div>
@@ -176,7 +176,7 @@ const EventsView: React.FC<EventsViewProps> = ({
                            </td>
                            <td className="px-6 py-4">
                               <p className="text-sm font-bold text-slate-900">{event.title}</p>
-                              <p className="text-[10px] text-slate-400 uppercase">{event.type}</p>
+                              <p className="text-[10px] text-slate-400 uppercase">{event.type} · {event.participationMode === "info" ? "Information Groupe" : "Ouvert à tous"}</p>
                            </td>
                            <td className="px-6 py-4 text-sm text-slate-500">
                               {event.location}
@@ -205,7 +205,7 @@ const EventsView: React.FC<EventsViewProps> = ({
 
       {highlightEvents.length > 0 && <section className="border-t border-slate-200 pt-10">
         <div className="mb-6"><p className="text-xs font-black uppercase tracking-[.25em] text-green-700">Temps forts</p><h2 className="text-3xl font-black text-slate-900 mt-1">À ne pas manquer</h2></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{highlightEvents.map(event => <article key={`highlight-${event.id}`} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm"><div className="flex justify-between gap-3"><span className="text-2xl">⏳</span><span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-black">Temps fort</span></div><h3 className="text-xl font-black text-slate-900 mt-3">{event.title}</h3><p className="text-slate-500 mt-2">{event.description}</p>{event.showCountdown !== false && <div className="mt-5 text-4xl font-black text-[#14532d]">{countdown(event)}</div>}<p className="text-xs text-slate-400 mt-2">{new Date(event.date).toLocaleDateString('fr-FR')} · {event.startTime}{event.location ? ` · ${event.location}` : ''}</p></article>)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{highlightEvents.map(event => <article key={`highlight-${event.id}`} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm"><div className="flex justify-between gap-3"><span className="text-2xl">⏳</span><span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-black">Temps fort · {event.participationMode === "info" ? "Information Groupe" : "Ouvert à tous"}</span></div><h3 className="text-xl font-black text-slate-900 mt-3">{event.title}</h3><p className="text-slate-500 mt-2">{event.description}</p>{event.showCountdown !== false && <div className="mt-5 text-4xl font-black text-[#14532d]">{countdown(event)}</div>}<p className="text-xs text-slate-400 mt-2">{new Date(event.date).toLocaleDateString('fr-FR')} · {event.startTime}{event.location ? ` · ${event.location}` : ''}</p></article>)}</div>
       </section>}
     </div>
   );

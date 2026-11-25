@@ -24,6 +24,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
   const [endTime, setEndTime] = useState('10:00');
   const [participants, setParticipants] = useState<string[]>(['Toute l\'équipe']);
   const [audienceCompany, setAudienceCompany] = useState('ALL');
+  const [participationMode,setParticipationMode]=useState<"open"|"info">("open");
   const [showCountdown, setShowCountdown] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,6 +45,7 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
       endTime,
       participants,
       audienceCompanies: [audienceCompany],
+      participationMode,
       showCountdown: type === 'Temps fort' ? showCountdown : false
     });
   };
@@ -119,7 +121,8 @@ const EventCreatorModal: React.FC<EventCreatorModalProps> = ({ onClose, onSave, 
             </div>
           </div>
 
-          {type === 'Temps fort' && (
+          <label className="block text-sm font-bold">Nature de l’événement<select className="block w-full border rounded-xl p-3 mt-1" value={participationMode} onChange={e=>setParticipationMode(e.target.value as "open"|"info")}><option value="open">Ouvert à tous (dans l’audience sélectionnée)</option><option value="info">Information Groupe — sans inscription</option></select></label>
+          {type === 'Temps fort'  && (
             <label className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-green-100 bg-green-50/60 cursor-pointer">
               <div>
                 <p className="font-bold text-slate-800">Afficher un compte à rebours</p>

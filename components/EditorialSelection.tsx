@@ -1,0 +1,13 @@
+import React,{useEffect,useState} from 'react';
+import {supabase} from '../supabaseClient';
+import {Post} from '../types';
+export function EditorialAdd({post}:{post:Post}) {
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ return <div className="px-5 pb-3"><button disabled={busy} className="text-sm font-semibold text-green-700" onClick={async()=>{if(!supabase)return;setBusy(true);try{const {error}=await supabase.from('newsletter_post_selection').upsert({post_id:post.id},{onConflict:'post_id',ignoreDuplicates:true});setMessage(error?error.message:'Publication sélectionnée pour la prochaine Newsletter.');}catch{setMessage('Sélection indisponible.');}finally{setBusy(false)}}}>Ajouter cette publication à la prochaine Newsletter</button>{message&&<p role="status" className="text-xs mt-1">{message}</p>}</div>;
+}
+export function EditorialSelection(){
+ const [rows,setRows]=useState<any[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState('');
+ const load=async()=>{if(!supabase)return;setLoading(true);const r=await supabase.from('newsletter_post_selection').select('post_id,posts(id,title,content,user_name,audience_companies)').order('created_at',{ascending:false});setError(r.error?.message||'');if(!r.error)setRows(r.data||[]);setLoading(false)};
+ useEffect(()=>{void load()},[]);
+ return <section className="bg-white border rounded-3xl p-5 space-y-3"><h3 className="font-bold text-lg">Publications sélectionnées pour la prochaine édition ({rows.length})</h3><p className="text-sm text-slate-500">Sélection éditoriale uniquement : vérifiez l’audience avant de reprendre un contenu dans la Newsletter. Rien n’est publié automatiquement.</p><button onClick={()=>void load()} className="text-green-700 text-sm">Actualiser</button>{error&&<p role="alert" className="text-red-600">{error}</p>}{loading?<p>Chargement…</p>:!rows.length&&!error?<p>Aucune publication sélectionnée.</p>:rows.map(r=><article key={r.post_id} className="border rounded-xl p-3"><h4 className="font-bold">{r.posts?.title||'Publication indisponible'}</h4><p className="text-xs text-slate-500">{r.posts?.user_name} · {r.posts?.audience_companies?.join(', ')}</p><p className="whitespace-pre-wrap text-sm mt-2">{r.posts?.content}</p><button disabled={busy===r.post_id} className="text-red-600 text-sm mt-2" onClick={async()=>{if(!supabase)return;setBusy(r.post_id);const {error}=await supabase.from('newsletter_post_selection').delete().eq('post_id',r.post_id);if(error)setError(error.message);else setRows(old=>old.filter(x=>x.post_id!==r.post_id));setBusy('')}}>Retirer de la sélection</button></article>)}</section>;
+}
