@@ -13,6 +13,19 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
   const [activeTab, setActiveTab] = useState<WellnessCategory | 'Tous'>('Tous');
   const [readingContent, setReadingContent] = useState<WellnessContent | null>(null);
   const [isBreathing, setIsBreathing] = useState(false);
+  const [duration, setDuration] = useState(60);
+  const [remaining, setRemaining] = useState(60);
+  const startBreathing = (seconds: number) => { setDuration(seconds); setRemaining(seconds); setBreathPhase('Inhale'); setIsBreathing(true); };
+  useEffect(() => {
+    if (!isBreathing) return;
+    const end = Date.now() + duration * 1000;
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      setRemaining(left);
+      if (!left) setIsBreathing(false);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [isBreathing, duration]);
   const [breathPhase, setBreathPhase] = useState<'Inhale' | 'Exhale' | 'Hold'>('Inhale');
   const [acceptedChallengeId, setAcceptedChallengeId] = useState<string | null>(null);
 
@@ -67,7 +80,7 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
           <div>
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">Micro-pause</p>
             <button 
-              onClick={() => setIsBreathing(!isBreathing)}
+              onClick={() => isBreathing ? setIsBreathing(false) : startBreathing(60)}
               className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
             >
               {isBreathing ? 'Arrêter la séance' : 'Démarrer 1 min de respiration'}
@@ -81,6 +94,7 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
           <div className="absolute inset-0 opacity-10 pointer-events-none">
              <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent animate-pulse" />
           </div>
+          <p className="font-bold tabular-nums">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</p>
           <h2 className="text-2xl font-black uppercase tracking-[0.2em]">{breathPhase === 'Inhale' ? 'Inspirez...' : breathPhase === 'Hold' ? 'Maintenez...' : 'Expirez...'}</h2>
           <div className={`w-48 h-48 rounded-full border-8 border-white/20 flex items-center justify-center transition-all duration-[4000ms] transform ${breathPhase === 'Inhale' ? 'scale-150 bg-white/10' : breathPhase === 'Hold' ? 'scale-150 bg-white/20' : 'scale-100 bg-transparent'}`}>
              <div className="w-4 h-4 bg-white rounded-full" />
@@ -110,6 +124,7 @@ const BienEtreView: React.FC<BienEtreViewProps> = ({ contents, challenges }) => 
             ))}
           </div>
 
+          {(activeTab === 'Mental' || activeTab === 'Tous') && <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6"><h2 className="text-xl font-black text-slate-800">Respirer 5 minutes</h2><p className="text-sm text-slate-600 mt-2">Une pause guidée pour ralentir et retrouver votre calme. Respirez sans forcer.</p><button disabled={isBreathing} onClick={() => { startBreathing(300); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="mt-4 rounded-xl bg-blue-700 text-white px-5 py-3 font-bold disabled:opacity-50">{isBreathing ? 'Séance en cours' : 'Commencer →'}</button></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {filteredContents.map(content => (
               <div 

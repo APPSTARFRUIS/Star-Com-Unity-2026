@@ -679,6 +679,7 @@ const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-6 overflow-x-hidden">
+      <header className="bg-white border border-slate-200 rounded-2xl p-5"><h1 className="text-3xl font-black text-slate-800">Documents utiles</h1><p className="text-slate-600 mt-2">Retrouvez les documents de référence utiles à votre quotidien : RH, chartes, procédures et informations institutionnelles.</p><p className="text-sm text-slate-500 mt-2">Pour apprendre et découvrir les métiers du Groupe, rendez-vous dans Apprendre & découvrir → Ressources. Les documents de travail collaboratif restent dans SharePoint.</p></header>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-64 space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">

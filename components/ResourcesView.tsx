@@ -5,9 +5,9 @@ import { supabase } from '../supabaseClient';
 import { canViewAudience } from '../audience';
 import PdfJsViewer from './PdfJsViewer';
 
-interface Props { currentUser: User; onOpenGames: () => void; }
+interface Props { currentUser: User; onOpenGames: () => void; onOpenOverview?: () => void; }
 
-const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
+const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames, onOpenOverview }) => {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('Toutes');
@@ -96,8 +96,9 @@ const ResourcesView: React.FC<Props> = ({ currentUser, onOpenGames }) => {
   }, [documentPreview?.url]);
 
   return <div className="max-w-6xl mx-auto p-4 md:p-8 text-left space-y-7">
+    {onOpenOverview && <button onClick={onOpenOverview} className="text-sm font-bold text-green-800">← Apprendre & découvrir</button>}
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div><p className="text-xs font-black uppercase tracking-[.25em] text-green-700">E-learning</p><h1 className="text-3xl md:text-4xl font-black text-slate-900 mt-1">Ressources</h1><p className="text-slate-500 mt-2">Retrouvez les contenus utiles pour apprendre, comprendre et préparer les quiz.</p></div>
+      <div><p className="text-xs font-black uppercase tracking-[.25em] text-green-700">E-learning</p><h1 className="text-3xl md:text-4xl font-black text-slate-900 mt-1">Ressources</h1><p className="text-slate-500 mt-2">Découvrez les métiers, les expertises et la culture du Groupe. Explorez les vidéos et contenus pédagogiques pour préparer vos quiz.</p></div>
       <div className="flex rounded-2xl bg-slate-100 p-1 w-fit"><button className="px-5 py-2.5 rounded-xl bg-white shadow-sm font-black text-green-800">Ressources</button><button onClick={onOpenGames} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 hover:text-green-800">Quiz & parcours</button></div>
     </div>
     <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm flex flex-col md:flex-row gap-3">

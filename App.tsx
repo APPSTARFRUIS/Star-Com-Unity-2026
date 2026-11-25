@@ -1,3 +1,4 @@
+import LearningHome from './components/LearningHome';
 import { canViewAudience } from './audience';
 import { MESSAGES_VISIBLE } from './featureFlags';
 
@@ -1319,7 +1320,8 @@ const App: React.FC = () => {
                 .limit(300)
             ]);
 
-            if (!gamesResult.error && gamesResult.data) setGames(mapGames(gamesResult.data));
+            if (gamesResult.error || completionsResult.error) throw gamesResult.error || completionsResult.error;
+            if (gamesResult.data) setGames(mapGames(gamesResult.data));
             if (!completionsResult.error && completionsResult.data) {
               setGameCompletions(mapGameCompletions(completionsResult.data));
             }
@@ -3450,8 +3452,10 @@ const App: React.FC = () => {
 
       case 'bienetre': return <BienEtreView contents={wellnessContents} challenges={wellnessChallenges} />;
 
+      case 'apprendre':
+        return <LearningHome key={currentUser.id} userId={currentUser.id} onResources={() => setView('ressources')} onGames={() => setView('elearning-jeux')} />;
       case 'ressources':
-        return <ResourcesView currentUser={currentUser} onOpenGames={() => setView('elearning-jeux')} />;
+        return <ResourcesView currentUser={currentUser} onOpenOverview={() => setView('apprendre')} onOpenGames={() => setView('elearning-jeux')} />;
 
       case 'elearning-jeux':
         return (
@@ -3462,6 +3466,7 @@ const App: React.FC = () => {
             predictions={predictions}
             completions={gameCompletions}
             categories={appConfig.gameCategories || INITIAL_CONFIG.gameCategories}
+            onOpenOverview={() => setView('apprendre')}
             onOpenResources={() => setView('ressources')}
             onAddPrediction={async (gameId, eventId, homeScore, awayScore, answer) => {
               const { error } = await supabase.rpc('submit_game_prediction_v2', { p_game_id: gameId, p_event_id: eventId, p_home_score: homeScore ?? null, p_away_score: awayScore ?? null, p_answer: answer ?? null });

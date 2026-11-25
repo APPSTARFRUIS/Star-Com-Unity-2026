@@ -13,6 +13,7 @@ interface JeuxViewProps {
   onEarnPoints: (userId: string, amount: number, reason: string, gameId: string, scorePercent?: number) => Promise<boolean> | void;
   mode?: 'games' | 'predictions';
   onOpenResources?: () => void;
+  onOpenOverview?: () => void;
 }
 
 interface MemoryCard {
@@ -31,7 +32,7 @@ const TRIVIAL_CATEGORIES = [
   { name: 'Divertissement', color: 'bg-red-600', hex: '#dc2626', icon: '🎬' }
 ];
 
-const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], categories = ['Produits', 'Histoire', 'Valeurs', 'Processus'], onAddPrediction, onEarnPoints, mode = 'games', onOpenResources }) => {
+const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predictions, completions = [], categories = ['Produits', 'Histoire', 'Valeurs', 'Processus'], onAddPrediction, onEarnPoints, mode = 'games', onOpenResources, onOpenOverview }) => {
   const [activeCategory, setActiveCategory] = useState<string | 'Tous'>('Tous');
   const [playingGame, setPlayingGame] = useState<CompanyGame | null>(null);
   const trivialCategories = useMemo(() => {
@@ -526,6 +527,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
 
   return (
     <div className={`max-w-7xl mx-auto animate-in fade-in duration-500 text-left ${mode === 'predictions' ? 'space-y-5 pb-4' : 'space-y-10 pb-20'}`}>
+      {mode === 'games' && onOpenOverview && <button onClick={onOpenOverview} className="text-sm font-bold text-green-800">← Apprendre & découvrir</button>}
       {mode === 'games' && onOpenResources && (
         <div className="flex justify-end pt-1">
           <div className="flex rounded-2xl bg-slate-100 p-1 w-fit">
@@ -570,7 +572,7 @@ const JeuxView: React.FC<JeuxViewProps> = ({ games, currentUser, users, predicti
                     <div className="min-w-0">
                       <p className="font-black text-slate-800 truncate">{path.name}</p>
                       <p className="text-xs text-slate-400 mt-1">
-                        {path.completed}/{path.total} jeux validés · niveau {path.unlockedLevel} accessible
+                        {path.completed}/{path.total} jeux validés · {path.completed === path.total ? "Parcours terminé" : `niveau ${path.unlockedLevel} accessible`}
                       </p>
                     </div>
                     <div className="w-12 h-12 shrink-0 rounded-2xl bg-green-50 text-green-700 flex items-center justify-center font-black">
